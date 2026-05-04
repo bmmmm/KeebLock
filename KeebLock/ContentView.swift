@@ -4,13 +4,14 @@ struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var controller: LockController
     @State private var showAccessibilityHint = false
+    @State private var showHeatmap = false
 
     var body: some View {
         TabView {
             launcherTab
                 .tabItem { Label("Launch", systemImage: "lock.fill") }
 
-            SettingsView(settings: settings)
+            SettingsView(settings: settings, controller: controller)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .padding(8)
@@ -24,6 +25,14 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("KeebLock needs Accessibility access to swallow keystrokes. Enable it in System Settings → Privacy & Security → Accessibility, then return here and click Start.")
+        }
+        .sheet(isPresented: $showHeatmap) {
+            HeatmapView(controller: controller)
+        }
+        .onChange(of: controller.isLocked) { _, isLocked in
+            if !isLocked && controller.keystrokeCount > 0 {
+                showHeatmap = true
+            }
         }
     }
 

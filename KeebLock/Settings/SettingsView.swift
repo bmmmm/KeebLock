@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var controller: LockController
     @State private var suggestions: [String] = Codewords.suggestions()
+    @State private var showResetConfirm = false
 
     var body: some View {
         Form {
@@ -48,6 +50,24 @@ struct SettingsView: View {
                 Toggle("Sound on keystroke", isOn: $settings.soundEnabled)
             }
 
+            Section("Heatmap") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Accumulated data")
+                            .font(.body)
+                        Text("\(controller.keyCounts.values.reduce(0, +)) keystrokes recorded across all sessions")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Reset stats", role: .destructive) {
+                        showResetConfirm = true
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(controller.keyCounts.isEmpty)
+                }
+            }
+
             Section("About") {
                 Text("KeebLock swallows keystrokes via macOS Accessibility while you wipe down your keys. Type your codeword (substring match) or click \"Unlock now\" to exit.")
                     .font(.caption)
@@ -56,5 +76,15 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 480, minHeight: 540)
+        .confirmationDialog(
+            "Reset all heatmap data?",
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Reset", role: .destructive) { controller.resetKeyCounts() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently clears all accumulated keystroke counts.")
+        }
     }
 }
