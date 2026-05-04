@@ -1,20 +1,22 @@
 import AppKit
+import simd
 import SwiftUI
 
 final class LockWindowManager {
     private var windows: [NSWindow] = []
     private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
 
-    func show(controller: LockController) {
+    func show(controller: LockController, fixedColor: SIMD4<Float>? = nil) {
         hide()
         for (index, screen) in NSScreen.screens.enumerated() {
-            let renderer = WipeRenderer(screen: screen)
+            let renderer = WipeRenderer(screen: screen, fixedColor: fixedColor)
             renderers.append(renderer)
 
             let view = LockView(
                 controller: controller,
                 renderer: renderer,
-                screenIndex: index
+                screenIndex: index,
+                screenFrame: screen.frame
             )
             let hosting = NSHostingView(rootView: view)
             hosting.wantsLayer = true

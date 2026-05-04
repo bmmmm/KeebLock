@@ -19,6 +19,9 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     private var renderPipeline: MTLRenderPipelineState?
     private var computePipeline: MTLComputePipelineState?
 
+    // Optional fixed color; nil = random per stage
+    private let fixedColor: SIMD4<Float>?
+
     // Locked state — accessed from main thread and Metal thread
     private let stateLock = NSLock()
     private var maskTexture: MTLTexture?
@@ -35,12 +38,13 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     let screenFrame: CGRect
 
-    init?(screen: NSScreen) {
+    init?(screen: NSScreen, fixedColor: SIMD4<Float>? = nil) {
         guard let dev = MTLCreateSystemDefaultDevice(),
               let queue = dev.makeCommandQueue() else { return nil }
         device = dev
         commandQueue = queue
         screenFrame = screen.frame
+        self.fixedColor = fixedColor
 
         // Pre-compute expected mask size from physical resolution
         let scale = screen.backingScaleFactor
@@ -48,7 +52,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         let ph = max(1, Int(screen.frame.height * scale) / 4)
         maskDims = (pw, ph)
         totalMaskPixels = Double(pw) * Double(ph)
-        currentBgColor = Self.randomColor()
+        currentBgColor = fixedColor ?? Self.randomColor()
 
         let view = MTKView(frame: screen.frame, device: dev)
         view.isPaused = false
@@ -100,7 +104,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     func resetState() {
         wipedAreaEstimate = 0
         stateLock.lock()
-        currentBgColor = Self.randomColor()
+        currentBgColor = fixedColor ?? Self.randomColor()
         needsRebuild = true
         pendingWipes.removeAll()
         stateLock.unlock()
@@ -201,7 +205,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     private func advanceStage() {
         wipedAreaEstimate = 0
         stateLock.lock()
-        currentBgColor = Self.randomColor()
+        currentBgColor = fixedColor ?? Self.randomColor()
         needsRebuild = true
         pendingWipes.removeAll()
         stateLock.unlock()

@@ -11,6 +11,8 @@ final class LockController: ObservableObject {
     @Published private(set) var currentCodeword: String = ""
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var keyCounts: [UInt16: Int] = [:]
+    @Published private(set) var sparkTrigger: Int = 0
+    @Published private(set) var lastMouseScreenPoint: CGPoint = .zero
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -48,7 +50,7 @@ final class LockController: ObservableObject {
             NSLog("[KeebLock] failed to install event tap (accessibility?)")
             return
         }
-        windowManager.show(controller: self)
+        windowManager.show(controller: self, fixedColor: AppSettings.shared.customScreenSIMD)
         isLocked = true
         startTimer()
     }
@@ -190,8 +192,12 @@ final class LockController: ObservableObject {
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
 
         keyCounts[keycode, default: 0] += 1
-
         windowManager.wipeAtCurrentMouse()
+
+        if AppSettings.shared.sparksEnabled {
+            lastMouseScreenPoint = NSEvent.mouseLocation
+            sparkTrigger += 1
+        }
 
         for ch in chars where ch.isLetter || ch.isNumber {
             if matcher.feed(ch) {

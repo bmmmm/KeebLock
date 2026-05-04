@@ -46,10 +46,6 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
-            Section("Feedback") {
-                Toggle("Sound on keystroke", isOn: $settings.soundEnabled)
-            }
-
             Section("Heatmap") {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
