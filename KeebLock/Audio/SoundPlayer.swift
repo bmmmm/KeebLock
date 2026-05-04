@@ -45,5 +45,6 @@ final class SoundPlayer {
 
     func stop() {
         playerNode.stop()
+        engine.stop()  // release audio I/O — prevents HALC_ProxyIOContext overload
     }
 }

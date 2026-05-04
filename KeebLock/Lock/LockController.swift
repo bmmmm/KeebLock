@@ -58,9 +58,14 @@ final class LockController: ObservableObject {
         stopTimer()
         removeEventTap()
         soundPlayer.stop()
-        windowManager.hide()
         saveKeyCounts()
-        isLocked = false
+        // Defer window teardown to the next run loop pass — calling window.close()
+        // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
+        // pools un-drained and causes EXC_BAD_ACCESS when SwiftUI starts updating.
+        DispatchQueue.main.async {
+            self.windowManager.hide()
+            self.isLocked = false
+        }
     }
 
     func resetKeyCounts() {

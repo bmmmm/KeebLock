@@ -40,13 +40,16 @@ final class LockWindowManager {
             window.isMovable = false
             window.contentView = hosting
             window.ignoresMouseEvents = false
-            window.makeKeyAndOrderFront(nil)
+            window.orderFront(nil)
             windows.append(window)
         }
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func hide() {
+        // Stop Metal rendering before closing windows — prevents draw(in:) from
+        // firing on a teardown drawable and crashing during window release.
+        for renderer in renderers { renderer?.stop() }
         for window in windows {
             window.orderOut(nil)
             window.close()

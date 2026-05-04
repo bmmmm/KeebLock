@@ -1,10 +1,13 @@
+import Combine
 import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var controller: LockController
-    @State private var showAccessibilityHint = false
     @State private var showHeatmap = false
+    @State private var accessibilityGranted = AccessibilityPermission.isGranted
+    // Timer that polls AXIsProcessTrusted() every second while permission is missing
+    private let permissionPoller = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         TabView {
@@ -15,17 +18,6 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .padding(8)
-        .alert(
-            "Accessibility access required",
-            isPresented: $showAccessibilityHint
-        ) {
-            Button("Open System Settings") {
-                AccessibilityPermission.openSystemSettings()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("KeebLock needs Accessibility access to swallow keystrokes. Enable it in System Settings → Privacy & Security → Accessibility, then return here and click Start.")
-        }
         .sheet(isPresented: $showHeatmap) {
             HeatmapView(controller: controller)
         }
@@ -34,13 +26,21 @@ struct ContentView: View {
                 showHeatmap = true
             }
         }
+        .onReceive(permissionPoller) { _ in
+            let granted = AccessibilityPermission.isGranted
+            if granted != accessibilityGranted {
+                accessibilityGranted = granted
+            }
+        }
+        // Cmd+Q — quit
+        .keyboardShortcut("q", modifiers: .command)
     }
 
     private var launcherTab: some View {
         VStack(spacing: 24) {
             Image(systemName: "keyboard")
                 .font(.system(size: 80))
-                .foregroundStyle(.tint)
+                .foregroundStyle(accessibilityGranted ? Color.accentColor : .orange)
 
             Text("KeebLock")
                 .font(.system(size: 36, weight: .bold))
@@ -49,6 +49,10 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 360)
+
+            if !accessibilityGranted {
+                accessibilityBanner
+            }
 
             VStack(spacing: 8) {
                 Text("Current codeword")
@@ -64,6 +68,7 @@ struct ContentView: View {
             }
             .padding(.top, 4)
 
+            // Return key = Start
             Button {
                 start()
             } label: {
@@ -72,7 +77,8 @@ struct ContentView: View {
             }
             .controlSize(.extraLarge)
             .buttonStyle(.borderedProminent)
-            .disabled(controller.isLocked)
+            .disabled(controller.isLocked || !accessibilityGranted)
+            .keyboardShortcut(.return, modifiers: [])
 
             Text("Auto-unlock after \(settings.durationMinutes) minutes")
                 .font(.caption)
@@ -82,12 +88,39 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func start() {
-        guard AccessibilityPermission.isGranted else {
-            AccessibilityPermission.request()
-            showAccessibilityHint = true
-            return
+    private var accessibilityBanner: some View {
+        VStack(spacing: 10) {
+            Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.orange)
+
+            HStack(spacing: 12) {
+                // Open settings and wait — the poller detects when toggle is flipped
+                Button("Open System Settings") {
+                    AccessibilityPermission.request()
+                    AccessibilityPermission.openSystemSettings()
+                }
+                .keyboardShortcut("o", modifiers: .command)
+
+                // Reset TCC entry + re-request — helps when toggle is stuck
+                Button("Reset & Retry") {
+                    AccessibilityPermission.resetAndRequest()
+                }
+                .keyboardShortcut("r", modifiers: .command)
+            }
+            .buttonStyle(.bordered)
+
+            Text("After enabling in System Settings, this app detects it automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
+        .padding(16)
+        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func start() {
+        guard accessibilityGranted else { return }
         controller.startLock(
             codeword: settings.codeword,
             durationMinutes: settings.durationMinutes

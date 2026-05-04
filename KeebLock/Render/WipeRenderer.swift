@@ -90,6 +90,13 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         if fraction >= 0.99 { advanceStage() }
     }
 
+    // Must be called on the main thread before releasing the renderer.
+    // Stops the CVDisplayLink so no draw(in:) calls fire after teardown.
+    func stop() {
+        metalView.delegate = nil
+        metalView.isPaused = true
+    }
+
     func resetState() {
         wipedAreaEstimate = 0
         stateLock.lock()
