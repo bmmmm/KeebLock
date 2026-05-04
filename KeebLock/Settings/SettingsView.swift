@@ -2,9 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @ObservedObject var controller: LockController
     @State private var suggestions: [String] = Codewords.suggestions()
-    @State private var showResetConfirm = false
+    @State private var snapshotMessage: String?
 
     var body: some View {
         Form {
@@ -46,22 +45,58 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
-            Section("Heatmap") {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Accumulated data")
-                            .font(.body)
-                        Text("\(controller.keyCounts.values.reduce(0, +)) keystrokes recorded across all sessions")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Reset stats", role: .destructive) {
-                        showResetConfirm = true
+            Section("Pixel size") {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.pixelFineness) },
+                            set: { settings.pixelFineness = Int($0.rounded()) }
+                        ),
+                        in: 1...10,
+                        step: 1
+                    )
+                    Image(systemName: "square.grid.4x3.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text("\(settings.pixelFineness)")
+                        .font(.system(.body, design: .monospaced))
+                        .frame(width: 22, alignment: .trailing)
+                }
+                Text("Lower = bigger pixel blocks, faster stages. Higher = smaller pixels, longer stages.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Debug") {
+                Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
+
+                HStack(spacing: 10) {
+                    Button("Save diagnostic snapshot") {
+                        let snap = DebugLog.snapshot()
+                        DebugLog.writeForced(snap)
+                        snapshotMessage = "Snapshot appended."
                     }
                     .buttonStyle(.bordered)
-                    .disabled(controller.keyCounts.isEmpty)
+
+                    Button("Reveal log in Finder") {
+                        DebugLog.revealLogInFinder()
+                    }
+                    .buttonStyle(.bordered)
                 }
+
+                if let snapshotMessage {
+                    Text(snapshotMessage)
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+
+                Text("Log path: ~/Library/Logs/KeebLock/keeblock.log\nWith logging on, lock lifecycle, screen activation and teardown events are recorded. Snapshot captures one full system dump regardless of toggle.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section("About") {
@@ -71,16 +106,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 480, minHeight: 540)
-        .confirmationDialog(
-            "Reset all heatmap data?",
-            isPresented: $showResetConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Reset", role: .destructive) { controller.resetKeyCounts() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently clears all accumulated keystroke counts.")
-        }
+        .frame(minWidth: 480, minHeight: 620)
     }
 }

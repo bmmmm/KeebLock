@@ -26,29 +26,13 @@ vertex VertexOut vertexPassthrough(uint vid [[vertex_id]]) {
 }
 
 // Fragment: sample mask (r = 1 unwiped, 0 wiped), output bgColor × mask as alpha.
+// Nearest filter so each mask cell looks like a sharp pixel block on screen.
 fragment float4 fragmentWipe(
     VertexOut           in       [[stage_in]],
     texture2d<float>    maskTex  [[texture(0)]],
     constant float4&    bgColor  [[buffer(0)]]
 ) {
-    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    constexpr sampler s(filter::nearest, address::clamp_to_edge);
     float mask = maskTex.sample(s, in.texCoord).r;
     return float4(bgColor.rgb, bgColor.a * mask);
-}
-
-// Compute: zero out mask pixels inside disc around `center` (mask-texture coords).
-kernel void clearDisc(
-    texture2d<float, access::read_write> mask   [[texture(0)]],
-    constant float2&                     center [[buffer(0)]],
-    constant float&                      radius [[buffer(1)]],
-    uint2                                gid    [[thread_position_in_grid]]
-) {
-    const uint w = mask.get_width();
-    const uint h = mask.get_height();
-    if (gid.x >= w || gid.y >= h) return;
-
-    float2 pos = float2(gid);
-    if (length(pos - center) <= radius) {
-        mask.write(float4(0.0), gid);
-    }
 }

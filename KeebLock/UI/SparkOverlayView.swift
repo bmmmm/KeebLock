@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 private struct SparkParticle: Identifiable {
     let id = UUID()
@@ -10,10 +9,11 @@ private struct SparkParticle: Identifiable {
     static let lifetime: Double = 0.85
 }
 
+// Spawns a small popout of sparks at a random position on this screen each time
+// `triggerCount` changes. Mouse position is intentionally ignored — every screen
+// reacts to every keystroke independently.
 struct SparkOverlayView: View {
     let triggerCount: Int
-    let lastMouseScreenPoint: CGPoint
-    let screenFrame: CGRect  // AppKit coords (bottom-left origin, global)
 
     @State private var sparks: [SparkParticle] = []
 
@@ -27,53 +27,55 @@ struct SparkOverlayView: View {
     ]
 
     var body: some View {
-        TimelineView(.animation) { tl in
-            Canvas { ctx, _ in
-                let now = tl.date
-                for spark in sparks {
-                    let age = now.timeIntervalSince(spark.born)
-                    guard age < SparkParticle.lifetime else { continue }
-                    let t = age / SparkParticle.lifetime
-                    let opacity = pow(1.0 - t, 1.5)
-                    let dy = t * 60.0
-                    let scale = 0.5 + t * 0.6
+        GeometryReader { geo in
+            TimelineView(.animation) { tl in
+                Canvas { ctx, _ in
+                    let now = tl.date
+                    for spark in sparks {
+                        let age = now.timeIntervalSince(spark.born)
+                        guard age < SparkParticle.lifetime else { continue }
+                        let t = age / SparkParticle.lifetime
+                        let opacity = pow(1.0 - t, 1.5)
+                        let dy = t * 60.0
+                        let scale = 0.5 + t * 0.6
 
-                    var inner = ctx
-                    inner.opacity = opacity
-                    inner.translateBy(x: spark.x, y: spark.y - dy)
-                    inner.scaleBy(x: scale, y: scale)
+                        var inner = ctx
+                        inner.opacity = opacity
+                        inner.translateBy(x: spark.x, y: spark.y - dy)
+                        inner.scaleBy(x: scale, y: scale)
 
-                    let r = spark.size / 2
-                    inner.fill(
-                        Path(ellipseIn: CGRect(x: -r, y: -r, width: spark.size, height: spark.size)),
-                        with: .color(spark.color)
-                    )
+                        let r = spark.size / 2
+                        inner.fill(
+                            Path(ellipseIn: CGRect(x: -r, y: -r, width: spark.size, height: spark.size)),
+                            with: .color(spark.color)
+                        )
+                    }
                 }
             }
-        }
-        .onChange(of: triggerCount) { _, _ in
-            spawnSparks()
+            .onChange(of: triggerCount) { _, _ in
+                spawnSparks(in: geo.size)
+            }
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
     }
 
-    private func spawnSparks() {
-        // Convert AppKit global coords (bottom-left) to SwiftUI view coords (top-left)
-        let lx = lastMouseScreenPoint.x - screenFrame.minX
-        let ly = screenFrame.maxY - lastMouseScreenPoint.y
+    private func spawnSparks(in size: CGSize) {
+        // Random anchor anywhere on this screen, with a margin so bursts don't clip.
+        let margin: Double = 80
+        let cx = Double.random(in: margin...max(margin + 1, size.width - margin))
+        let cy = Double.random(in: margin...max(margin + 1, size.height - margin))
 
         for _ in 0..<12 {
-            let angle = Double.random(in: 0 ..< (.pi * 2))
+            let angle = Double.random(in: 0..<(.pi * 2))
             let dist  = Double.random(in: 15...70)
             sparks.append(SparkParticle(
-                x: lx + cos(angle) * dist,
-                y: ly + sin(angle) * dist,
+                x: cx + cos(angle) * dist,
+                y: cy + sin(angle) * dist,
                 color: Self.sparkColors.randomElement()!,
                 size: Double.random(in: 5...13)
             ))
         }
-        // Prevent unbounded growth
         if sparks.count > 300 { sparks.removeFirst(sparks.count - 300) }
     }
 }

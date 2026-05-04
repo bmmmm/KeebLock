@@ -4,9 +4,12 @@ import Metal
 import MetalKit
 import SwiftUI
 
-// One WipeRenderer per screen. MTKView is driven at 60 fps (isPaused = false),
-// so draw(in:) may be called from a private Metal thread. All shared mutable
-// state is protected by `stateLock`. @Published updates always hop to MainActor.
+// One WipeRenderer per screen. MTKView runs at 60fps; draw(in:) may be called from a
+// private Metal thread. All shared mutable state is protected by `stateLock`.
+// @Published updates always hop to MainActor.
+//
+// Each keystroke clears exactly one random mask cell. Mask resolution is fixed
+// independent of physical screen pixels so the "pixel" feel stays minimal.
 final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     let metalView: MTKView
@@ -17,28 +20,25 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private var renderPipeline: MTLRenderPipelineState?
-    private var computePipeline: MTLComputePipelineState?
 
-    // Optional fixed color; nil = random per stage
     private let fixedColor: SIMD4<Float>?
 
-    // Locked state — accessed from main thread and Metal thread
+    // Shared mutable state
     private let stateLock = NSLock()
     private var maskTexture: MTLTexture?
-    private var pendingWipes: [(center: SIMD2<Float>, radius: Float)] = []
-    private var needsRebuild = false
+    private var maskBytes: [UInt8] = []
+    private var maskDirty = false
+    private var remainingIndices: [Int] = []
+    private var wipedCellCount = 0
     private var currentBgColor: SIMD4<Float> = .one
 
-    // Main-thread-only tracking (wipe(at:) is always called on main thread)
-    private var wipedAreaEstimate: Double = 0
-    private var totalMaskPixels: Double = 1
-
-    // Snapshot used by main thread for coordinate conversion; updated after rebuild
-    private var maskDims: (w: Int, h: Int) = (1, 1)
+    private let maskDims: (w: Int, h: Int)
 
     let screenFrame: CGRect
 
-    init?(screen: NSScreen, fixedColor: SIMD4<Float>? = nil) {
+    // Mask cells along the X axis. Y derived from screen aspect.
+    // Driven by AppSettings.pixelFineness (slider 1-10 → cells 8..44).
+    init?(screen: NSScreen, fixedColor: SIMD4<Float>? = nil, cellsPerAxis: Int) {
         guard let dev = MTLCreateSystemDefaultDevice(),
               let queue = dev.makeCommandQueue() else { return nil }
         device = dev
@@ -46,15 +46,20 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         screenFrame = screen.frame
         self.fixedColor = fixedColor
 
-        // Pre-compute expected mask size from physical resolution
-        let scale = screen.backingScaleFactor
-        let pw = max(1, Int(screen.frame.width  * scale) / 4)
-        let ph = max(1, Int(screen.frame.height * scale) / 4)
-        maskDims = (pw, ph)
-        totalMaskPixels = Double(pw) * Double(ph)
+        let aspect = screen.frame.height / max(1, screen.frame.width)
+        let cellsX = max(2, cellsPerAxis)
+        let cellsY = max(1, Int((Double(cellsX) * Double(aspect)).rounded()))
+        maskDims = (cellsX, cellsY)
+
+        let total = cellsX * cellsY
+        maskBytes = [UInt8](repeating: 255, count: total)
+        remainingIndices = (0..<total).shuffled()
         currentBgColor = fixedColor ?? Self.randomColor()
 
-        let view = MTKView(frame: screen.frame, device: dev)
+        let view = MTKView(
+            frame: NSRect(origin: .zero, size: screen.frame.size),
+            device: dev
+        )
         view.isPaused = false
         view.enableSetNeedsDisplay = false
         view.clearColor = MTLClearColorMake(0, 0, 0, 0)
@@ -63,71 +68,42 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         metalView = view
 
         super.init()
-        setupPipelines()
+        setupPipeline()
+        rebuildMaskTexture()
         view.delegate = self
     }
 
-    // MARK: - Public API (called from main thread)
+    // MARK: - Public API (main thread)
 
-    // Wipe a disc at `screenLocalPoint` (AppKit coords: origin = bottom-left of screen).
-    // `radius` is in points.
-    func wipe(at screenLocalPoint: CGPoint, radius: CGFloat) {
-        let sw = Double(screenFrame.width)
-        let sh = Double(screenFrame.height)
-        let mw = Double(maskDims.w)
-        let mh = Double(maskDims.h)
-
-        // Screen-local → mask texture (top-left origin, downscaled)
-        let mx = Float(screenLocalPoint.x / sw * mw)
-        let my = Float((sh - Double(screenLocalPoint.y)) / sh * mh)
-        let mr = Float(radius / sw * mw)
-
-        wipedAreaEstimate += .pi * Double(mr) * Double(mr)
-        let fraction = min(1.0, wipedAreaEstimate / totalMaskPixels)
-
+    /// Clears one random unwiped cell. Call once per keystroke.
+    func wipeRandomCell() {
         stateLock.lock()
-        pendingWipes.append((center: SIMD2(mx, my), radius: mr))
+        guard let idx = remainingIndices.popLast() else {
+            stateLock.unlock()
+            return
+        }
+        maskBytes[idx] = 0
+        maskDirty = true
+        wipedCellCount += 1
+        let total = maskBytes.count
+        let frac = Double(wipedCellCount) / Double(total)
+        let advance = wipedCellCount >= total
         stateLock.unlock()
 
-        DispatchQueue.main.async { self.wipedFraction = fraction }
-
-        if fraction >= 0.99 { advanceStage() }
+        DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
+        if advance { advanceStage() }
     }
 
-    // Must be called on the main thread before releasing the renderer.
-    // Stops the CVDisplayLink so no draw(in:) calls fire after teardown.
+    /// Stops the display link before window teardown.
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true
     }
 
-    func resetState() {
-        wipedAreaEstimate = 0
-        stateLock.lock()
-        currentBgColor = fixedColor ?? Self.randomColor()
-        needsRebuild = true
-        pendingWipes.removeAll()
-        stateLock.unlock()
-        DispatchQueue.main.async {
-            self.stage = 1
-            self.wipedFraction = 0
-        }
-    }
-
     // MARK: - MTKViewDelegate
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        let w = max(1, Int(size.width) / 4)
-        let h = max(1, Int(size.height) / 4)
-        guard let tex = buildMask(width: w, height: h) else { return }
-        stateLock.lock()
-        maskTexture = tex
-        needsRebuild = false
-        stateLock.unlock()
-        DispatchQueue.main.async {
-            self.maskDims = (w, h)
-            self.totalMaskPixels = Double(w) * Double(h)
-        }
+        // Mask resolution is fixed; nothing to do here.
     }
 
     func draw(in view: MTKView) {
@@ -135,53 +111,26 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
               let passDesc = view.currentRenderPassDescriptor,
               let cmdBuf = commandQueue.makeCommandBuffer() else { return }
 
-        // --- Resolve pending state under lock ---
+        // Snapshot state
         stateLock.lock()
-        let rebuildNeeded = needsRebuild || maskTexture == nil
-        if rebuildNeeded { needsRebuild = false }
         let color = currentBgColor
-        let wipes = pendingWipes
-        pendingWipes.removeAll(keepingCapacity: true)
+        let dirty = maskDirty
+        let snapshot = dirty ? maskBytes : []
+        if dirty { maskDirty = false }
         stateLock.unlock()
 
-        if rebuildNeeded {
-            let w = max(1, Int(view.drawableSize.width)  / 4)
-            let h = max(1, Int(view.drawableSize.height) / 4)
-            if let tex = buildMask(width: w, height: h) {
-                stateLock.lock()
-                maskTexture = tex
-                stateLock.unlock()
-                DispatchQueue.main.async {
-                    self.maskDims = (w, h)
-                    self.totalMaskPixels = Double(w) * Double(h)
-                }
-            }
+        // Push mask updates to GPU
+        if dirty, let mask = maskTexture {
+            mask.replace(
+                region: MTLRegionMake2D(0, 0, maskDims.w, maskDims.h),
+                mipmapLevel: 0,
+                withBytes: snapshot,
+                bytesPerRow: maskDims.w
+            )
         }
 
-        stateLock.lock()
-        let mask = maskTexture
-        stateLock.unlock()
-        guard let mask else { return }
+        guard let mask = maskTexture else { return }
 
-        // --- Compute: clear wipe discs ---
-        if !wipes.isEmpty, let cPipeline = computePipeline,
-           let enc = cmdBuf.makeComputeCommandEncoder() {
-            enc.setComputePipelineState(cPipeline)
-            enc.setTexture(mask, index: 0)
-            let tw = cPipeline.threadExecutionWidth
-            let th = max(1, cPipeline.maxTotalThreadsPerThreadgroup / tw)
-            let tgSize = MTLSize(width: tw, height: th, depth: 1)
-            let grid   = MTLSize(width: mask.width, height: mask.height, depth: 1)
-            for wipe in wipes {
-                var c = wipe.center; var r = wipe.radius
-                enc.setBytes(&c, length: MemoryLayout<SIMD2<Float>>.size, index: 0)
-                enc.setBytes(&r, length: MemoryLayout<Float>.size,        index: 1)
-                enc.dispatchThreads(grid, threadsPerThreadgroup: tgSize)
-            }
-            enc.endEncoding()
-        }
-
-        // --- Render: composite mask × bgColor ---
         passDesc.colorAttachments[0].loadAction  = .clear
         passDesc.colorAttachments[0].clearColor  = MTLClearColorMake(0, 0, 0, 0)
         passDesc.colorAttachments[0].storeAction = .store
@@ -200,14 +149,16 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         cmdBuf.commit()
     }
 
-    // MARK: - Private helpers
+    // MARK: - Private
 
     private func advanceStage() {
-        wipedAreaEstimate = 0
         stateLock.lock()
         currentBgColor = fixedColor ?? Self.randomColor()
-        needsRebuild = true
-        pendingWipes.removeAll()
+        let total = maskDims.w * maskDims.h
+        maskBytes = [UInt8](repeating: 255, count: total)
+        remainingIndices = (0..<total).shuffled()
+        wipedCellCount = 0
+        maskDirty = true
         stateLock.unlock()
         DispatchQueue.main.async {
             self.stage += 1
@@ -215,12 +166,11 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         }
     }
 
-    private func setupPipelines() {
+    private func setupPipeline() {
         guard let lib = device.makeDefaultLibrary() else {
             NSLog("[KeebLock] Metal: no default shader library")
             return
         }
-        // Render pipeline
         let rd = MTLRenderPipelineDescriptor()
         rd.vertexFunction   = lib.makeFunction(name: "vertexPassthrough")
         rd.fragmentFunction = lib.makeFunction(name: "fragmentWipe")
@@ -232,36 +182,28 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         att.sourceAlphaBlendFactor        = .one
         att.destinationAlphaBlendFactor   = .oneMinusSourceAlpha
         renderPipeline = try? device.makeRenderPipelineState(descriptor: rd)
-
-        // Compute pipeline
-        if let fn = lib.makeFunction(name: "clearDisc") {
-            computePipeline = try? device.makeComputePipelineState(function: fn)
+        if renderPipeline == nil {
+            NSLog("[KeebLock] Metal: render pipeline creation failed")
         }
-
-        if renderPipeline  == nil { NSLog("[KeebLock] Metal: render pipeline creation failed") }
-        if computePipeline == nil { NSLog("[KeebLock] Metal: compute pipeline creation failed") }
     }
 
-    // Builds a new all-ones (fully-opaque) r8 mask texture.
-    // Called from both main thread and Metal thread — only uses device (thread-safe).
-    private func buildMask(width: Int, height: Int) -> MTLTexture? {
+    private func rebuildMaskTexture() {
         let desc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .r8Unorm,
-            width:  width,
-            height: height,
+            width:  maskDims.w,
+            height: maskDims.h,
             mipmapped: false
         )
-        desc.usage       = [.shaderRead, .shaderWrite]
-        desc.storageMode = .shared  // CPU-writable for initial fill; fine on Apple Silicon
-        guard let tex = device.makeTexture(descriptor: desc) else { return nil }
-        let bytes = [UInt8](repeating: 255, count: width * height)
+        desc.usage       = [.shaderRead]
+        desc.storageMode = .shared
+        guard let tex = device.makeTexture(descriptor: desc) else { return }
         tex.replace(
-            region:       MTLRegionMake2D(0, 0, width, height),
-            mipmapLevel:  0,
-            withBytes:    bytes,
-            bytesPerRow:  width
+            region: MTLRegionMake2D(0, 0, maskDims.w, maskDims.h),
+            mipmapLevel: 0,
+            withBytes: maskBytes,
+            bytesPerRow: maskDims.w
         )
-        return tex
+        maskTexture = tex
     }
 
     private static func randomColor() -> SIMD4<Float> {
@@ -282,3 +224,4 @@ struct WipeView: NSViewRepresentable {
     func makeNSView(context: Context)                        -> MTKView { renderer.metalView }
     func updateNSView(_ nsView: MTKView, context: Context)   {}
 }
+    

@@ -4,7 +4,6 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var controller: LockController
-    @State private var showHeatmap = false
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     private let permissionPoller = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -13,18 +12,10 @@ struct ContentView: View {
             launcherTab
                 .tabItem { Label("Launch", systemImage: "lock.fill") }
 
-            SettingsView(settings: settings, controller: controller)
+            SettingsView(settings: settings)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .padding(8)
-        .sheet(isPresented: $showHeatmap) {
-            HeatmapView(controller: controller)
-        }
-        .onChange(of: controller.isLocked) { _, isLocked in
-            if !isLocked && controller.keystrokeCount > 0 {
-                showHeatmap = true
-            }
-        }
         .onReceive(permissionPoller) { _ in
             let granted = AccessibilityPermission.isGranted
             if granted != accessibilityGranted { accessibilityGranted = granted }

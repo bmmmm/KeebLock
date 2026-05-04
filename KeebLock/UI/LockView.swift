@@ -6,13 +6,11 @@ struct LockView: View {
     @StateObject private var rendererProxy: RendererProxy
     let renderer: WipeRenderer?
     let screenIndex: Int
-    let screenFrame: CGRect  // AppKit coords, used for spark coordinate conversion
 
-    init(controller: LockController, renderer: WipeRenderer?, screenIndex: Int, screenFrame: CGRect) {
+    init(controller: LockController, renderer: WipeRenderer?, screenIndex: Int) {
         self.controller = controller
         self.renderer = renderer
         self.screenIndex = screenIndex
-        self.screenFrame = screenFrame
         _rendererProxy = StateObject(wrappedValue: RendererProxy(renderer: renderer))
     }
 
@@ -26,11 +24,7 @@ struct LockView: View {
                     .ignoresSafeArea()
             }
 
-            SparkOverlayView(
-                triggerCount: controller.sparkTrigger,
-                lastMouseScreenPoint: controller.lastMouseScreenPoint,
-                screenFrame: screenFrame
-            )
+            SparkOverlayView(triggerCount: controller.sparkTrigger)
 
             HUDView(
                 controller: controller,

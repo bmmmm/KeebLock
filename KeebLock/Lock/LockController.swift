@@ -12,7 +12,6 @@ final class LockController: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var keyCounts: [UInt16: Int] = [:]
     @Published private(set) var sparkTrigger: Int = 0
-    @Published private(set) var lastMouseScreenPoint: CGPoint = .zero
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -47,16 +46,22 @@ final class LockController: ObservableObject {
         isPaused = false
 
         guard installEventTap() else {
-            NSLog("[KeebLock] failed to install event tap (accessibility?)")
+            DebugLog.log("startLock: installEventTap returned false (accessibility?)")
             return
         }
-        windowManager.show(controller: self, fixedColor: AppSettings.shared.customScreenSIMD)
+        DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes)")
+        windowManager.show(
+            controller: self,
+            fixedColor: AppSettings.shared.customScreenSIMD,
+            cellsPerAxis: AppSettings.shared.cellsPerAxis
+        )
         isLocked = true
         startTimer()
     }
 
     func stopLock() {
         guard isLocked else { return }
+        DebugLog.log("stopLock: keystrokes=\(keystrokeCount) remaining=\(remainingSeconds)s")
         stopTimer()
         removeEventTap()
         soundPlayer.stop()
@@ -192,10 +197,9 @@ final class LockController: ObservableObject {
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
 
         keyCounts[keycode, default: 0] += 1
-        windowManager.wipeAtCurrentMouse()
+        windowManager.wipeOnAllScreens()
 
         if AppSettings.shared.sparksEnabled {
-            lastMouseScreenPoint = NSEvent.mouseLocation
             sparkTrigger += 1
         }
 
