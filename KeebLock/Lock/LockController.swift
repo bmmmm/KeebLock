@@ -10,6 +10,7 @@ final class LockController: ObservableObject {
     @Published private(set) var totalSeconds: Int = 0
     @Published private(set) var currentCodeword: String = ""
     @Published private(set) var isPaused: Bool = false
+    @Published private(set) var keyCounts: [UInt16: Int] = [:]
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -19,8 +20,13 @@ final class LockController: ObservableObject {
 
     private let pauseDetectThreshold: TimeInterval = 30
     private let windowManager = LockWindowManager()
+    private let soundPlayer = SoundPlayer()
 
-    private init() {}
+    private static let keyCountsDefaultsKey = "heatmapKeyCounts"
+
+    private init() {
+        loadKeyCounts()
+    }
 
     // MARK: - Public
 
@@ -51,8 +57,15 @@ final class LockController: ObservableObject {
         guard isLocked else { return }
         stopTimer()
         removeEventTap()
+        soundPlayer.stop()
         windowManager.hide()
+        saveKeyCounts()
         isLocked = false
+    }
+
+    func resetKeyCounts() {
+        keyCounts = [:]
+        UserDefaults.standard.removeObject(forKey: Self.keyCountsDefaultsKey)
     }
 
     // MARK: - Timer (pause-aware)
@@ -81,6 +94,24 @@ final class LockController: ObservableObject {
             remainingSeconds -= 1
         } else {
             stopLock()
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func loadKeyCounts() {
+        guard let data = UserDefaults.standard.data(forKey: Self.keyCountsDefaultsKey),
+              let dict = try? JSONDecoder().decode([String: Int].self, from: data) else { return }
+        keyCounts = Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
+            guard let code = UInt16(key) else { return nil }
+            return (code, val)
+        })
+    }
+
+    private func saveKeyCounts() {
+        let stringDict = Dictionary(uniqueKeysWithValues: keyCounts.map { (String($0.key), $0.value) })
+        if let data = try? JSONEncoder().encode(stringDict) {
+            UserDefaults.standard.set(data, forKey: Self.keyCountsDefaultsKey)
         }
     }
 
@@ -128,7 +159,6 @@ final class LockController: ObservableObject {
         runLoopSource = nil
     }
 
-    /// Runs on main thread because the tap's run-loop source is on the main run loop.
     fileprivate func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -136,21 +166,28 @@ final class LockController: ObservableObject {
         }
 
         if type == .keyDown {
+            let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             var length = 0
             var unicode = [UniChar](repeating: 0, count: 4)
             event.keyboardGetUnicodeString(maxStringLength: 4,
                                            actualStringLength: &length,
                                            unicodeString: &unicode)
             let chars = String(utf16CodeUnits: unicode, count: length)
-            processKeyDown(chars: chars)
+            processKeyDown(chars: chars, keycode: keycode)
         }
-        // Always swallow keyDown / keyUp / flagsChanged.
         return nil
     }
 
-    private func processKeyDown(chars: String) {
+    private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
         lastKeystrokeAt = Date()
+
+        if AppSettings.shared.soundEnabled { soundPlayer.play() }
+
+        keyCounts[keycode, default: 0] += 1
+
+        windowManager.wipeAtCurrentMouse()
+
         for ch in chars where ch.isLetter || ch.isNumber {
             if matcher.feed(ch) {
                 stopLock()
