@@ -1,7 +1,9 @@
+import Combine
 import SwiftUI
 
 struct HUDView: View {
     @ObservedObject var controller: LockController
+    @ObservedObject var rendererProxy: RendererProxy
     let screenIndex: Int
 
     var body: some View {
@@ -26,7 +28,10 @@ struct HUDView: View {
                     label: controller.isPaused ? "Paused (no input)" : "Auto-unlock in",
                     value: formatTime(controller.remainingSeconds)
                 )
-                stat(label: "Keystrokes", value: "\(controller.keystrokeCount)")
+                stat(
+                    label: "Stage \(rendererProxy.stage)",
+                    value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"
+                )
             }
             .padding(.top, 12)
 
@@ -44,7 +49,7 @@ struct HUDView: View {
             .padding(.top, 24)
         }
         .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.35), radius: 10)
+        .shadow(color: .black.opacity(0.5), radius: 12)
     }
 
     private func stat(label: String, value: String) -> some View {
@@ -58,8 +63,27 @@ struct HUDView: View {
     }
 
     private func formatTime(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+// Bridges an optional WipeRenderer into an ObservableObject owned by LockView
+// so HUDView can observe it via @ObservedObject without conditional logic.
+final class RendererProxy: ObservableObject {
+    @Published var stage: Int = 1
+    @Published var wipedFraction: Double = 0
+
+    private var bag = Set<AnyCancellable>()
+
+    init(renderer: WipeRenderer?) {
+        guard let renderer else { return }
+        renderer.$stage
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.stage = $0 }
+            .store(in: &bag)
+        renderer.$wipedFraction
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.wipedFraction = $0 }
+            .store(in: &bag)
     }
 }

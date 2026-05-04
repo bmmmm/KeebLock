@@ -1,14 +1,37 @@
+import Combine
 import SwiftUI
 
 struct LockView: View {
     @ObservedObject var controller: LockController
+    // StateObject so SwiftUI preserves the RendererProxy across re-renders
+    @StateObject private var rendererProxy: RendererProxy
+    let renderer: WipeRenderer?
     let screenIndex: Int
-    let backgroundColor: Color
+
+    init(controller: LockController, renderer: WipeRenderer?, screenIndex: Int) {
+        self.controller = controller
+        self.renderer = renderer
+        self.screenIndex = screenIndex
+        _rendererProxy = StateObject(wrappedValue: RendererProxy(renderer: renderer))
+    }
 
     var body: some View {
         ZStack {
-            backgroundColor.ignoresSafeArea()
-            HUDView(controller: controller, screenIndex: screenIndex)
+            if let renderer {
+                WipeView(renderer: renderer)
+                    .ignoresSafeArea()
+            } else {
+                Color(hue: Double.random(in: 0..<1), saturation: 0.65, brightness: 0.5)
+                    .ignoresSafeArea()
+            }
+
+            HUDView(
+                controller: controller,
+                rendererProxy: rendererProxy,
+                screenIndex: screenIndex
+            )
+            .padding(36)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
         }
     }
 }

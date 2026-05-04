@@ -3,17 +3,21 @@ import SwiftUI
 
 final class LockWindowManager {
     private var windows: [NSWindow] = []
+    private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
 
     func show(controller: LockController) {
         hide()
         for (index, screen) in NSScreen.screens.enumerated() {
-            let bgColor = randomColor()
+            let renderer = WipeRenderer(screen: screen)
+            renderers.append(renderer)
+
             let view = LockView(
                 controller: controller,
-                screenIndex: index,
-                backgroundColor: bgColor
+                renderer: renderer,
+                screenIndex: index
             )
             let hosting = NSHostingView(rootView: view)
+            hosting.wantsLayer = true
 
             let window = NSWindow(
                 contentRect: screen.frame,
@@ -29,7 +33,9 @@ final class LockWindowManager {
                 .fullScreenAuxiliary,
                 .ignoresCycle,
             ]
-            window.isOpaque = true
+            // Transparent so wiped areas reveal the desktop below
+            window.isOpaque = false
+            window.backgroundColor = .clear
             window.hasShadow = false
             window.isMovable = false
             window.contentView = hosting
@@ -46,13 +52,22 @@ final class LockWindowManager {
             window.close()
         }
         windows.removeAll()
+        renderers.removeAll()
     }
 
-    private func randomColor() -> Color {
-        Color(
-            hue: Double.random(in: 0..<1),
-            saturation: Double.random(in: 0.55...0.75),
-            brightness: Double.random(in: 0.45...0.6)
-        )
+    // Finds which screen the cursor is on and calls wipe() on its renderer.
+    func wipeAtCurrentMouse() {
+        let mouse = NSEvent.mouseLocation
+        for (index, screen) in NSScreen.screens.enumerated() {
+            guard screen.frame.contains(mouse) else { continue }
+            let local = CGPoint(
+                x: mouse.x - screen.frame.minX,
+                y: mouse.y - screen.frame.minY
+            )
+            if index < renderers.count {
+                renderers[index]?.wipe(at: local, radius: 60)
+            }
+            break
+        }
     }
 }
