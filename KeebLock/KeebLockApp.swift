@@ -21,6 +21,17 @@ struct KeebLockApp: App {
                 }
             }
 
+            // ⌘, opens the Settings tab inside the launcher window. We
+            // post a notification because Scene-level commands can't directly
+            // mutate ContentView state.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    NotificationCenter.default.post(name: .keebLockOpenSettings, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
             // Lock-related actions in their own top-level menu
             CommandMenu("Lock") {
                 Button("Start Lock") {

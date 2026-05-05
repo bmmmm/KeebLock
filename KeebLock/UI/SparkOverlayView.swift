@@ -125,6 +125,14 @@ struct SparkOverlayView: View {
     // MARK: - Sparks
 
     private func spawnSparks(in size: CGSize, count: Int) {
+        // Filter dead particles BEFORE adding new ones — was the main source
+        // of lag near codeword completion. Without this, the canvas iterated
+        // hundreds of expired particles on every frame just to `continue` past
+        // them in drawSparks. count*25 hard-cap (=750 for default count=30)
+        // also amplified the cost.
+        let now = Date()
+        sparks.removeAll { now.timeIntervalSince($0.born) >= SparkParticle.lifetime }
+
         let m = 80.0
         let cx = Double.random(in: m...max(m+1, size.width - m))
         let cy = Double.random(in: m...max(m+1, size.height - m))
@@ -137,7 +145,8 @@ struct SparkOverlayView: View {
                 color: Self.sparkColors.randomElement()!
             ))
         }
-        if sparks.count > max(300, count * 25) { sparks.removeFirst(sparks.count - max(300, count * 25)) }
+        // Generous safety cap kept for runaway-spawn protection only.
+        if sparks.count > 200 { sparks.removeFirst(sparks.count - 200) }
     }
 
     private func drawSparks(ctx: GraphicsContext, now: Date) {
@@ -158,6 +167,8 @@ struct SparkOverlayView: View {
     // MARK: - Rain
 
     private func spawnRain(in size: CGSize, count: Int) {
+        let now = Date()
+        drops.removeAll { now.timeIntervalSince($0.born) >= RainDrop.lifetime }
         let n = max(2, count / 2)
         for _ in 0..<n {
             drops.append(RainDrop(
@@ -167,7 +178,7 @@ struct SparkOverlayView: View {
                 speed: Double.random(in: 200...420)
             ))
         }
-        if drops.count > 300 { drops.removeFirst(drops.count - 300) }
+        if drops.count > 200 { drops.removeFirst(drops.count - 200) }
     }
 
     private func drawRain(ctx: GraphicsContext, now: Date, size: CGSize) {
@@ -188,6 +199,8 @@ struct SparkOverlayView: View {
     // MARK: - Matrix
 
     private func spawnMatrix(in size: CGSize, count: Int) {
+        let now = Date()
+        chars.removeAll { now.timeIntervalSince($0.born) >= MatrixChar.lifetime }
         let n = max(1, count / 3)
         for _ in 0..<n {
             chars.append(MatrixChar(
@@ -197,7 +210,7 @@ struct SparkOverlayView: View {
                 char: String(Self.matrixAlphabet.randomElement()!)
             ))
         }
-        if chars.count > 250 { chars.removeFirst(chars.count - 250) }
+        if chars.count > 200 { chars.removeFirst(chars.count - 200) }
     }
 
     private func drawMatrix(ctx: GraphicsContext, now: Date, size: CGSize) {
@@ -219,6 +232,8 @@ struct SparkOverlayView: View {
     // MARK: - Bubbles
 
     private func spawnBubbles(in size: CGSize, count: Int) {
+        let now = Date()
+        bubbles.removeAll { now.timeIntervalSince($0.born) >= BubbleParticle.lifetime }
         let n = max(1, count / 3)
         for _ in 0..<n {
             bubbles.append(BubbleParticle(
@@ -228,7 +243,7 @@ struct SparkOverlayView: View {
                 speed: Double.random(in: 55...130)
             ))
         }
-        if bubbles.count > 250 { bubbles.removeFirst(bubbles.count - 250) }
+        if bubbles.count > 200 { bubbles.removeFirst(bubbles.count - 200) }
     }
 
     private func drawBubbles(ctx: GraphicsContext, now: Date, size: CGSize) {
@@ -255,6 +270,8 @@ struct SparkOverlayView: View {
     // MARK: - Snow
 
     private func spawnSnow(in size: CGSize, count: Int) {
+        let now = Date()
+        flakes.removeAll { now.timeIntervalSince($0.born) >= SnowFlake.lifetime }
         let n = max(2, count / 2)
         for _ in 0..<n {
             flakes.append(SnowFlake(
@@ -266,7 +283,7 @@ struct SparkOverlayView: View {
                 phase: Double.random(in: 0...(.pi * 2))
             ))
         }
-        if flakes.count > 350 { flakes.removeFirst(flakes.count - 350) }
+        if flakes.count > 250 { flakes.removeFirst(flakes.count - 250) }
     }
 
     private func drawSnow(ctx: GraphicsContext, now: Date, size: CGSize) {

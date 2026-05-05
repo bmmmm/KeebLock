@@ -204,6 +204,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(soundFileDisplayName, forKey: Keys.soundFileName) }
     }
 
+    @Published var unlockChimeEnabled: Bool {
+        didSet { defaults.set(unlockChimeEnabled, forKey: Keys.unlockChime) }
+    }
+
     // MARK: - Knowledge
 
     @Published var showCodewordKnowledge: Bool {
@@ -228,6 +232,7 @@ final class AppSettings: ObservableObject {
         static let soundVolume        = "soundVolume"
         static let soundFileBookmark  = "soundFileBookmark"
         static let soundFileName      = "soundFileDisplayName"
+        static let unlockChime        = "unlockChimeEnabled"
         static let sparks             = "sparksEnabled"
         static let sparkCount         = "sparkCount"
         static let screenEffect       = "screenEffect"
@@ -252,6 +257,7 @@ final class AppSettings: ObservableObject {
         self.soundVolume  = d.object(forKey: Keys.soundVolume) as? Double ?? 0.6
         self.soundFileBookmark    = d.data(forKey: Keys.soundFileBookmark)
         self.soundFileDisplayName = d.string(forKey: Keys.soundFileName)
+        self.unlockChimeEnabled   = d.object(forKey: Keys.unlockChime) as? Bool ?? true
 
         self.effectEnabled = d.object(forKey: Keys.sparks) as? Bool ?? true
         let sc = d.object(forKey: Keys.sparkCount) as? Int

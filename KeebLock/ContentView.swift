@@ -1,25 +1,35 @@
 import Combine
 import SwiftUI
 
+extension Notification.Name {
+    static let keebLockOpenSettings = Notification.Name("KeebLock.openSettings")
+}
+
 struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var controller: LockController
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
+    @State private var selectedTab: Int = 0
     private let permissionPoller = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             launcherTab
                 .tabItem { Label("Launch", systemImage: "lock.fill") }
+                .tag(0)
 
             SettingsView(settings: settings, controller: controller)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(1)
         }
         .padding(8)
         .onReceive(permissionPoller) { _ in
             let granted = AccessibilityPermission.isGranted
             if granted != accessibilityGranted { accessibilityGranted = granted }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .keebLockOpenSettings)) { _ in
+            selectedTab = 1
         }
     }
 
