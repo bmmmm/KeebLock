@@ -49,6 +49,12 @@ final class LockController {
 
     private(set) var codewordMatchProgress: Int = 0
 
+    /// Bumps each time the in-lock "snapshot" button (rendered by
+    /// LockOverlayDebug at the top-right) is clicked. The overlay
+    /// watches this for changes to flash a "SAVED" toast — the actual
+    /// snapshot write happens synchronously in triggerInlineSnapshot().
+    private(set) var snapshotPulse: Int = 0
+
     /// Monotonically increasing counter; HUDView modulos by `currentEntry.facts.count`
     /// to pick which fact to show. Lives here (not per-HUDView) so multi-monitor
     /// users see the same fact on every screen instead of each window
@@ -266,6 +272,52 @@ final class LockController {
         UserDefaults.standard.removeObject(forKey: Self.overallKeyCountsKey)
     }
 
+    // MARK: - In-lock snapshot button (paired with LockOverlayDebug)
+
+    /// Geometry of the snapshot button rendered by LockOverlayDebug at
+    /// the top-right of the main screen. Kept in one place so the
+    /// event-tap region check and the SwiftUI button position can't
+    /// drift apart.
+    static let inlineSnapshotButtonWidth:  CGFloat = 140
+    static let inlineSnapshotButtonHeight: CGFloat = 28
+    static let inlineSnapshotButtonMargin: CGFloat = 12
+
+    /// `point` is in CGEvent global coordinates (top-left origin).
+    /// Returns true when the user clicked inside the on-screen snapshot
+    /// button — only when the overlay is on, otherwise the button isn't
+    /// drawn and we don't want to silently swallow a click on empty
+    /// space at the top-right.
+    private func isInsideInlineSnapshotRegion(_ point: CGPoint) -> Bool {
+        guard AppSettings.shared.lockOverlayDebugLevel != .off else { return false }
+        guard let screen = NSScreen.main else { return false }
+        let w = Self.inlineSnapshotButtonWidth
+        let h = Self.inlineSnapshotButtonHeight
+        let m = Self.inlineSnapshotButtonMargin
+        // CGEvent.location for the main display: (0, 0) is the top-left
+        // pixel; x grows right, y grows down. The button sits in the
+        // top-right corner with `m` margin from both edges.
+        let region = CGRect(
+            x: screen.frame.maxX - w - m,
+            y: m,
+            width: w,
+            height: h
+        )
+        return region.contains(point)
+    }
+
+    /// Write a full DebugLog snapshot to disk and bump snapshotPulse so
+    /// the overlay can flash a "SAVED" toast. PerfMetrics records this
+    /// as an event so the timestamp lands in the snapshot's own Recent
+    /// Events section — handy for cross-correlating "I clicked here"
+    /// against the latency curve.
+    private func triggerInlineSnapshot() {
+        let snap = DebugLog.snapshot()
+        DebugLog.writeForced(snap)
+        snapshotPulse &+= 1
+        DebugLog.log("inline snapshot pulse=\(snapshotPulse)")
+        PerfMetrics.shared.recordEvent("snapshot")
+    }
+
     // MARK: - Heatmap persistence
 
     private func loadOverallKeyCounts() {
@@ -447,6 +499,16 @@ final class LockController {
         }
 
         if type == .leftMouseDown {
+            // In-lock snapshot button. The overlay paints a button at the
+            // top-right of the main screen; we intercept the mousedown at
+            // the matching coordinate region and write the snapshot
+            // ourselves — no pass-through to SwiftUI required, no click
+            // counter bump, no spark feedback (it's a debug action, not
+            // user input we'd report on the heatmap).
+            if isInsideInlineSnapshotRegion(event.location) {
+                triggerInlineSnapshot()
+                return nil
+            }
             leftClickCount += 1
             PerfMetrics.shared.recordEvent("mouseL")
             triggerInputFeedback()

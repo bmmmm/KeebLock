@@ -17,9 +17,10 @@ struct LockOverlayDebug: View {
     let level: LockOverlayDebugLevel
 
     @ObservedObject private var perf: PerfMetrics = .shared
+    @State private var snapshotToast: String?
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 topStrip
                 Spacer(minLength: 0)
@@ -33,9 +34,48 @@ struct LockOverlayDebug: View {
                     rightStrip
                 }
             }
+            // Snapshot button — drawn here purely for visual feedback;
+            // the click is intercepted at the event-tap level by
+            // LockController.isInsideInlineSnapshotRegion, so this view
+            // doesn't need (and can't reliably get) hit-testing while
+            // the lock blocks mouse-down at the OS level.
+            snapshotButton
+                .padding(.top, LockController.inlineSnapshotButtonMargin)
+                .padding(.trailing, LockController.inlineSnapshotButtonMargin)
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
+        .onChange(of: controller.snapshotPulse) { _, _ in
+            snapshotToast = "SAVED  ✓"
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1500))
+                snapshotToast = nil
+            }
+        }
+    }
+
+    private var snapshotButton: some View {
+        let saved = snapshotToast != nil
+        return HStack(spacing: 6) {
+            Image(systemName: saved ? "checkmark.circle.fill" : "camera.aperture")
+            Text(snapshotToast ?? "SNAPSHOT")
+                .tracking(0.8)
+        }
+        .font(.system(size: 11, weight: .heavy, design: .monospaced))
+        .foregroundStyle(.black)
+        .frame(
+            width: LockController.inlineSnapshotButtonWidth,
+            height: LockController.inlineSnapshotButtonHeight
+        )
+        .background(
+            Capsule()
+                .fill(saved ? Color.green.opacity(0.92) : Color.orange.opacity(0.88))
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(.black.opacity(0.5), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
     }
 
     // MARK: - Top: input counters
