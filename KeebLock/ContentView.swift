@@ -123,9 +123,10 @@ struct ContentView: View {
             showVerifyPopover.toggle()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: signed ? "checkmark.shield" : "exclamationmark.shield")
+                Image(systemName: signed ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                     .font(.caption2)
-                    .foregroundStyle(signed ? Color.secondary : Color.orange)
+                    .foregroundStyle(signed ? Color.green : Color.red)
+                    .shadow(color: (signed ? Color.green : Color.red).opacity(0.55), radius: 3)
                 if let tid = id.teamID {
                     Text("Build identity ")
                         .foregroundStyle(.secondary)
@@ -192,8 +193,8 @@ struct ContentView: View {
             .padding(8)
             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
-            if let url = URL(string: "https://github.com/bmmmm/KeebLock#authenticity") {
-                Link("Compare against published values →", destination: url)
+            if let url = URL(string: "https://github.com/bmmmm/KeebLock/releases/latest") {
+                Link("Compare with the latest release notes →", destination: url)
                     .font(.caption)
             }
         }
