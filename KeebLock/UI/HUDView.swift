@@ -7,16 +7,16 @@ struct HUDView: View {
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int
 
-    @State private var factIndex: Int = 0
-    @State private var lastFactRotateAt: Int = 0
     @State private var pulseScale: CGFloat = 1.0
     @State private var pulseAlpha: Double = 0.0
 
-    /// Rotate to a new random fact every N keystrokes. Slow enough that the
-    /// reader has time to actually digest a fact — at ~3 keys/sec that's a
-    /// fact every ~10s of typing, faster if you type fast (which mirrors
-    /// engagement well).
-    private let keystrokesPerFactRotation = 30
+    /// Modulo the controller's session-wide rotation tick by the current
+    /// fact count. Single source of truth lives in LockController so all
+    /// monitors show the same fact in lock-step.
+    private var factIndex: Int {
+        let count = currentEntry.facts.count
+        return count > 0 ? controller.factRotationTick % count : 0
+    }
 
     var body: some View {
         VStack(spacing: 22) {
@@ -43,23 +43,6 @@ struct HUDView: View {
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 12)
-        .onAppear {
-            // New session: pick a random starting fact so the same codeword
-            // doesn't always reveal the same opening fact.
-            let count = currentEntry.facts.count
-            factIndex = count > 0 ? Int.random(in: 0..<count) : 0
-            lastFactRotateAt = controller.keystrokeCount
-        }
-        .onChange(of: controller.keystrokeCount) { _, newCount in
-            guard newCount - lastFactRotateAt >= keystrokesPerFactRotation else { return }
-            lastFactRotateAt = newCount
-            let count = currentEntry.facts.count
-            guard count > 1 else { return }
-            // Pick a random fact different from the current one.
-            var next = Int.random(in: 0..<count)
-            if next == factIndex { next = (next + 1) % count }
-            factIndex = next
-        }
     }
 
     private var currentEntry: CodewordKnowledge {
@@ -249,7 +232,7 @@ struct HUDView: View {
                                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                                 .tracking(2.0)
                                 .foregroundStyle(.white.opacity(0.55))
-                            Text(currentEntry.facts[factIndex % currentEntry.facts.count])
+                            Text(currentEntry.facts[factIndex])
                                 .font(.body)
                                 .opacity(0.92)
                                 .multilineTextAlignment(.leading)
