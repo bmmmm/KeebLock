@@ -37,3 +37,6 @@ id_ed25519*
 
 # Temp
 tmp/
+
+# Local scratch / planning notes (convention: <topic>_task.md)
+*_task.md
