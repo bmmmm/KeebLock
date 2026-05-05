@@ -54,10 +54,9 @@ struct DebugInfoPanel: View {
 
             Divider().padding(.vertical, 2)
 
-            row("Keyboard",      "letters=\(controller.letterCount) num=\(controller.numberCount) fn=\(controller.fnKeyCount) sys=\(controller.mediaKeyCount) other=\(controller.otherKeyCount)")
+            row("Keyboard",      "letters=\(controller.letterCount) num=\(controller.numberCount) fn=\(controller.fnKeyCount) sys=\(controller.systemKeyCount) other=\(controller.otherKeyCount)")
             row("Mouse",         "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount) scroll=\(controller.scrollCount)")
             row("Gestures",      "spaces=\(controller.spaceSwitchCount)")
-            row("Miss clicks",   "\(controller.missClickCount) total (excludes letters/numbers)")
         }
         .font(.system(.caption, design: .monospaced))
         .padding(12)

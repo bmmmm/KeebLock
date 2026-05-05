@@ -16,7 +16,7 @@ final class LockController: ObservableObject {
     @Published private(set) var letterCount: Int = 0
     @Published private(set) var numberCount: Int = 0
     @Published private(set) var fnKeyCount: Int = 0
-    @Published private(set) var mediaKeyCount: Int = 0
+    @Published private(set) var systemKeyCount: Int = 0
     @Published private(set) var otherKeyCount: Int = 0
     // Mouse breakdown
     @Published private(set) var leftClickCount: Int = 0
@@ -30,16 +30,12 @@ final class LockController: ObservableObject {
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
-    /// Everything the user pressed that did NOT contribute to codeword progress.
-    var missClickCount: Int {
-        otherKeyCount + fnKeyCount + mediaKeyCount
-            + leftClickCount + rightClickCount + middleClickCount
-            + backClickCount + forwardClickCount + scrollCount
-            + spaceSwitchCount
-    }
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz · async dispatch" }
 
-    private static let fnKeycodes: Set<UInt16> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
+    private static let fnKeycodes: Set<UInt16> = [
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1–F12
+        105, 107, 113, 106, 64, 79, 80, 90,                     // F13–F20 (extended Apple keyboards)
+    ]
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -87,7 +83,7 @@ final class LockController: ObservableObject {
         letterCount = 0
         numberCount = 0
         fnKeyCount = 0
-        mediaKeyCount = 0
+        systemKeyCount = 0
         otherKeyCount = 0
         leftClickCount = 0
         rightClickCount = 0
@@ -277,7 +273,7 @@ final class LockController: ObservableObject {
         ) { [weak self] _ in
             guard let self, self.isLocked else { return }
             self.spaceSwitchCount += 1
-            self.triggerMissClickFeedback()
+            self.triggerInputFeedback()
             // Re-promote our windows on the (possibly newly created) space.
             // canJoinAllSpaces should handle this automatically, but a manual
             // orderFront covers edge cases like spaces created via Mission
@@ -301,7 +297,7 @@ final class LockController: ObservableObject {
 
         if type == .leftMouseDown {
             leftClickCount += 1
-            triggerMissClickFeedback()
+            triggerInputFeedback()
             // Pass through once the user has typed ≥ half the codeword — the unlock
             // button becomes visible and clickable at that threshold.
             let halfLen = max(1, (currentCodeword.count + 1) / 2)
@@ -312,7 +308,7 @@ final class LockController: ObservableObject {
         }
         if type == .rightMouseDown {
             rightClickCount += 1
-            triggerMissClickFeedback()
+            triggerInputFeedback()
             return nil
         }
         if type == .otherMouseDown {
@@ -324,7 +320,7 @@ final class LockController: ObservableObject {
             case 4: forwardClickCount += 1
             default: middleClickCount += 1
             }
-            triggerMissClickFeedback()
+            triggerInputFeedback()
             return nil
         }
         if type == .scrollWheel {
@@ -333,7 +329,7 @@ final class LockController: ObservableObject {
             let now = Date()
             if lastScrollAt == nil || now.timeIntervalSince(lastScrollAt!) > 0.25 {
                 scrollCount += 1
-                triggerMissClickFeedback()
+                triggerInputFeedback()
             }
             lastScrollAt = now
             return nil
@@ -352,8 +348,8 @@ final class LockController: ObservableObject {
                 let keyState = (flags & 0xFF00) >> 8
                 let isRepeat = (flags & 0x1) != 0
                 if keyState == 0x0A && !isRepeat {
-                    mediaKeyCount += 1
-                    triggerMissClickFeedback()
+                    systemKeyCount += 1
+                    triggerInputFeedback()
                 }
                 return nil
             }
@@ -373,10 +369,11 @@ final class LockController: ObservableObject {
         return nil
     }
 
-    /// Audio + visual feedback fired on every blocked input (keystroke, mouse,
-    /// fn/media key). Pixel wipe is intentionally NOT here — it stays exclusive
-    /// to keyDown so misclicks don't grant free cleaning progress.
-    private func triggerMissClickFeedback() {
+    /// Audio + visual feedback fired on every captured input (keystroke,
+    /// mouse, fn/system key, etc.). Pixel wipe is intentionally NOT here —
+    /// it stays exclusive to keyDown so non-keyboard inputs don't grant free
+    /// cleaning progress.
+    private func triggerInputFeedback() {
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
         if AppSettings.shared.effectEnabled { sparkTrigger += 1 }
     }
@@ -401,7 +398,7 @@ final class LockController: ObservableObject {
 
         keyCounts[keycode, default: 0] += 1
         windowManager.wipeOnAllScreens()
-        triggerMissClickFeedback()
+        triggerInputFeedback()
 
         for ch in chars where ch.isLetter || ch.isNumber {
             if matcher.feed(ch) {

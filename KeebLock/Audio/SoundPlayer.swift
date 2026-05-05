@@ -20,7 +20,9 @@ final class SoundPlayer {
     private var customPlayer: AVAudioPlayer?
 
     private var lastPlayTime: TimeInterval = -.infinity
-    private let throttleInterval: TimeInterval = 0.03
+    // 50 ms keeps perceived "click density" while easing burst pressure on
+    // CoreAudio's HALC scheduler under fast trackpad-scroll / typing.
+    private let throttleInterval: TimeInterval = 0.05
 
     // High-priority serial queue for AVAudioEngine/PlayerNode scheduling.
     // AVAudioPlayerNode.scheduleBuffer is thread-safe and can be called from here.

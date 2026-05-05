@@ -78,7 +78,7 @@ struct HUDView: View {
             .init(label: "Letters",  count: controller.letterCount),
             .init(label: "Numbers",  count: controller.numberCount),
             .init(label: "Function", count: controller.fnKeyCount),
-            .init(label: "System",   count: controller.mediaKeyCount),
+            .init(label: "System",   count: controller.systemKeyCount),
             .init(label: "Other",    count: controller.otherKeyCount),
         ]
     }
