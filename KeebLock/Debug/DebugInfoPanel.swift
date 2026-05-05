@@ -55,10 +55,10 @@ struct DebugInfoPanel: View {
             Divider().padding(.vertical, 2)
 
             // Counters
-            row("Keyboard",     "L=\(controller.letterCount) N=\(controller.numberCount) Fn=\(controller.fnKeyCount) Sys=\(controller.systemKeyCount) Oth=\(controller.otherKeyCount)")
+            row("Keyboard",     "Let=\(controller.letterCount) Num=\(controller.numberCount) Sym=\(controller.symbolCount) Ctl=\(controller.controlKeyCount) Fn=\(controller.functionKeyCount) Med=\(controller.mediaKeyCount)")
             row("Mouse",        "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount)")
             row("Scroll",       "scroll=\(controller.scrollCount)")
-            row("Gestures",     "swipes=\(controller.gestureAttemptCount) · pinch=\(controller.pinchCount) · rotate=\(controller.rotateCount) · spaces=\(controller.spaceSwitchCount)")
+            row("Gestures",     "swipes=\(controller.swipeCount) · pinch=\(controller.pinchCount) · rotate=\(controller.rotateCount)")
             row("Heatmap S",    "\(controller.sessionKeyCounts.count) keys / \(controller.sessionKeyCounts.values.reduce(0, +)) presses")
             row("Heatmap O",    "\(controller.overallKeyCounts.count) keys / \(controller.overallKeyCounts.values.reduce(0, +)) presses (persisted)")
 
