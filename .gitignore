@@ -40,3 +40,6 @@ tmp/
 
 # Local scratch / planning notes (convention: <topic>_task.md)
 *_task.md
+
+# Release artifacts produced by scripts/release.sh
+KeebLock-*.zip
