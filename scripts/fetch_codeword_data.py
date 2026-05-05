@@ -49,25 +49,25 @@ WORDS_BY_THEME: dict[str, list[str]] = {
         "vesuvius", "stromboli", "krakatoa", "kilauea", "pinatubo", "cotopaxi",
         "tambora", "hekla", "merapi", "surtsey", "ruapehu", "bromo",
         "erebus", "fuego", "rainier", "lassen", "katmai", "santorini",
-        "novarupta", "tongariro", "redoubt", "izalco",
+        "novarupta", "tongariro", "redoubt", "etna",
     ],
     "rocks": [
         "granite", "basalt", "gneiss", "marble", "slate", "limestone",
         "sandstone", "quartzite", "dolomite", "obsidian", "pumice", "travertine",
         "andesite", "diorite", "gabbro", "diabase", "rhyolite", "trachyte",
-        "phonolite", "syenite", "anorthite",
+        "phonolite", "syenite", "chert",
     ],
     "minerals": [
         "quartz", "pyrite", "olivine", "calcite", "mica", "topaz",
-        "beryl", "augite", "spinel", "apatite", "fluorite", "hematite",
+        "beryl", "tourmaline", "spinel", "apatite", "fluorite", "hematite",
         "magnetite", "limonite", "galena", "sphalerite", "malachite", "azurite",
         "corundum", "garnet", "albite", "microcline", "lazurite", "marcasite",
         "chalcedony", "rutile", "zircon", "ilmenite",
     ],
     "phenomena": [
-        "caldera", "geyser", "lahar", "tephra", "magma", "eruption",
+        "hotspring", "geyser", "lahar", "tephra", "magma", "eruption",
         "crater", "vent", "pluton", "laccolith", "tsunami", "fumarole",
-        "solfatara", "mofette", "massif", "fissure",
+        "solfatara", "sinkhole", "escarpment", "fissure",
     ],
     "ranges": [
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
@@ -98,7 +98,10 @@ SLUG_OVERRIDES: dict[str, str] = {
     "novarupta":  "Novarupta",
     "tongariro":  "Mount Tongariro",
     "redoubt":    "Mount Redoubt",
-    "izalco":     "Izalco (volcano)",
+    "etna":       "Mount Etna",
+    "dolomite":   "Dolomite (mineral)",
+    "vent":       "Volcanic vent",
+    "hotspring":  "Hot spring",
     "andes":      "Andes",
     "alps":       "Alps",
     "atlas":      "Atlas Mountains",
@@ -209,6 +212,157 @@ def resize_image(target: Path, max_width: int = 800) -> None:
     )
 
 
+# ---------- Image attribution (Wikimedia Commons) ----------
+#
+# Wikipedia summary's `originalimage.source` lands on upload.wikimedia.org —
+# that's the binary, not the metadata. License/author/credit live on the
+# Commons "File:" page, queried via the Commons MediaWiki API. We need them
+# because Wikimedia images carry per-file licenses (PD, CC0, CC BY, CC BY-SA,
+# …) that are NOT covered by the repo's Apache-2.0 license. Without recorded
+# attribution we cannot legally redistribute the binaries inside the app.
+
+def commons_filename_from_url(url: str) -> str:
+    """Extract the Commons file name from any upload.wikimedia.org URL.
+
+    Handles direct and thumbnail forms:
+        /wikipedia/commons/x/yy/<filename>
+        /wikipedia/commons/thumb/x/yy/<filename>/<width>px-<filename>
+    """
+    path = urllib.parse.urlparse(url).path
+    parts = [p for p in path.split("/") if p]
+    if "commons" not in parts:
+        return urllib.parse.unquote(parts[-1] if parts else "")
+    idx = parts.index("commons") + 1
+    if idx < len(parts) and parts[idx] == "thumb":
+        # thumb / x / yy / filename / WIDTHpx-filename  → take "filename"
+        return urllib.parse.unquote(parts[idx + 3]) if idx + 3 < len(parts) else ""
+    # x / yy / filename
+    return urllib.parse.unquote(parts[idx + 2]) if idx + 2 < len(parts) else ""
+
+
+def commons_imageinfo(file_basename: str) -> dict | None:
+    """Query Commons API for a file's imageinfo (license, artist, credit).
+
+    `file_basename` is the bare filename without "File:" prefix, e.g.
+    `Albite_-_Crete_(Kriti)_Island,_Greece.jpg`. Returns None if the file is
+    unknown or the API failed; callers should treat that as "attribution
+    missing" rather than fail the whole entry.
+    """
+    qs = urllib.parse.urlencode({
+        "action": "query",
+        "format": "json",
+        "titles": f"File:{file_basename}",
+        "prop": "imageinfo",
+        "iiprop": "extmetadata|user|url",
+        "iiextmetadatafilter": "License|LicenseShortName|LicenseUrl|Artist|Credit|AttributionRequired",
+        "iiextmetadatalanguage": "en",
+    })
+    try:
+        resp = http_get_json(f"https://commons.wikimedia.org/w/api.php?{qs}")
+    except Exception as e:
+        print(f"      commons api failed: {e}", flush=True)
+        return None
+    pages = resp.get("query", {}).get("pages", {})
+    if not pages:
+        return None
+    page = next(iter(pages.values()))
+    if page.get("missing") is not None:
+        return None
+    info = page.get("imageinfo") or []
+    if not info:
+        return None
+    return {
+        "pageid": page.get("pageid"),
+        "title": page.get("title") or f"File:{file_basename}",
+        "imageinfo": info[0],
+    }
+
+
+def _strip_html(s: str) -> str:
+    if not s:
+        return ""
+    txt = re.sub(r"<[^>]+>", "", s)
+    for entity, repl in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
+                         ("&quot;", '"'), ("&#39;", "'"), ("&nbsp;", " ")):
+        txt = txt.replace(entity, repl)
+    return re.sub(r"\s+", " ", txt).strip()
+
+
+def _parse_html_artist(html: str) -> tuple[str, str | None]:
+    """Pull a clean author name + optional URL from the Artist HTML blob."""
+    if not html:
+        return "", None
+    url = None
+    m = re.search(r'<a\s+[^>]*href="([^"]+)"', html)
+    if m:
+        url = m.group(1)
+        if url.startswith("//"):
+            url = "https:" + url
+        elif url.startswith("/"):
+            url = "https://commons.wikimedia.org" + url
+    return _strip_html(html), url
+
+
+def _parse_bool(s: str) -> bool | None:
+    if not s:
+        return None
+    s = s.strip().lower()
+    if s in ("true", "1", "yes"):
+        return True
+    if s in ("false", "0", "no"):
+        return False
+    return None
+
+
+def build_attribution(file_basename: str, info: dict) -> dict:
+    """Translate a commons_imageinfo() result into the JSON shape we store."""
+    ii = info.get("imageinfo") or {}
+    em = ii.get("extmetadata") or {}
+
+    def emval(key: str) -> str:
+        v = em.get(key)
+        return v.get("value", "") if isinstance(v, dict) else ""
+
+    artist_name, artist_url = _parse_html_artist(emval("Artist"))
+    license_id = emval("License")  # e.g. "cc-by-sa-4.0"
+    file_title = info.get("title") or f"File:{file_basename}"
+    page_url = "https://commons.wikimedia.org/wiki/" + urllib.parse.quote(
+        file_title.replace(" ", "_"), safe=":/"
+    )
+
+    return {
+        "commons_file_title":   file_title,
+        "commons_page_url":     page_url,
+        "commons_pageid":       info.get("pageid"),
+        "uploader":             ii.get("user") or None,
+        "author":               artist_name or None,
+        "author_url":           artist_url,
+        "license_name":         emval("LicenseShortName") or None,
+        "license_url":          emval("LicenseUrl") or None,
+        "license_spdx":         license_id.upper() if license_id else None,
+        "credit":               _strip_html(emval("Credit")) or None,
+        "attribution_required": _parse_bool(emval("AttributionRequired")),
+    }
+
+
+def fetch_attribution_only(image_source_url: str | None) -> dict | None:
+    """Backfill attribution for an existing entry — no Wikipedia summary/html.
+
+    Used by main() to fill in `image_attribution` for previously-fetched
+    words whose entry predates the attribution schema. Only the Commons
+    API is hit, so this is much cheaper than a full re-fetch.
+    """
+    if not image_source_url:
+        return None
+    file_basename = commons_filename_from_url(image_source_url)
+    if not file_basename:
+        return None
+    info = commons_imageinfo(file_basename)
+    if info is None:
+        return None
+    return build_attribution(file_basename, info)
+
+
 # ---------- Per-word fetch ----------
 
 def fetch_word(word: str, force: bool) -> dict | None:
@@ -245,6 +399,21 @@ def fetch_word(word: str, force: bool) -> dict | None:
                 image_target.unlink()
             return None
 
+    # Attribution lookup is best-effort: a missing Commons response should
+    # not invalidate the whole entry, but downstream tooling (CREDITS.md
+    # generator, in-app credits view) must flag null attribution as needing
+    # manual review before public distribution.
+    file_basename = commons_filename_from_url(image_url)
+    attribution: dict | None = None
+    if file_basename:
+        info = commons_imageinfo(file_basename)
+        if info is not None:
+            attribution = build_attribution(file_basename, info)
+        else:
+            print(f"      attribution lookup empty for {file_basename}", flush=True)
+    else:
+        print(f"      could not derive Commons filename from {image_url}", flush=True)
+
     try:
         html = wiki_html(title)
     except Exception as e:
@@ -268,6 +437,7 @@ def fetch_word(word: str, force: bool) -> dict | None:
                          or f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}",
         "image_filename": image_filename,
         "image_source_url": image_url,
+        "image_attribution": attribution,
         "facts": facts,
     }
 
@@ -276,7 +446,9 @@ def fetch_word(word: str, force: bool) -> dict | None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--force", action="store_true", help="Re-download even if image exists")
+    p.add_argument("--force", action="store_true",
+                   help="Re-fetch every word from scratch — ignores prev manifest "
+                        "and overwrites all entries. Use only when you need a clean rebuild.")
     p.add_argument("--only", help="Comma-separated subset of words")
     args = p.parse_args()
 
@@ -289,8 +461,10 @@ def main() -> int:
     data: dict[str, dict] = {}
     unavailable: list[str] = []
 
-    # Preserve previous manifest data when running subset (--only).
-    if only_set and MANIFEST_PATH.exists():
+    # Default behaviour preserves the previous manifest so re-running the
+    # script never destroys hand-curated or already-attributed entries.
+    # `--force` opts out of that and rebuilds from scratch.
+    if not args.force and MANIFEST_PATH.exists():
         prev = json.loads(MANIFEST_PATH.read_text())
         data.update(prev.get("data", {}))
         unavailable = list(prev.get("unavailable", []))
@@ -300,6 +474,27 @@ def main() -> int:
         for word in words:
             if only_set is not None and word not in only_set:
                 continue
+
+            existing = data.get(word)
+            image_target = IMAGES_DIR / f"{word}.jpg"
+
+            # Skip work that's already done. An entry is "complete" when its
+            # image is on disk AND it has a non-null image_attribution block.
+            # Anything missing → backfill the cheap path (attribution-only)
+            # if we have an image_source_url, else fall through to full fetch.
+            if not args.force and existing is not None and image_target.exists():
+                if existing.get("image_attribution") is not None:
+                    print(f"  [{word}] cached (complete)", flush=True)
+                    continue
+                attribution = fetch_attribution_only(existing.get("image_source_url"))
+                if attribution is not None:
+                    existing["image_attribution"] = attribution
+                    print(f"  [{word}] attribution backfilled", flush=True)
+                else:
+                    print(f"  [{word}] attribution still unavailable", flush=True)
+                time.sleep(0.2)
+                continue
+
             entry = fetch_word(word, force=args.force)
             if entry is None:
                 if word not in unavailable:
@@ -312,6 +507,17 @@ def main() -> int:
                 if word in unavailable:
                     unavailable.remove(word)
             time.sleep(0.2)  # be polite to Wikipedia
+
+    # Drop entries whose word no longer appears in WORDS_BY_THEME so the
+    # manifest stays in sync after replacements (e.g. izalco → etna).
+    valid_words = {w for ws in WORDS_BY_THEME.values() for w in ws}
+    obsolete_data = sorted(set(data) - valid_words)
+    obsolete_unavail = sorted(set(unavailable) - valid_words)
+    for w in obsolete_data:
+        del data[w]
+    unavailable = [w for w in unavailable if w in valid_words]
+    if obsolete_data or obsolete_unavail:
+        print(f"\nDropped obsolete: data={obsolete_data}, unavailable={obsolete_unavail}")
 
     manifest = {
         "version": 1,
