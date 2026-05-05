@@ -17,6 +17,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             codewordSection
+            themeSection
             pixelSection
             colorsSection
             effectSection
@@ -331,6 +332,58 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var themeSection: some View {
+        Section {
+            HStack(spacing: 14) {
+                ForEach(AppTheme.allCases) { theme in
+                    themeChip(theme)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+            Text("Tints the entire app. Light/Dark mode follows your system.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text("Theme")
+        }
+    }
+
+    private func themeChip(_ theme: AppTheme) -> some View {
+        let selected = settings.appTheme == theme
+        return Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.65)) {
+                settings.appTheme = theme
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(theme.color)
+                        .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1.5))
+                    if selected {
+                        Image(systemName: "checkmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .shadow(radius: 1)
+                    } else {
+                        Image(systemName: theme.icon)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                }
+                .frame(width: 36, height: 36)
+                .scaleEffect(selected ? 1.08 : 1.0)
+
+                Text(theme.label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(selected ? .primary : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(theme.label)
     }
 
     private var knowledgeSection: some View {

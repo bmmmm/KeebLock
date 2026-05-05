@@ -157,6 +157,53 @@ enum ColorPreset: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - App theme (global accent)
+
+/// Tints the entire app — applied as `.tint(...)` on the root WindowGroup.
+/// Each case maps to a named color set in Assets.xcassets that carries its
+/// own Light/Dark variants, so the appearance follows the system mode while
+/// staying within the chosen palette family.
+enum AppTheme: String, CaseIterable, Identifiable, Codable {
+    case day, dark, sakura, coffee, bath
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .day:    return "Day"
+        case .dark:   return "Sleepy"
+        case .sakura: return "Sakura"
+        case .coffee: return "Coffee"
+        case .bath:   return "Bath"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .day:    return "sun.max.fill"
+        case .dark:   return "moon.fill"
+        case .sakura: return "leaf.fill"
+        case .coffee: return "cup.and.saucer.fill"
+        case .bath:   return "drop.fill"
+        }
+    }
+
+    /// Asset Catalog color-set name. AccentColor is the project default and
+    /// carries the Day palette so SwiftUI's implicit `Color.accentColor`
+    /// references stay sensible when the user hasn't picked a theme yet.
+    var accentColorName: String {
+        switch self {
+        case .day:    return "AccentColor"
+        case .dark:   return "AccentDark"
+        case .sakura: return "AccentSakura"
+        case .coffee: return "AccentCoffee"
+        case .bath:   return "AccentBath"
+        }
+    }
+
+    var color: Color { Color(accentColorName) }
+}
+
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
@@ -173,6 +220,13 @@ final class AppSettings: ObservableObject {
     /// Off by default. Force-quit (⌘⌥Esc) is always the safety net.
     @Published var autoUnlockEnabled: Bool {
         didSet { defaults.set(autoUnlockEnabled, forKey: Keys.autoUnlock) }
+    }
+
+    // MARK: - Appearance
+
+    /// App-wide accent theme; tints all SwiftUI views via `.tint(...)`.
+    @Published var appTheme: AppTheme {
+        didSet { defaults.set(appTheme.rawValue, forKey: Keys.appTheme) }
     }
 
     // MARK: - Visuals
@@ -302,6 +356,7 @@ final class AppSettings: ObservableObject {
         static let debug              = "debugLoggingEnabled"
         static let verbosePerf        = "verbosePerfEnabled"
         static let lockOverlayLevel   = "lockOverlayDebugLevel"
+        static let appTheme           = "appTheme"
     }
 
     private init() {
@@ -342,5 +397,8 @@ final class AppSettings: ObservableObject {
 
         let overlayRaw = d.string(forKey: Keys.lockOverlayLevel) ?? LockOverlayDebugLevel.off.rawValue
         self.lockOverlayDebugLevel = LockOverlayDebugLevel(rawValue: overlayRaw) ?? .off
+
+        let themeRaw = d.string(forKey: Keys.appTheme) ?? AppTheme.day.rawValue
+        self.appTheme = AppTheme(rawValue: themeRaw) ?? .day
     }
 }
