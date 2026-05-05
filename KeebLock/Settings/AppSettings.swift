@@ -70,6 +70,40 @@ enum ScreenEffect: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - Lock-screen debug overlay level
+
+/// Border-strip live-debug HUD shown around the lock screen, off by default.
+/// Higher levels show more rows AND tone down lock-screen animations so the
+/// overlay's text stays legible (per the user request to "reduce
+/// animations" when the overlay is on).
+enum LockOverlayDebugLevel: String, CaseIterable, Identifiable, Codable, Comparable {
+    case off, minimal, standard, verbose
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off:      return "Off"
+        case .minimal:  return "Minimal"
+        case .standard: return "Standard"
+        case .verbose:  return "Verbose"
+        }
+    }
+
+    private var ordinal: Int {
+        switch self {
+        case .off: return 0
+        case .minimal: return 1
+        case .standard: return 2
+        case .verbose: return 3
+        }
+    }
+
+    static func < (lhs: LockOverlayDebugLevel, rhs: LockOverlayDebugLevel) -> Bool {
+        lhs.ordinal < rhs.ordinal
+    }
+}
+
 // MARK: - Color presets
 
 /// Predefined color choices for both the background and the cleaning pixel layers.
@@ -226,6 +260,25 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(verbosePerfEnabled, forKey: Keys.verbosePerf) }
     }
 
+    /// Lock-screen border-strip live-debug HUD. Anything above .off also
+    /// dims the spark/effect intensity in the lock window (so debug numbers
+    /// stay readable).
+    @Published var lockOverlayDebugLevel: LockOverlayDebugLevel {
+        didSet { defaults.set(lockOverlayDebugLevel.rawValue, forKey: Keys.lockOverlayLevel) }
+    }
+
+    /// Effective particle-spawn count for the lock-screen effect. Reduced
+    /// when the live-debug overlay is on so the animation doesn't jitter
+    /// the readout. Used by SparkOverlayView in place of `sparkCount`.
+    var effectiveSparkCount: Int {
+        switch lockOverlayDebugLevel {
+        case .off:      return sparkCount
+        case .minimal:  return max(1, sparkCount * 2 / 3)
+        case .standard: return max(1, sparkCount / 2)
+        case .verbose:  return max(1, sparkCount / 4)
+        }
+    }
+
     // MARK: - Storage
 
     private let defaults = UserDefaults.standard
@@ -248,6 +301,7 @@ final class AppSettings: ObservableObject {
         static let knowledge          = "showCodewordKnowledge"
         static let debug              = "debugLoggingEnabled"
         static let verbosePerf        = "verbosePerfEnabled"
+        static let lockOverlayLevel   = "lockOverlayDebugLevel"
     }
 
     private init() {
@@ -285,5 +339,8 @@ final class AppSettings: ObservableObject {
         self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false
         self.verbosePerfEnabled    = d.object(forKey: Keys.verbosePerf)  as? Bool ?? false
+
+        let overlayRaw = d.string(forKey: Keys.lockOverlayLevel) ?? LockOverlayDebugLevel.off.rawValue
+        self.lockOverlayDebugLevel = LockOverlayDebugLevel(rawValue: overlayRaw) ?? .off
     }
 }
