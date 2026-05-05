@@ -15,13 +15,14 @@ struct KeebLockApp: App {
                 .environmentObject(settings)
                 .environment(lockController)
                 .frame(minWidth: 520, minHeight: 640)
+                .tint(settings.appTheme.color)
         }
         .windowResizability(.contentSize)
         .commands {
             // Application menu (replaces the default "About" item)
             CommandGroup(replacing: .appInfo) {
                 Button("About KeebLock") {
-                    NSApp.orderFrontStandardAboutPanel(nil)
+                    AboutPanel.show()
                 }
             }
 
