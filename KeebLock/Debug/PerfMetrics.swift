@@ -14,26 +14,41 @@ import Foundation
 final class PerfMetrics: ObservableObject {
     static let shared = PerfMetrics()
 
-    // MARK: - Event-tap callback latency (ns)
-    @Published private(set) var eventCallbackMaxNs: UInt64 = 0
-    @Published private(set) var eventCallbackAvgNs: UInt64 = 0
-    @Published private(set) var eventCallbackP99Ns: UInt64 = 0
-    @Published private(set) var eventCallbackSamples: Int = 0
+    /// Bumps once per 1 Hz rate-timer tick (and on sessionStart/Stop) so
+    /// SwiftUI views observing PerfMetrics refresh at 1 Hz instead of
+    /// per-event. Every other field is a plain `var` — they're read
+    /// on-demand from inside body(), but their MUTATIONS no longer fire
+    /// objectWillChange publishes. Pre-this-change, recordCallback was
+    /// publishing 3 times per event (Avg/Max/Samples) directly from the
+    /// CGEventTap callback; when LockOverlayDebug or DebugInfoPanel
+    /// happened to be in the middle of a body() evaluation, the publish
+    /// landed *during* a view update and SwiftUI logged "Publishing
+    /// changes from within view updates is not allowed, this will cause
+    /// undefined behavior." × dozens, plus made the event-tap latency
+    /// max balloon to ~18 ms because the callback was racing the view
+    /// update phase. 1 Hz refresh on the readouts is more than enough.
+    @Published private(set) var tickSeq: Int = 0
+
+    // MARK: - Event-tap callback latency (ns) — plain, refreshed at 1 Hz
+    private(set) var eventCallbackMaxNs: UInt64 = 0
+    private(set) var eventCallbackAvgNs: UInt64 = 0
+    private(set) var eventCallbackP99Ns: UInt64 = 0
+    private(set) var eventCallbackSamples: Int = 0
 
     // MARK: - Per-second rates (sliding 1 s bucket)
-    @Published private(set) var eventTapEventsPerSec: Int = 0
-    @Published private(set) var wipeCallsPerSec: Int = 0
-    @Published private(set) var mainHopsPerSec: Int = 0
+    private(set) var eventTapEventsPerSec: Int = 0
+    private(set) var wipeCallsPerSec: Int = 0
+    private(set) var mainHopsPerSec: Int = 0
 
     // MARK: - Allocation / I/O counters (cumulative across session)
-    @Published private(set) var nsEventAllocations: Int = 0
-    @Published private(set) var jsonEncodeCount: Int = 0
-    @Published private(set) var jsonDecodeCount: Int = 0
-    @Published private(set) var userDefaultsWrites: Int = 0
+    private(set) var nsEventAllocations: Int = 0
+    private(set) var jsonEncodeCount: Int = 0
+    private(set) var jsonDecodeCount: Int = 0
+    private(set) var userDefaultsWrites: Int = 0
 
     // MARK: - Memory
-    @Published private(set) var memoryStartMB: Double = 0
-    @Published private(set) var memoryNowMB: Double = 0
+    private(set) var memoryStartMB: Double = 0
+    private(set) var memoryNowMB: Double = 0
     var memoryDeltaMB: Double { memoryNowMB - memoryStartMB }
 
     // MARK: - Internal sampling state
@@ -84,11 +99,13 @@ final class PerfMetrics: ObservableObject {
         memoryNowMB = memoryStartMB
         sessionStartTicks = mach_absolute_time()
         startRateTimer()
+        tickSeq &+= 1
     }
 
     func sessionStop() {
         stopRateTimer()
         memoryNowMB = Self.currentResidentMB()
+        tickSeq &+= 1
     }
 
     /// Discard all samples; called at session start so figures shown in
@@ -212,6 +229,10 @@ final class PerfMetrics: ObservableObject {
             let idx = max(0, min(sorted.count - 1, Int(Double(sorted.count) * 0.99)))
             eventCallbackP99Ns = sorted[idx]
         }
+        // Single publish per second — drives all view refreshes that observe
+        // PerfMetrics. recordCallback / recordEvent / recordWipe never
+        // publish from the hot path themselves.
+        tickSeq &+= 1
     }
 
     // MARK: - Memory
