@@ -1,3 +1,4 @@
+import Carbon
 import Combine
 import SwiftUI
 
@@ -7,7 +8,24 @@ import SwiftUI
 // who want exact numbers per key.
 struct HeatmapView: View {
     @ObservedObject var controller: LockController
+    @ObservedObject private var inputSource = InputSourceObserver.shared
     @Environment(\.dismiss) private var dismiss
+
+    /// Layout-translated labels per keycode. Recomputed when the active TIS
+    /// source changes (e.g. user switches German ↔ U.S. via ⌃⌥Space).
+    @State private var dynamicLabels: [UInt16: String] = [:]
+
+    /// Modifier/special keycodes whose labels stay as their hard-coded
+    /// glyphs. UCKeyTranslate would either return control chars or yield
+    /// the same letter on every layout, so static is more useful.
+    private static let staticLabelKeycodes: Set<UInt16> = [
+        53,                                                        // esc
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,    // F1–F12
+        51, 48, 57, 36,                                            // delete tab caps return
+        56, 60,                                                    // shift
+        63, 59, 62, 58, 61, 55, 54, 49,                            // fn ctrl opt cmd space
+        123, 124, 125, 126,                                        // arrows
+    ]
 
     private var rows: [KeyStat] {
         controller.keyCounts
@@ -49,6 +67,33 @@ struct HeatmapView: View {
             footer
         }
         .frame(minWidth: 720, minHeight: 620)
+        .onAppear { rebuildDynamicLabels() }
+        .onChange(of: inputSource.sourceID) { _, _ in rebuildDynamicLabels() }
+    }
+
+    /// Per-tile label: dynamic translation when available, otherwise the
+    /// hard-coded fallback (modifier glyphs, F-keys, special keys).
+    private func resolvedLabel(for key: KbKey) -> String {
+        if let code = key.code, let dyn = dynamicLabels[code] { return dyn }
+        return key.label
+    }
+
+    /// Walk all tile keycodes once, ask UCKeyTranslate for the layout-correct
+    /// label, cache. Cheap (~50 calls) and only fires on view show / layout
+    /// switch — not on each keystroke.
+    private func rebuildDynamicLabels() {
+        guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+        var map: [UInt16: String] = [:]
+        for row in KeyboardLayout.rows {
+            for key in row {
+                guard let code = key.code,
+                      !Self.staticLabelKeycodes.contains(code) else { continue }
+                if let label = KeyboardLayoutLookup.translate(keycode: code, source: src) {
+                    map[code] = label
+                }
+            }
+        }
+        dynamicLabels = map
     }
 
     // MARK: - Header / Footer
@@ -108,6 +153,7 @@ struct HeatmapView: View {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, key in
                             KeyTile(
                                 key: key,
+                                resolvedLabel: resolvedLabel(for: key),
                                 count: key.code.map { controller.keyCounts[$0] ?? 0 } ?? 0,
                                 maxCount: maxCount
                             )
@@ -309,6 +355,7 @@ private enum KeyboardLayout {
 
 private struct KeyTile: View {
     let key: KbKey
+    let resolvedLabel: String
     let count: Int
     let maxCount: Int
 
@@ -317,8 +364,8 @@ private struct KeyTile: View {
     var body: some View {
         let frac = maxCount > 0 ? Double(count) / Double(maxCount) : 0
         VStack(spacing: 1) {
-            Text(key.label)
-                .font(.system(size: key.label.count > 2 ? 9 : 12, weight: .medium))
+            Text(resolvedLabel)
+                .font(.system(size: resolvedLabel.count > 2 ? 9 : 12, weight: .medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(count > 0 ? .primary : .secondary)
