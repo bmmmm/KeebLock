@@ -32,5 +32,8 @@ id_ed25519*
 *.swp
 *~
 
+# Claude Code (project-local state, hooks, transcripts, permissions)
+.claude/
+
 # Temp
 tmp/
