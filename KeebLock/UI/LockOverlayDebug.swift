@@ -12,6 +12,12 @@ import SwiftUI
 /// can't swallow clicks meant for the unlock button or the codeword
 /// field. Spark / effect intensity in the lock window scales down via
 /// `AppSettings.effectiveSparkCount` while the overlay is on.
+// Layout constants are inline below with self-evident SwiftUI modifier
+// names (`.padding`, `.spacing`, `.font(size:)`). The numbers themselves
+// are tuned by eye for a 13" screen — large enough to read at a glance,
+// small enough to leave the lock card breathing room. Group fonts in
+// the 8/11 pt monospaced range, padding 6-14 pt, opacities 0.35 (dim) /
+// 0.6 (label) / 0.78 (strip bg).
 struct LockOverlayDebug: View {
     var controller: LockController
     let level: LockOverlayDebugLevel

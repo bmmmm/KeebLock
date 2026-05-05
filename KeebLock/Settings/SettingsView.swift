@@ -514,11 +514,7 @@ struct SettingsView: View {
         }
     }
 
-    private var appVersion: String {
-        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        return "\(v) (\(b))"
-    }
+    private var appVersion: String { Bundle.main.keeblockVersionString }
 
     private var debugSection: some View {
         Section("Debug") {

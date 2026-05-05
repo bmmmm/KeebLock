@@ -112,9 +112,5 @@ struct DebugInfoPanel: View {
                perf.memoryNowMB, perf.memoryDeltaMB)
     }
 
-    private func appVersion() -> String {
-        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        return "\(v) (\(b))"
-    }
+    private func appVersion() -> String { Bundle.main.keeblockVersionString }
 }
