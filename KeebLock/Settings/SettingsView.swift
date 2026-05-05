@@ -447,6 +447,19 @@ struct SettingsView: View {
                 }
             }
             .buttonStyle(.borderless)
+
+            Divider()
+
+            HStack(spacing: 8) {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("To uninstall: open **KeebLock.app/Contents/Resources/** in Finder and run **Uninstall KeebLock.command**, or run `scripts/uninstall.sh` from the project directory.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 2)
         }
     }
 

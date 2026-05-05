@@ -123,6 +123,15 @@ final class LockWindowManager {
         DebugLog.log("hide: teardown complete")
     }
 
+    /// Re-promote all lock windows to the foreground. Called after a Space
+    /// (Desktop) switch — canJoinAllSpaces is best-effort and can miss spaces
+    /// created via Mission Control while the lock is already active.
+    func refreshSpaceCoverage() {
+        for window in windows {
+            window.orderFrontRegardless()
+        }
+    }
+
     /// Clears exactly one random pixel on every screen.
     func wipeOnAllScreens() {
         for renderer in renderers {

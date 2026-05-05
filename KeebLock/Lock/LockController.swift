@@ -25,6 +25,9 @@ final class LockController: ObservableObject {
     @Published private(set) var backClickCount: Int = 0
     @Published private(set) var forwardClickCount: Int = 0
     @Published private(set) var scrollCount: Int = 0
+    // Gestures
+    @Published private(set) var spaceSwitchCount: Int = 0
+    @Published private(set) var gestureAttemptCount: Int = 0
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
@@ -33,6 +36,7 @@ final class LockController: ObservableObject {
         otherKeyCount + fnKeyCount + mediaKeyCount
             + leftClickCount + rightClickCount + middleClickCount
             + backClickCount + forwardClickCount + scrollCount
+            + spaceSwitchCount + gestureAttemptCount
     }
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz · async dispatch" }
 
@@ -44,6 +48,8 @@ final class LockController: ObservableObject {
     private var unlockTimer: Timer?
     private var lastKeystrokeAt: Date?
     private var lastScrollAt: Date?
+    private var lastGestureAt: Date?
+    private var spaceObserver: NSObjectProtocol?
 
     private let pauseDetectThreshold: TimeInterval = 30
     private let windowManager = LockWindowManager()
@@ -91,7 +97,10 @@ final class LockController: ObservableObject {
         backClickCount = 0
         forwardClickCount = 0
         scrollCount = 0
+        spaceSwitchCount = 0
+        gestureAttemptCount = 0
         lastScrollAt = nil
+        lastGestureAt = nil
         codewordMatchProgress = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
@@ -103,6 +112,7 @@ final class LockController: ObservableObject {
             DebugLog.log("startLock: installEventTap returned false (accessibility?)")
             return
         }
+        installSpaceObserver()
         DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes)")
         windowManager.show(
             controller: self,
@@ -119,6 +129,7 @@ final class LockController: ObservableObject {
         DebugLog.log("stopLock: keystrokes=\(keystrokeCount) remaining=\(remainingSeconds)s")
         stopTimer()
         removeEventTap()
+        removeSpaceObserver()
         soundPlayer.stop()
         saveKeyCounts()
         recordSession()
@@ -210,6 +221,8 @@ final class LockController: ObservableObject {
                               | (1 << CGEventType.otherMouseDown.rawValue)
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
+                              | (1 << 29) // NSEventType.gesture — continuous trackpad gesture
+                              | (1 << 31) // NSEventType.swipe — discrete 3/4-finger swipe
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
@@ -248,6 +261,37 @@ final class LockController: ObservableObject {
         runLoopSource = nil
     }
 
+    // MARK: - Space (Desktop) observer
+
+    /// Watch for macOS Space switches (4-finger swipe, Ctrl+Arrow, Mission
+    /// Control). The notification fires regardless of how the switch was
+    /// triggered, so we get a reliable count even if the gesture itself never
+    /// reaches our event tap.
+    private func installSpaceObserver() {
+        let center = NSWorkspace.shared.notificationCenter
+        spaceObserver = center.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isLocked else { return }
+            self.spaceSwitchCount += 1
+            self.triggerMissClickFeedback()
+            // Re-promote our windows on the (possibly newly created) space.
+            // canJoinAllSpaces should handle this automatically, but a manual
+            // orderFront covers edge cases like spaces created via Mission
+            // Control's "+" while we're already locked.
+            self.windowManager.refreshSpaceCoverage()
+        }
+    }
+
+    private func removeSpaceObserver() {
+        if let token = spaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(token)
+        }
+        spaceObserver = nil
+    }
+
     fileprivate func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -282,6 +326,22 @@ final class LockController: ObservableObject {
             triggerMissClickFeedback()
             return nil
         }
+        if type.rawValue == 29 || type.rawValue == 31 {
+            // NSEventType.gesture (29) fires ~60Hz throughout a continuous
+            // trackpad gesture; NSEventType.swipe (31) fires once per discrete
+            // 3/4-finger directional swipe. Debounce so a single physical
+            // gesture maps to one count + one feedback burst, regardless of
+            // whether the system actually completes the resulting action
+            // (space switch, app expose, etc.).
+            let now = Date()
+            if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
+                gestureAttemptCount += 1
+                triggerMissClickFeedback()
+            }
+            lastGestureAt = now
+            return nil
+        }
+
         if type == .scrollWheel {
             // Trackpad/Magic-Mouse scrolls fire ~60 events/sec — debounce so a single
             // gesture maps to ~1 count + one feedback burst, not a machine-gun.

@@ -94,11 +94,19 @@ struct HUDView: View {
         ]
     }
 
+    private var gestureCategories: [InputCategory] {
+        [
+            .init(label: "Swipes", count: controller.gestureAttemptCount),
+            .init(label: "Spaces", count: controller.spaceSwitchCount),
+        ]
+    }
+
     @ViewBuilder
     private var inputBreakdown: some View {
         let kbTotal = keyboardCategories.reduce(0) { $0 + $1.count }
         let msTotal = mouseCategories.reduce(0) { $0 + $1.count }
-        if kbTotal > 0 || msTotal > 0 {
+        let gsTotal = gestureCategories.reduce(0) { $0 + $1.count }
+        if kbTotal > 0 || msTotal > 0 || gsTotal > 0 {
             HStack(alignment: .top, spacing: 18) {
                 if kbTotal > 0 {
                     breakdownCard(title: "Keyboard", categories: keyboardCategories)
@@ -106,8 +114,11 @@ struct HUDView: View {
                 if msTotal > 0 {
                     breakdownCard(title: "Mouse", categories: mouseCategories)
                 }
+                if gsTotal > 0 {
+                    breakdownCard(title: "Gestures", categories: gestureCategories)
+                }
             }
-            .frame(maxWidth: 720)
+            .frame(maxWidth: 980)
         }
     }
 

@@ -122,6 +122,7 @@ enum DebugLog {
         lines.append("keyCounts:         \(c.keyCounts.count) distinct, \(c.keyCounts.values.reduce(0, +)) total presses")
         lines.append("keyboard:          letters=\(c.letterCount) numbers=\(c.numberCount) function=\(c.fnKeyCount) system=\(c.mediaKeyCount) other=\(c.otherKeyCount)")
         lines.append("mouse:             left=\(c.leftClickCount) right=\(c.rightClickCount) middle=\(c.middleClickCount) back=\(c.backClickCount) forward=\(c.forwardClickCount) scroll=\(c.scrollCount)")
+        lines.append("gestures:          swipes=\(c.gestureAttemptCount) spaces=\(c.spaceSwitchCount)")
         lines.append("missClicks:        \(c.missClickCount) (everything except letters/numbers)")
         lines.append("")
         lines.append("------ Audio engine ------")
