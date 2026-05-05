@@ -102,6 +102,8 @@ struct HUDView: View {
     private var gestureCategories: [InputCategory] {
         [
             .init(label: "Swipes", count: controller.gestureAttemptCount),
+            .init(label: "Pinch",  count: controller.pinchCount),
+            .init(label: "Rotate", count: controller.rotateCount),
             .init(label: "Spaces", count: controller.spaceSwitchCount),
         ]
     }
