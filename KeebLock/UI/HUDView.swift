@@ -19,19 +19,22 @@ struct HUDView: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        // Spacing trimmed (22 → 16), title & codeword shrunk so the whole
+        // column fits on a 13" MBP (982 pt usable) without clipping the
+        // unlock button below the bottom margin.
+        VStack(spacing: 16) {
             Text("Cleaning Mode")
-                .font(.system(size: 56, weight: .bold))
+                .font(.system(size: 42, weight: .bold))
 
             Text("Type the codeword to unlock")
-                .font(.title3)
+                .font(.subheadline)
                 .opacity(0.85)
 
             Text(controller.currentCodeword.uppercased())
-                .font(.system(size: 36, weight: .heavy, design: .monospaced))
+                .font(.system(size: 30, weight: .heavy, design: .monospaced))
                 .tracking(4)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 14)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 10)
                 .background(.black.opacity(0.35))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
@@ -208,8 +211,8 @@ struct HUDView: View {
     // the entire HUD column under the unlock button. Pick numbers that hold
     // the longest bundled fact at 16-pt body without truncation.
     private static let knowledgeCardWidth: CGFloat = 540
-    private static let knowledgeImageHeight: CGFloat = 220
-    private static let knowledgeFactLineCount = 5
+    private static let knowledgeImageHeight: CGFloat = 160
+    private static let knowledgeFactLineCount = 4
 
     @ViewBuilder
     private var knowledgeFooter: some View {
@@ -359,7 +362,7 @@ struct HUDView: View {
             .animation(.easeInOut(duration: 0.28), value: unlockClickable)
         }
         .frame(height: 70)
-        .padding(.top, 28)
+        .padding(.top, 8)
         .task(id: unlockClickable) {
             guard unlockClickable else {
                 pulseScale = 1.0
