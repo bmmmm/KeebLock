@@ -54,11 +54,17 @@ fi
 echo "Building $CONFIGURATION  $VERSION ($BUILD)"
 
 LOG=$(mktemp)
+# -allowProvisioningUpdates is required: without it, xcodebuild reads a
+# stale signing reference from the build cache and fails with "Signing
+# certificate is invalid" even when the keychain has a fresh, valid
+# Personal-Team cert. With the flag, xcodebuild re-resolves the identity
+# against Xcode's account state on every build.
 xcodebuild \
     -project KeebLock.xcodeproj \
     -scheme KeebLock \
     -configuration "$CONFIGURATION" \
     -derivedDataPath "$DERIVED" \
+    -allowProvisioningUpdates \
     MARKETING_VERSION="$VERSION" \
     CURRENT_PROJECT_VERSION="$BUILD" \
     "$ACTION" >"$LOG" 2>&1
