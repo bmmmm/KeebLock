@@ -56,7 +56,7 @@ struct DebugInfoPanel: View {
 
             row("Keyboard",      "letters=\(controller.letterCount) num=\(controller.numberCount) fn=\(controller.fnKeyCount) sys=\(controller.mediaKeyCount) other=\(controller.otherKeyCount)")
             row("Mouse",         "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount) scroll=\(controller.scrollCount)")
-            row("Gestures",      "swipes=\(controller.gestureAttemptCount) spaces=\(controller.spaceSwitchCount)")
+            row("Gestures",      "spaces=\(controller.spaceSwitchCount)")
             row("Miss clicks",   "\(controller.missClickCount) total (excludes letters/numbers)")
         }
         .font(.system(.caption, design: .monospaced))

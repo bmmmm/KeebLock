@@ -27,7 +27,6 @@ final class LockController: ObservableObject {
     @Published private(set) var scrollCount: Int = 0
     // Gestures
     @Published private(set) var spaceSwitchCount: Int = 0
-    @Published private(set) var gestureAttemptCount: Int = 0
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
@@ -36,7 +35,7 @@ final class LockController: ObservableObject {
         otherKeyCount + fnKeyCount + mediaKeyCount
             + leftClickCount + rightClickCount + middleClickCount
             + backClickCount + forwardClickCount + scrollCount
-            + spaceSwitchCount + gestureAttemptCount
+            + spaceSwitchCount
     }
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz · async dispatch" }
 
@@ -48,7 +47,6 @@ final class LockController: ObservableObject {
     private var unlockTimer: Timer?
     private var lastKeystrokeAt: Date?
     private var lastScrollAt: Date?
-    private var lastGestureAt: Date?
     private var spaceObserver: NSObjectProtocol?
 
     private let pauseDetectThreshold: TimeInterval = 30
@@ -98,9 +96,7 @@ final class LockController: ObservableObject {
         forwardClickCount = 0
         scrollCount = 0
         spaceSwitchCount = 0
-        gestureAttemptCount = 0
         lastScrollAt = nil
-        lastGestureAt = nil
         codewordMatchProgress = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
@@ -221,8 +217,13 @@ final class LockController: ObservableObject {
                               | (1 << CGEventType.otherMouseDown.rawValue)
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
-                              | (1 << 29) // NSEventType.gesture — continuous trackpad gesture
-                              | (1 << 31) // NSEventType.swipe — discrete 3/4-finger swipe
+                              // NOTE: trackpad gesture/swipe events (NSEventType 29/31)
+                              // intentionally NOT tapped. Type 29 conflicts with 2-finger
+                              // scroll; type 31 doesn't fire for 4-finger between-spaces
+                              // swipes anyway. The screensaver-level lock window keeps the
+                              // user on the current Space without needing to swallow the
+                              // gesture, and activeSpaceDidChangeNotification catches any
+                              // edge case where a switch does slip through.
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
@@ -326,22 +327,6 @@ final class LockController: ObservableObject {
             triggerMissClickFeedback()
             return nil
         }
-        if type.rawValue == 29 || type.rawValue == 31 {
-            // NSEventType.gesture (29) fires ~60Hz throughout a continuous
-            // trackpad gesture; NSEventType.swipe (31) fires once per discrete
-            // 3/4-finger directional swipe. Debounce so a single physical
-            // gesture maps to one count + one feedback burst, regardless of
-            // whether the system actually completes the resulting action
-            // (space switch, app expose, etc.).
-            let now = Date()
-            if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
-                gestureAttemptCount += 1
-                triggerMissClickFeedback()
-            }
-            lastGestureAt = now
-            return nil
-        }
-
         if type == .scrollWheel {
             // Trackpad/Magic-Mouse scrolls fire ~60 events/sec — debounce so a single
             // gesture maps to ~1 count + one feedback burst, not a machine-gun.
