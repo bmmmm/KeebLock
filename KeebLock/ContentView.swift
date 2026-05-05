@@ -150,7 +150,8 @@ struct ContentView: View {
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Ad-hoc / unsigned build")
+                    Text("Not the official build")
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.red)
                 }
             }
@@ -190,8 +191,27 @@ struct ContentView: View {
             let tid = id.teamID ?? "?"
             return "Signed as \(tid) but not yet verified by you. Click and compare the values with the latest release notes to turn the shield green."
         case .invalid:
-            return "This build is not signed with a stable identity (debug or ad-hoc). Official release builds expose a 10-character Team ID — click for details."
+            return "This is NOT the official KeebLock build — the binary has no stable Apple Team ID. Could be a local debug build, an ad-hoc copy, or a tampered redistribution. Click for details."
         }
+    }
+
+    private var invalidWarningBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("This is not bmmmm's KeebLock")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text("The binary has no stable Apple Team ID. That means a local debug build, an ad-hoc-signed copy, or a tampered redistribution — not what bmmmm publishes. Don't trust it for anything sensitive; download a fresh copy from the official releases page below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func verifyPopover(_ id: SigningIdentity.Info, state: BuildVerification) -> some View {
@@ -200,14 +220,18 @@ struct ContentView: View {
             Text("Verify this build")
                 .font(.headline)
 
-            Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. Compare the values below with the latest release notes, run the command in Terminal so the OS reads them directly from disk, then mark the build verified.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if state == .invalid {
+                invalidWarningBanner
+            } else {
+                Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. Compare the values below with the latest release notes, run the command in Terminal so the OS reads them directly from disk, then mark the build verified.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
-                identityRow(label: "Team ID", value: id.teamID ?? "(none — ad-hoc / unsigned)")
-                identityRow(label: "CDHash", value: id.cdHash.map { String($0.prefix(16)) + "…" } ?? "(unknown)")
+                identityRow(label: "Team ID", value: id.teamID ?? "(missing — not an official build)")
+                identityRow(label: "CDHash", value: id.cdHash.map { String($0.prefix(16)) + "…" } ?? "(missing)")
             }
 
             Divider()
@@ -236,13 +260,17 @@ struct ContentView: View {
             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
             if let url = URL(string: "https://github.com/bmmmm/KeebLock/releases/latest") {
-                Link("Compare with the latest release notes →", destination: url)
+                Link(state == .invalid
+                     ? "Get the official build from releases →"
+                     : "Compare with the latest release notes →",
+                     destination: url)
                     .font(.caption)
             }
 
-            Divider()
-
-            verifyAction(state: state, id: id)
+            if state != .invalid {
+                Divider()
+                verifyAction(state: state, id: id)
+            }
         }
     }
 
