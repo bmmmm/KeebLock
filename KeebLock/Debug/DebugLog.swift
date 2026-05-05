@@ -9,10 +9,16 @@ import Foundation
 enum DebugLog {
 
     static let logsDirectory: URL = {
-        let dir = FileManager.default
+        // FileManager.urls(for:.libraryDirectory, in:.userDomainMask) is documented
+        // to return at least one URL on macOS, but a force-unwrap here would crash
+        // the static init the first time anyone touches DebugLog. Fall back to the
+        // home directory so a cosmetic-but-broken environment doesn't kill the app.
+        let library = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
-            .first!
-            .appendingPathComponent("Logs/KeebLock", isDirectory: true)
+            .first
+            ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+                .appendingPathComponent("Library", isDirectory: true)
+        let dir = library.appendingPathComponent("Logs/KeebLock", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
@@ -45,15 +51,19 @@ enum DebugLog {
     private static func appendLine(_ line: String) {
         let payload = line + "\n"
         guard let data = payload.data(using: .utf8) else { return }
-        if FileManager.default.fileExists(atPath: logURL.path) {
-            if let handle = try? FileHandle(forWritingTo: logURL) {
-                defer { _ = try? handle.close() }
-                try? handle.seekToEnd()
-                try? handle.write(contentsOf: data)
-                return
+        do {
+            if FileManager.default.fileExists(atPath: logURL.path) {
+                let handle = try FileHandle(forWritingTo: logURL)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+            } else {
+                try data.write(to: logURL)
             }
+        } catch {
+            // Debug logging must never crash the app. Failures still show in
+            // NSLog (the line above), so we lose nothing by swallowing here.
         }
-        try? data.write(to: logURL)
     }
 
     static func revealLogInFinder() {
@@ -116,6 +126,9 @@ enum DebugLog {
         lines.append("audio engine:    \(c.soundDiagnostic)")
         lines.append("accessibility:   \(AccessibilityPermission.isGranted ? "granted" : "denied")")
         lines.append("")
+        lines.append(contentsOf: PerfMetrics.shared.snapshotLines())
+        lines.append("verbose perf:    \(s.verbosePerfEnabled ? "on (latency sampling active)" : "off (only aggregate counters)")")
+        lines.append("")
         lines.append("============ end snapshot ============")
         return lines.joined(separator: "\n")
     }
@@ -132,7 +145,9 @@ enum DebugLog {
 
     // MARK: - Helpers
 
-    private static func machineArch() -> String {
+    /// `arm64` / `x86_64` / `?`. Public so panel views can reuse it instead
+    /// of duplicating the uname dance.
+    static func machineArch() -> String {
         var sys = utsname()
         uname(&sys)
         return withUnsafePointer(to: &sys.machine) {

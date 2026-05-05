@@ -431,7 +431,7 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 16) {
-                Link(destination: URL(string: "https://github.com/bmmmm")!) {
+                Link(destination: URL(string: "https://github.com/bmmmm") ?? URL(fileURLWithPath: "/")) {
                     Label("@bmmmm", systemImage: "person.circle")
                         .font(.callout)
                 }
@@ -452,7 +452,7 @@ struct SettingsView: View {
             Divider()
 
             // Support / donation
-            Link(destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app")!) {
+            Link(destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app") ?? URL(fileURLWithPath: "/")) {
                 HStack(spacing: 8) {
                     Image(systemName: "cup.and.saucer.fill")
                         .foregroundStyle(.pink)
@@ -484,14 +484,14 @@ struct SettingsView: View {
                     Text("Codeword summaries and facts:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Link("Wikipedia", destination: URL(string: "https://en.wikipedia.org")!)
+                    Link("Wikipedia", destination: URL(string: "https://en.wikipedia.org") ?? URL(fileURLWithPath: "/"))
                         .font(.caption)
                 }
                 HStack(spacing: 4) {
                     Text("Lead images:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Link("Wikimedia Commons", destination: URL(string: "https://commons.wikimedia.org")!)
+                    Link("Wikimedia Commons", destination: URL(string: "https://commons.wikimedia.org") ?? URL(fileURLWithPath: "/"))
                         .font(.caption)
                     Text("(CC-BY-SA)")
                         .font(.caption)
@@ -523,6 +523,7 @@ struct SettingsView: View {
     private var debugSection: some View {
         Section("Debug") {
             Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
+            Toggle("Verbose perf sampling (callback latency, p99)", isOn: $settings.verbosePerfEnabled)
 
             HStack(spacing: 10) {
                 Button("Save snapshot") {
