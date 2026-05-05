@@ -299,6 +299,7 @@ struct SettingsView: View {
     private var soundSection: some View {
         Section("Sound") {
             Toggle("Play click on keystroke", isOn: $settings.soundEnabled)
+            Toggle("Chime when unlocked", isOn: $settings.unlockChimeEnabled)
             if settings.soundEnabled {
                 HStack(spacing: 12) {
                     Image(systemName: "speaker.wave.1")
