@@ -48,7 +48,7 @@ struct DebugInfoPanel: View {
 
             // Lock state (live)
             row("Lock",         controller.isLocked ? "active\(controller.isPaused ? " (paused)" : "") · \(controller.remainingSeconds)s left" : "idle")
-            row("Windows",      "\(controller.lockWindowCount) · level=ShieldingWindow")
+            row("Windows",      "\(controller.lockWindowCount) · screenSaver+stationary")
             row("Event tap",    controller.eventTapInstalled ? "active" : "inactive")
             row("Space obs.",   controller.spaceObserverInstalled ? "active" : "inactive")
             row("Audio",        controller.soundDiagnostic)

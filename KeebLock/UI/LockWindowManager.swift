@@ -63,16 +63,16 @@ final class LockWindowManager {
             // the window — otherwise NSHostingView (still holding CADisplayLink callbacks
             // from TimelineView and MTKView) gets freed too early → EXC_BAD_ACCESS.
             window.isReleasedWhenClosed = false
-            // Shielding level (~2_147_483_616) sits above fullscreen apps from
-            // OTHER processes — kCGScreenSaverWindowLevel only beats normal
-            // windows. Drops `.stationary` because it contradicts `.canJoinAllSpaces`
-            // (one says "stay put across space switches", the other says "follow
-            // me everywhere"). With shielding level + canJoinAllSpaces +
-            // fullScreenAuxiliary, the lock surfaces on the user's current space
-            // even if it's a Safari/Xcode/Final-Cut fullscreen space.
-            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+            // .screenSaver (1000) + .stationary + .canJoinAllSpaces is the
+            // empirically-best combo: macOS swallows Mission Control and
+            // 4-finger Space swipes against this level, and the .stationary
+            // flag pins the window to the current Space animation reliably.
+            // Tried CGShieldingWindowLevel — it sits *above* system gesture
+            // handlers and lets gestures fall through, which is worse.
+            window.level = .screenSaver
             window.collectionBehavior = [
                 .canJoinAllSpaces,
+                .stationary,
                 .fullScreenAuxiliary,
                 .ignoresCycle,
             ]

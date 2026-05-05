@@ -101,7 +101,7 @@ enum DebugLog {
         lines.append("------ Lock state ------")
         lines.append("locked:          \(c.isLocked ? "true" : "false")\(c.isPaused ? " (paused)" : "")")
         lines.append("auto-unlock:     \(c.totalSeconds > 0 ? "\(formatTime(c.remainingSeconds)) / \(formatTime(c.totalSeconds))" : "—")")
-        lines.append("windows:         \(c.lockWindowCount) (level=CGShieldingWindowLevel)")
+        lines.append("windows:         \(c.lockWindowCount) (level=screenSaver, stationary, canJoinAllSpaces)")
         lines.append("event tap:       \(c.eventTapInstalled ? "active (cgSession, headInsert)" : "inactive")")
         lines.append("space observer:  \(c.spaceObserverInstalled ? "active" : "inactive")")
         lines.append("")
