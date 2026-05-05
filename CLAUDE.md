@@ -21,6 +21,20 @@ The build uses a project-local `build/DerivedData` so it works inside the
 sandboxed Bash tool without `dangerouslyDisableSandbox`. Don't switch to
 Xcode's default DerivedData unless you have a reason.
 
+**xcodebuild signing — read this before debugging cert errors.** The
+script passes `-allowProvisioningUpdates`. Without it xcodebuild caches a
+stale `(Team ID, Cert Serial)` pair in the build state and reports
+"Signing certificate is invalid" even when the keychain has a fresh,
+valid Personal-Team cert (`security find-identity -v -p codesigning`
+shows the right one). The flag forces xcodebuild to re-resolve the
+identity against Xcode's account state on every build. **Also: from
+Claude Code, builds need `dangerouslyDisableSandbox: true`** — the
+default sandbox blocks xcodebuild from reading Xcode's account state and
+re-emits the same "is not valid for code signing" error against the
+stale cached serial. Manual Xcode builds (⌘B in the IDE) work without
+either workaround because Xcode itself owns the account session; only
+the CLI needs both.
+
 **Auto-versioning:** `scripts/build.sh` derives `MARKETING_VERSION` from the
 latest git tag (`v0.1.0` → `0.1.0`) and `CFBundleVersion` from
 `git rev-list --count HEAD`. Both are passed to `xcodebuild` as command-line
