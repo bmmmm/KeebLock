@@ -30,11 +30,20 @@ enum Codewords {
         "eifel", "taunus", "sudetes", "kunlun",
     ]
 
+    /// Words usable as codewords — `all` minus any that lack bundled
+    /// Wikipedia/Wikimedia data. Falls back to `all` if the manifest didn't
+    /// load (so the launcher is never empty even in degraded states).
+    static var available: [String] {
+        let unavailable = CodewordKnowledgeBase.unavailableWords
+        let filtered = all.filter { !unavailable.contains($0) }
+        return filtered.isEmpty ? all : filtered
+    }
+
     static func random() -> String {
-        all.randomElement() ?? "granite"
+        available.randomElement() ?? "granite"
     }
 
     static func suggestions(count: Int = 6) -> [String] {
-        Array(all.shuffled().prefix(count))
+        Array(available.shuffled().prefix(count))
     }
 }

@@ -207,29 +207,42 @@ struct HUDView: View {
     @ViewBuilder
     private var knowledgeFooter: some View {
         if settings.showCodewordKnowledge {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: currentEntry.iconSymbol)
-                        .foregroundStyle(.white.opacity(0.85))
-                    Text(currentEntry.word.capitalized)
-                        .font(.headline)
-                    Spacer()
+            VStack(alignment: .leading, spacing: 0) {
+                if let image = currentEntry.loadImage() {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: 540, maxHeight: 220)
+                        .clipped()
+                        .clipShape(
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: 14,
+                                topTrailingRadius: 14
+                            )
+                        )
                 }
-                Text(currentEntry.summary)
-                    .font(.callout)
-                    .opacity(0.9)
-                if !currentEntry.facts.isEmpty {
-                    Text(currentEntry.facts[factIndex % currentEntry.facts.count])
-                        .font(.body)
-                        .opacity(0.75)
-                        .multilineTextAlignment(.leading)
-                        .id(factIndex)   // re-render on rotation
-                        .transition(.opacity)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(currentEntry.title)
+                        .font(.system(size: 24, weight: .heavy))
+                    if !currentEntry.facts.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("DID YOU KNOW?")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .tracking(2.0)
+                                .foregroundStyle(.white.opacity(0.55))
+                            Text(currentEntry.facts[factIndex % currentEntry.facts.count])
+                                .font(.body)
+                                .opacity(0.92)
+                                .multilineTextAlignment(.leading)
+                                .id(factIndex)
+                                .transition(.opacity)
+                        }
+                    }
                 }
+                .padding(20)
             }
             .frame(maxWidth: 540, alignment: .leading)
-            .padding(18)
-            .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 14))
+            .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 14))
         }
     }
 

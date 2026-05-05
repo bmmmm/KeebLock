@@ -46,13 +46,18 @@ struct ContentView: View {
                 Button {
                     settings.codeword = Codewords.random()
                 } label: {
-                    Text(settings.codeword.uppercased())
-                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                        .tracking(2)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.tint.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    HStack(spacing: 8) {
+                        Text(settings.codeword.uppercased())
+                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                            .tracking(2)
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.tint.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
                 .help("Click for next codeword")
