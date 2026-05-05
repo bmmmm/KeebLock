@@ -31,6 +31,10 @@ final class LockController: ObservableObject {
     /// once per physical swipe (debounced) regardless of whether macOS
     /// would have completed the swipe's intended action.
     @Published private(set) var gestureAttemptCount: Int = 0
+    /// 2-finger pinch (magnify) attempts. NSEventType 30, debounced.
+    @Published private(set) var pinchCount: Int = 0
+    /// 2-finger rotation attempts. NSEventType 32, debounced.
+    @Published private(set) var rotateCount: Int = 0
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
@@ -90,6 +94,8 @@ final class LockController: ObservableObject {
     private var lastKeystrokeAt: Date?
     private var lastScrollAt: Date?
     private var lastGestureAt: Date?
+    private var lastPinchAt: Date?
+    private var lastRotateAt: Date?
     private var spaceObserver: NSObjectProtocol?
 
     private let pauseDetectThreshold: TimeInterval = 30
@@ -160,8 +166,12 @@ final class LockController: ObservableObject {
         scrollCount = 0
         spaceSwitchCount = 0
         gestureAttemptCount = 0
+        pinchCount = 0
+        rotateCount = 0
         lastScrollAt = nil
         lastGestureAt = nil
+        lastPinchAt = nil
+        lastRotateAt = nil
         codewordMatchProgress = 0
         // Random starting tick so the same codeword doesn't always reveal
         // the same opening fact across sessions.
@@ -197,7 +207,7 @@ final class LockController: ObservableObject {
     func stopLock() {
         guard isLocked else { return }
         let secondsRun = max(0, totalSeconds - remainingSeconds)
-        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) gestures=\(gestureAttemptCount) spaces=\(spaceSwitchCount)")
+        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(gestureAttemptCount) pinch=\(pinchCount) rotate=\(rotateCount) spaces=\(spaceSwitchCount)")
         if AppSettings.shared.unlockChimeEnabled {
             soundPlayer.playUnlockChime()
         }
@@ -276,15 +286,20 @@ final class LockController: ObservableObject {
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
                               | (1 << 29) // NSEventType.gesture — continuous multi-touch
+                              | (1 << 30) // NSEventType.magnify — 2-finger pinch
                               | (1 << 31) // NSEventType.swipe — discrete 3/4-finger swipe
-                              // Earlier .screenSaver-only coverage relied on the OS
-                              // swallowing gesture events at the window-level. On
-                              // macOS 26+ that no longer holds for 3/4-finger swipes
-                              // (Mission Control / between-spaces still completes),
-                              // so we tap them here and swallow them at the source.
-                              // Both rawValues come from NSEventType — CGEventType
-                              // doesn't expose them but the underlying tap mask is
-                              // bit-indexed and accepts the higher values fine.
+                              | (1 << 32) // NSEventType.rotate — 2-finger rotation
+                              | (1 << 33) // NSEventType.beginGesture
+                              | (1 << 34) // NSEventType.endGesture
+                              | (1 << 35) // NSEventType.smartMagnify — double-tap zoom
+                              // .screenSaver-level alone no longer prevents 3/4-finger
+                              // swipes on macOS 26+ (the OS dispatches them via the
+                              // WindowServer/Dock path that runs above app event taps).
+                              // We still tap and swallow here — for keyboard hotkeys
+                              // (Ctrl+Up/Left/Right), pinch, rotate, smart-magnify it
+                              // works; trackpad space-swipes succeed only partially,
+                              // with activeSpaceDidChange + refreshSpaceCoverage as
+                              // reactive recovery.
         // passUnretained is safe here because LockController is a process-wide
         // singleton (`shared`) — the userInfo pointer is valid for the entire
         // app lifetime. If the singleton invariant ever changes, switch to
@@ -407,18 +422,46 @@ final class LockController: ObservableObject {
             return nil
         }
         if type.rawValue == 29 || type.rawValue == 31 {
-            // NSEventType.gesture (29) fires ~60 Hz throughout a continuous
-            // multi-touch gesture; NSEventType.swipe (31) fires once per
-            // discrete 3/4-finger directional swipe. Both are swallowed
-            // (return nil) so Mission Control / Spaces / Expose can't
-            // run while locked. Debounce so one physical swipe = one
-            // count + one feedback burst, even though type 29 streams.
+            // NSEventType.gesture (29) streams ~60 Hz; NSEventType.swipe (31)
+            // is a discrete 3/4-finger directional swipe. Swallowed (return
+            // nil) so Mission Control / Spaces / Expose can't trigger while
+            // locked — though for trackpad space-swipes macOS 26+ may still
+            // complete the action above our tap. Debounce so one physical
+            // swipe = one count + one feedback burst, even though 29 streams.
             let now = Date()
             if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
                 gestureAttemptCount += 1
                 triggerInputFeedback()
             }
             lastGestureAt = now
+            return nil
+        }
+        if type.rawValue == 30 {
+            // NSEventType.magnify — pinch-to-zoom. Streams while pinching;
+            // debounce to one count per physical pinch.
+            let now = Date()
+            if lastPinchAt == nil || now.timeIntervalSince(lastPinchAt!) > 0.4 {
+                pinchCount += 1
+                triggerInputFeedback()
+            }
+            lastPinchAt = now
+            return nil
+        }
+        if type.rawValue == 32 {
+            // NSEventType.rotate — 2-finger rotation. Streams; debounce.
+            let now = Date()
+            if lastRotateAt == nil || now.timeIntervalSince(lastRotateAt!) > 0.4 {
+                rotateCount += 1
+                triggerInputFeedback()
+            }
+            lastRotateAt = now
+            return nil
+        }
+        if type.rawValue == 33 || type.rawValue == 34 || type.rawValue == 35 {
+            // beginGesture / endGesture / smartMagnify — bookend events
+            // around touch sessions. Swallow silently; the streaming branches
+            // above already counted the underlying physical gesture, so we'd
+            // only inflate counts by handling these.
             return nil
         }
 

@@ -119,7 +119,7 @@ enum DebugLog {
         lines.append("keystrokes:      \(c.keystrokeCount)  → letters=\(c.letterCount)  numbers=\(c.numberCount)  function=\(c.fnKeyCount)  system=\(c.systemKeyCount)  other=\(c.otherKeyCount)")
         lines.append("mouse clicks:    L=\(c.leftClickCount)  R=\(c.rightClickCount)  M=\(c.middleClickCount)  back=\(c.backClickCount)  fwd=\(c.forwardClickCount)")
         lines.append("scroll bursts:   \(c.scrollCount)")
-        lines.append("gestures:        swipes=\(c.gestureAttemptCount)  spaces=\(c.spaceSwitchCount)")
+        lines.append("gestures:        swipes=\(c.gestureAttemptCount)  pinch=\(c.pinchCount)  rotate=\(c.rotateCount)  spaces=\(c.spaceSwitchCount)")
         lines.append("heatmap:         \(c.keyCounts.count) distinct keys, \(c.keyCounts.values.reduce(0, +)) total presses")
         lines.append("")
         lines.append("------ Subsystems ------")

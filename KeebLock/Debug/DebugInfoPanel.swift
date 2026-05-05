@@ -57,7 +57,8 @@ struct DebugInfoPanel: View {
             // Counters
             row("Keyboard",     "L=\(controller.letterCount) N=\(controller.numberCount) Fn=\(controller.fnKeyCount) Sys=\(controller.systemKeyCount) Oth=\(controller.otherKeyCount)")
             row("Mouse",        "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount)")
-            row("Scroll/Gest",  "scroll=\(controller.scrollCount) · swipes=\(controller.gestureAttemptCount) · spaces=\(controller.spaceSwitchCount)")
+            row("Scroll",       "scroll=\(controller.scrollCount)")
+            row("Gestures",     "swipes=\(controller.gestureAttemptCount) · pinch=\(controller.pinchCount) · rotate=\(controller.rotateCount) · spaces=\(controller.spaceSwitchCount)")
             row("Heatmap",      "\(controller.keyCounts.count) keys / \(controller.keyCounts.values.reduce(0, +)) presses")
 
             Divider().padding(.vertical, 2)
