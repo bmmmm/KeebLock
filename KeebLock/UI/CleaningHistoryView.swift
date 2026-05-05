@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CleaningHistoryView: View {
     @ObservedObject var history: CleaningHistory = .shared
@@ -318,6 +320,15 @@ struct CleaningHistoryView: View {
             .disabled(history.sessions.isEmpty)
 
             if !history.sessions.isEmpty {
+                Button {
+                    exportJSON()
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 13))
+                }
+                .buttonStyle(.bordered)
+                .help("Export all sessions as JSON")
+
                 paginationControls
             }
 
@@ -328,6 +339,33 @@ struct CleaningHistoryView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
+    }
+
+    /// Open a save panel and write all sessions as JSON. Sessions are already
+    /// Codable so the encoder does the work — no field-by-field formatting
+    /// like CSV would need.
+    private func exportJSON() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "keeblock-history-\(timestampStamp()).json"
+        panel.title = "Export Cleaning History"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        do {
+            let data = try encoder.encode(history.sessions)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    private func timestampStamp() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        return f.string(from: Date())
     }
 
     private var paginationControls: some View {

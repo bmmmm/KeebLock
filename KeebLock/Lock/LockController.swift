@@ -41,6 +41,21 @@ final class LockController: ObservableObject {
         105, 107, 113, 106, 64, 79, 80, 90,                     // F13–F20 (extended Apple keyboards)
     ]
 
+    /// NX_KEYTYPE → F-key keycode. macOS fires media/brightness keys as
+    /// system-defined events with NX_KEYTYPE codes (independent of regular
+    /// keyboard keycodes). Mapping them to the F-key the user actually pressed
+    /// lets the heatmap show "F1 was hit 12 times" regardless of fnState.
+    private static let nxToFnKeycode: [Int: UInt16] = [
+        0:  111, // SOUND_UP        → F12
+        1:  103, // SOUND_DOWN      → F11
+        2:  120, // BRIGHTNESS_UP   → F2
+        3:  122, // BRIGHTNESS_DOWN → F1
+        7:  109, // MUTE            → F10
+        16: 100, // PLAY            → F8
+        17: 101, // NEXT            → F9
+        18: 98,  // PREVIOUS        → F7
+    ]
+
     /// Hard-coded US-ANSI keycode → ASCII character map. Used as a fallback
     /// when the active keyboard layout produces non-ASCII characters
     /// (Greek, Cyrillic, Arabic, Hebrew, …) — without it those users would
@@ -369,6 +384,12 @@ final class LockController: ObservableObject {
                 let isRepeat = (flags & 0x1) != 0
                 if keyState == 0x0A && !isRepeat {
                     systemKeyCount += 1
+                    // Project onto the F-row so the visual heatmap shows
+                    // these hits at the key the user physically pressed.
+                    let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
+                    if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
+                        keyCounts[fKeycode, default: 0] += 1
+                    }
                     triggerInputFeedback()
                 }
                 return nil

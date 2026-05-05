@@ -84,8 +84,10 @@ struct HeatmapView: View {
                 controller.resetKeyCounts()
             } label: {
                 Label("Reset", systemImage: "arrow.counterclockwise")
+                    .foregroundStyle(.red)
             }
             .buttonStyle(.bordered)
+            .tint(.red)
             .disabled(rows.isEmpty)
             Spacer()
             Button("Done") { dismiss() }

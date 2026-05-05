@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var controller: LockController
+    @ObservedObject private var inputSource = InputSourceObserver.shared
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     private let permissionPoller = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -61,6 +62,15 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Click for next codeword")
+
+                HStack(spacing: 4) {
+                    Image(systemName: "keyboard.badge.eye")
+                        .font(.caption2)
+                    Text(inputSource.localizedName)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .help("Active keyboard layout — KeebLock follows your input source")
             }
 
             if settings.showCodewordKnowledge {
