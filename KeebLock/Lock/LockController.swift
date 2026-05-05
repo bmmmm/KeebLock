@@ -423,6 +423,7 @@ final class LockController {
         ) { [weak self] _ in
             guard let self, self.isLocked else { return }
             self.spaceSwitchCount += 1
+            PerfMetrics.shared.recordEvent("space")
             self.triggerInputFeedback()
             // Re-promote our windows on the (possibly newly created) space.
             // canJoinAllSpaces should handle this automatically, but a manual
@@ -447,6 +448,7 @@ final class LockController {
 
         if type == .leftMouseDown {
             leftClickCount += 1
+            PerfMetrics.shared.recordEvent("mouseL")
             triggerInputFeedback()
             // Pass through once the user has typed ≥ half the codeword — the unlock
             // button becomes visible and clickable at that threshold.
@@ -458,6 +460,7 @@ final class LockController {
         }
         if type == .rightMouseDown {
             rightClickCount += 1
+            PerfMetrics.shared.recordEvent("mouseR")
             triggerInputFeedback()
             return nil
         }
@@ -470,6 +473,7 @@ final class LockController {
             case 4: forwardClickCount += 1
             default: middleClickCount += 1
             }
+            PerfMetrics.shared.recordEvent("mouseAux btn=\(button)")
             triggerInputFeedback()
             return nil
         }
@@ -479,6 +483,7 @@ final class LockController {
             let now = Date()
             if lastScrollAt == nil || now.timeIntervalSince(lastScrollAt!) > 0.25 {
                 scrollCount += 1
+                PerfMetrics.shared.recordEvent("scroll")
                 triggerInputFeedback()
             }
             lastScrollAt = now
@@ -494,6 +499,7 @@ final class LockController {
             let now = Date()
             if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
                 gestureAttemptCount += 1
+                PerfMetrics.shared.recordEvent("swipe")
                 triggerInputFeedback()
             }
             lastGestureAt = now
@@ -505,6 +511,7 @@ final class LockController {
             let now = Date()
             if lastPinchAt == nil || now.timeIntervalSince(lastPinchAt!) > 0.4 {
                 pinchCount += 1
+                PerfMetrics.shared.recordEvent("pinch")
                 triggerInputFeedback()
             }
             lastPinchAt = now
@@ -515,6 +522,7 @@ final class LockController {
             let now = Date()
             if lastRotateAt == nil || now.timeIntervalSince(lastRotateAt!) > 0.4 {
                 rotateCount += 1
+                PerfMetrics.shared.recordEvent("rotate")
                 triggerInputFeedback()
             }
             lastRotateAt = now
@@ -543,6 +551,7 @@ final class LockController {
                 let isRepeat = (flags & 0x1) != 0
                 if keyState == 0x0A && !isRepeat {
                     systemKeyCount += 1
+                    PerfMetrics.shared.recordEvent("sysKey")
                     // Project onto the F-row so the visual heatmap shows
                     // these hits at the key the user physically pressed.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
@@ -582,6 +591,7 @@ final class LockController {
     private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
         lastKeystrokeAt = Date()
+        PerfMetrics.shared.recordEvent("key kc=\(keycode)")
         if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
             lastFactRotationKeystroke = keystrokeCount
             factRotationTick &+= 1

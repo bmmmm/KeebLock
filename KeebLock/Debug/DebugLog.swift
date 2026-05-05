@@ -130,6 +130,14 @@ enum DebugLog {
         lines.append(contentsOf: PerfMetrics.shared.snapshotLines())
         lines.append("verbose perf:    \(s.verbosePerfEnabled ? "on (latency sampling active)" : "off (only aggregate counters)")")
         lines.append("")
+
+        let events = PerfMetrics.shared.eventLines()
+        if !events.isEmpty {
+            lines.append("------ Recent Events (last \(events.count), oldest first) ------")
+            lines.append(contentsOf: events)
+            lines.append("")
+        }
+
         lines.append("============ end snapshot ============")
         return lines.joined(separator: "\n")
     }
