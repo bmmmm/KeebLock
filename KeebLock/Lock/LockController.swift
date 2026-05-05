@@ -18,6 +18,7 @@ final class LockController: ObservableObject {
     @Published private(set) var codewordMatchProgress: Int = 0
 
     var missClickCount: Int { leftClickCount + rightClickCount + fnKeyCount }
+    var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz · async dispatch" }
 
     private static let fnKeycodes: Set<UInt16> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
 

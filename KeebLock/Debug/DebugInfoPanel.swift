@@ -47,6 +47,7 @@ struct DebugInfoPanel: View {
 
             Divider().padding(.vertical, 2)
 
+            row("Settings store", "UserDefaults (automatic, \(UserDefaults.standard.dictionaryRepresentation().count) keys)")
             row("Accessibility", AccessibilityPermission.isGranted ? "granted ✓" : "denied ✗")
             row("Lock state",    controller.isLocked ? "active · \(controller.keystrokeCount) keys · \(controller.remainingSeconds)s left" : "idle")
             row("Heatmap data",  "\(controller.keyCounts.count) keys, \(controller.keyCounts.values.reduce(0, +)) presses total")

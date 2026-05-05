@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var showHeatmap = false
     @State private var showHistory = false
     @State private var snapshotMessage: String?
+    @State private var codewordEditing = false
+    @FocusState private var codewordFocused: Bool
 
     var body: some View {
         Form {
@@ -40,26 +42,104 @@ struct SettingsView: View {
 
     private var codewordSection: some View {
         Section("Codeword") {
-            TextField("Codeword", text: $settings.codeword)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
+            // Animated display/edit card
+            ZStack {
+                if codewordEditing {
+                    TextField("codeword", text: $settings.codeword)
+                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                        .tracking(2)
+                        .multilineTextAlignment(.center)
+                        .textFieldStyle(.plain)
+                        .focused($codewordFocused)
+                        .onSubmit { withAnimation(.spring(response: 0.3)) { codewordEditing = false } }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.accentColor.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                                )
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                } else {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) { codewordEditing = true }
+                        codewordFocused = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(settings.codeword.uppercased())
+                                .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                                .tracking(2)
+                                .foregroundStyle(.primary)
+                            Image(systemName: "pencil")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.primary.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: codewordEditing)
 
             HStack {
-                Text("Suggestions (geology)")
+                Text("Suggestions — geology")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Roll new") { suggestions = Codewords.suggestions() }
-                    .buttonStyle(.borderless)
+                Button {
+                    withAnimation(.spring(response: 0.35)) {
+                        suggestions = Codewords.suggestions()
+                    }
+                } label: {
+                    Label("Roll new", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
             }
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 110), spacing: 8)],
-                spacing: 8
+                columns: [GridItem(.adaptive(minimum: 100), spacing: 6)],
+                spacing: 6
             ) {
                 ForEach(suggestions, id: \.self) { word in
-                    Button(word) { settings.codeword = word }
-                        .buttonStyle(.bordered)
+                    Button {
+                        settings.codeword = word
+                        withAnimation(.spring(response: 0.3)) { codewordEditing = false }
+                    } label: {
+                        Text(word)
+                            .font(.system(.callout, design: .monospaced))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(
+                                settings.codeword == word
+                                ? RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.15))
+                                : RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(
+                                        settings.codeword == word ? Color.accentColor.opacity(0.5) : Color.clear,
+                                        lineWidth: 1
+                                    )
+                            )
+                            .foregroundStyle(settings.codeword == word ? Color.accentColor : .primary)
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.spring(response: 0.25), value: settings.codeword)
                 }
             }
         }
@@ -190,7 +270,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
 
                 HStack(spacing: 12) {
-                    Image(systemName: "sparkle")
+                    Image(systemName: settings.screenEffect.sliderLeftIcon)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                     Slider(
@@ -201,16 +281,17 @@ struct SettingsView: View {
                         in: 0...30,
                         step: 1
                     )
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: settings.screenEffect.sliderRightIcon)
+                        .font(.system(size: 15))
+                        .foregroundStyle(settings.screenEffect.activeColor)
                     Text("\(settings.sparkCount)")
                         .font(.system(.body, design: .monospaced))
                         .frame(width: 28, alignment: .trailing)
                 }
-                Text("Intensity per keystroke. 0 = off, 30 = max.")
+                Text(settings.screenEffect.intensityDescription + " (0 = off, 30 = max)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .animation(.easeInOut(duration: 0.2), value: settings.screenEffect)
             }
         }
     }
@@ -329,10 +410,50 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section("About") {
-            Text("KeebLock swallows keystrokes via macOS Accessibility while you wipe down your keys. Type your codeword (substring match) or click \"Unlock now\" to exit.")
+            HStack(spacing: 14) {
+                Image(systemName: "keyboard.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("KeebLock")
+                        .font(.headline)
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Text("Swallows keystrokes via macOS Accessibility while you wipe down your keys. Type the codeword (suffix-match) to escape — or click \"Unlock now\" once you're half-way through.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 16) {
+                Link(destination: URL(string: "https://github.com/bmmmm")!) {
+                    Label("@bmmmm", systemImage: "person.circle")
+                        .font(.callout)
+                }
+
+                Divider().frame(height: 16)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("Project repo coming soon")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.borderless)
         }
+    }
+
+    private var appVersion: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(v) (\(b))"
     }
 
     private var debugSection: some View {

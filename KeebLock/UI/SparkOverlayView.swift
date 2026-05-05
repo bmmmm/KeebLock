@@ -39,6 +39,13 @@ private struct SnowFlake: Identifiable {
     static let lifetime = 2.0
 }
 
+// MARK: - Size preference key
+
+private struct SparkViewSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
 // MARK: - Effect overlay (all 5 effects in one view)
 
 struct SparkOverlayView: View {
@@ -49,6 +56,7 @@ struct SparkOverlayView: View {
     @State private var chars:    [MatrixChar]       = []
     @State private var bubbles:  [BubbleParticle]   = []
     @State private var flakes:   [SnowFlake]        = []
+    @State private var viewSize: CGSize = .zero
 
     private static let sparkColors: [Color] = [
         Color(red: 1.0, green: 0.72, blue: 0.82),
@@ -61,26 +69,31 @@ struct SparkOverlayView: View {
     private static let matrixAlphabet = Array("アイウエカキクケサシスセタチツテ0123456789ABCDEF")
 
     var body: some View {
-        GeometryReader { geo in
-            TimelineView(.animation) { tl in
-                Canvas { ctx, _ in
-                    let now = tl.date
-                    switch AppSettings.shared.screenEffect {
-                    case .sparks:  drawSparks(ctx: ctx, now: now)
-                    case .rain:    drawRain(ctx: ctx, now: now, size: geo.size)
-                    case .matrix:  drawMatrix(ctx: ctx, now: now, size: geo.size)
-                    case .bubbles: drawBubbles(ctx: ctx, now: now, size: geo.size)
-                    case .snow:    drawSnow(ctx: ctx, now: now, size: geo.size)
-                    }
+        TimelineView(.animation) { tl in
+            Canvas { ctx, size in
+                let now = tl.date
+                switch AppSettings.shared.screenEffect {
+                case .sparks:  drawSparks(ctx: ctx, now: now)
+                case .rain:    drawRain(ctx: ctx, now: now, size: size)
+                case .matrix:  drawMatrix(ctx: ctx, now: now, size: size)
+                case .bubbles: drawBubbles(ctx: ctx, now: now, size: size)
+                case .snow:    drawSnow(ctx: ctx, now: now, size: size)
                 }
-            }
-            .onChange(of: triggerCount) { _, _ in
-                guard AppSettings.shared.effectEnabled else { return }
-                spawn(in: geo.size)
             }
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: SparkViewSizeKey.self, value: geo.size)
+            }
+        )
+        .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
+        .onChange(of: triggerCount) { _, _ in
+            guard AppSettings.shared.effectEnabled else { return }
+            let size = viewSize.width > 0 ? viewSize : CGSize(width: 1920, height: 1080)
+            spawn(in: size)
+        }
     }
 
     // MARK: - Spawn dispatcher

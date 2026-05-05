@@ -288,10 +288,12 @@ struct CleaningHistoryView: View {
 
     private var footer: some View {
         HStack {
-            Button(role: .destructive) {
+            Button {
                 history.clear()
             } label: {
-                Label("Clear all", systemImage: "trash")
+                Image(systemName: "trash")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.red.opacity(0.8))
             }
             .buttonStyle(.bordered)
             .disabled(history.sessions.isEmpty)

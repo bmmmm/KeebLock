@@ -5,23 +5,26 @@ import AppKit
 // 1. Synthesized burst (default) — 18 ms exponentially-decaying white-noise click,
 //    generated at init, played via AVAudioEngine + AVAudioPlayerNode.
 // 2. User-supplied audio file — resolved via security-scoped bookmark, played via
-//    AVAudioPlayer (simpler API, file-based, decoupled from the click engine).
+//    AVAudioPlayer (simpler API, file-based).
 //
-// AVAudioEngine.start() is deferred to first play() to keep the audio HAL idle at
-// launch. Throttled to 30 ms so a held key doesn't crackle.
+// IMPORTANT: play() must return in < 1 ms because it is called from the CGEventTap
+// callback (MainActor). All audio I/O is dispatched async to avoid blocking the
+// event tap and causing perceived input lag.
 final class SoundPlayer {
 
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private let format: AVAudioFormat?
     private var clickBuffer: AVAudioPCMBuffer?
-    private var graphConnected = false
 
     private var customPlayer: AVAudioPlayer?
-    private var customBookmarkData: Data?
 
     private var lastPlayTime: TimeInterval = -.infinity
     private let throttleInterval: TimeInterval = 0.03
+
+    // High-priority serial queue for AVAudioEngine/PlayerNode scheduling.
+    // AVAudioPlayerNode.scheduleBuffer is thread-safe and can be called from here.
+    private let audioQueue = DispatchQueue(label: "keeblock.audio", qos: .userInteractive)
 
     init() {
         let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
@@ -38,21 +41,25 @@ final class SoundPlayer {
         }
         clickBuffer = buffer
 
+        // Connect and start eagerly so the first keystroke doesn't pay engine-init latency.
         engine.attach(playerNode)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        do {
+            try engine.start()
+        } catch {
+            DebugLog.log("SoundPlayer: AVAudioEngine start failed at init: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Public
 
-    /// Volume 0.0 ... 1.0. Applies to both synth and custom-file modes.
     func setVolume(_ volume: Double) {
         let v = Float(max(0, min(1, volume)))
         playerNode.volume = v
         customPlayer?.volume = v
     }
 
-    /// Load an audio file by security-scoped bookmark. Pass nil to revert to synth click.
     func setCustomFile(bookmark: Data?) {
-        customBookmarkData = bookmark
         customPlayer = nil
         guard let bookmark else { return }
         var stale = false
@@ -78,17 +85,28 @@ final class SoundPlayer {
         }
     }
 
+    // Called from the CGEventTap callback on the Main thread.
+    // Does only a fast throttle check on the calling thread and immediately
+    // dispatches all audio I/O async — never blocks the event tap.
     func play() {
         let now = Date().timeIntervalSinceReferenceDate
         guard now - lastPlayTime >= throttleInterval else { return }
         lastPlayTime = now
 
-        if let p = customPlayer {
-            p.currentTime = 0
-            p.play()
-            return
+        if customPlayer != nil {
+            // AVAudioPlayer is not thread-safe; dispatch async to main (non-blocking —
+            // returns before executing, so the event tap is free immediately).
+            DispatchQueue.main.async { [weak self] in
+                guard let p = self?.customPlayer else { return }
+                p.currentTime = 0
+                p.play()
+            }
+        } else {
+            // AVAudioPlayerNode.scheduleBuffer is thread-safe.
+            audioQueue.async { [weak self] in
+                self?.playSynthClick()
+            }
         }
-        playSynthClick()
     }
 
     func stop() {
@@ -97,20 +115,26 @@ final class SoundPlayer {
         customPlayer?.stop()
     }
 
+    // MARK: - Diagnostics
+
+    var engineLatencyMs: Double {
+        engine.outputNode.presentationLatency * 1000
+    }
+
+    var engineSampleRate: Int {
+        Int(engine.outputNode.outputFormat(forBus: 0).sampleRate)
+    }
+
+    var engineStatus: String {
+        engine.isRunning ? "running" : "stopped"
+    }
+
     // MARK: - Private
 
     private func playSynthClick() {
-        guard let buffer = clickBuffer, let format else { return }
-        if !graphConnected {
-            engine.connect(playerNode, to: engine.mainMixerNode, format: format)
-            graphConnected = true
-        }
+        guard let buffer = clickBuffer else { return }
         if !engine.isRunning {
-            do { try engine.start() }
-            catch {
-                DebugLog.log("SoundPlayer: AVAudioEngine start failed: \(error.localizedDescription)")
-                return
-            }
+            try? engine.start()
         }
         playerNode.scheduleBuffer(buffer, at: nil, options: [])
         if !playerNode.isPlaying { playerNode.play() }

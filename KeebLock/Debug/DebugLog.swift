@@ -87,6 +87,7 @@ enum DebugLog {
         lines.append("soundEnabled:      \(s.soundEnabled)")
         lines.append("soundVolume:       \(String(format: "%.2f", s.soundVolume))")
         lines.append("soundFile:         \(s.soundFileDisplayName ?? "synth click (default)")")
+        lines.append("sound dispatch:    async (event-tap non-blocking)")
         lines.append("effectEnabled:     \(s.effectEnabled)")
         lines.append("screenEffect:      \(s.screenEffect.rawValue)")
         lines.append("sparkCount:        \(s.sparkCount)")
@@ -123,6 +124,9 @@ enum DebugLog {
         lines.append("rightClicks:       \(c.rightClickCount)")
         lines.append("fnKeyHits:         \(c.fnKeyCount)")
         lines.append("missClicks:        \(c.missClickCount)")
+        lines.append("")
+        lines.append("------ Audio engine ------")
+        lines.append("engine status:     \(c.soundDiagnostic)")
         lines.append("")
 
         lines.append("------ Permissions ------")

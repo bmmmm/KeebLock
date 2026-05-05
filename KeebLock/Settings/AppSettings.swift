@@ -38,6 +38,36 @@ enum ScreenEffect: String, CaseIterable, Identifiable, Codable {
         case .snow:    return Color(red: 0.60, green: 0.80, blue: 1.00)
         }
     }
+
+    var sliderLeftIcon: String {
+        switch self {
+        case .sparks:  return "sparkle"
+        case .rain:    return "drop"
+        case .matrix:  return "character"
+        case .bubbles: return "circle"
+        case .snow:    return "wind.snow"
+        }
+    }
+
+    var sliderRightIcon: String {
+        switch self {
+        case .sparks:  return "sparkles"
+        case .rain:    return "cloud.rain.fill"
+        case .matrix:  return "chevron.down.square.fill"
+        case .bubbles: return "bubbles.and.sparkles.fill"
+        case .snow:    return "snowflake"
+        }
+    }
+
+    var intensityDescription: String {
+        switch self {
+        case .sparks:  return "Particles per burst"
+        case .rain:    return "Drops per keystroke"
+        case .matrix:  return "Characters per keystroke"
+        case .bubbles: return "Bubbles per keystroke"
+        case .snow:    return "Flakes per keystroke"
+        }
+    }
 }
 
 // MARK: - Color presets
