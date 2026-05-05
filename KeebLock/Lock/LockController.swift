@@ -41,6 +41,21 @@ final class LockController: ObservableObject {
         105, 107, 113, 106, 64, 79, 80, 90,                     // F13–F20 (extended Apple keyboards)
     ]
 
+    /// Hard-coded US-ANSI keycode → ASCII character map. Used as a fallback
+    /// when the active keyboard layout produces non-ASCII characters
+    /// (Greek, Cyrillic, Arabic, Hebrew, …) — without it those users would
+    /// type the codeword by physical key position but feed the matcher
+    /// non-Latin glyphs that never match. With this fallback the V key is
+    /// always V for matching purposes regardless of layout. Only covers the
+    /// alphanumeric range needed for codewords.
+    private static let usLayoutMap: [UInt16: Character] = [
+        0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x", 8: "c", 9: "v",
+        11: "b", 12: "q", 13: "w", 14: "e", 15: "r", 16: "y", 17: "t",
+        18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 25: "9", 26: "7", 28: "8", 29: "0",
+        31: "o", 32: "u", 34: "i", 35: "p", 37: "l", 38: "j", 40: "k",
+        45: "n", 46: "m",
+    ]
+
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var matcher = CodewordMatcher(target: "")
@@ -406,7 +421,11 @@ final class LockController: ObservableObject {
         triggerInputFeedback()
 
         for ch in chars where ch.isLetter || ch.isNumber {
-            if matcher.feed(ch) {
+            // Non-Latin layouts (Greek/Cyrillic/etc.) produce isLetter chars
+            // that never match ASCII codewords. Fall back to the US-layout
+            // position so users can still type the codeword by key position.
+            let normalized: Character = ch.isASCII ? ch : (Self.usLayoutMap[keycode] ?? ch)
+            if matcher.feed(normalized) {
                 stopLock()
                 return
             }
