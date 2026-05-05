@@ -182,6 +182,9 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         rd.vertexFunction   = lib.makeFunction(name: "vertexPassthrough")
         rd.fragmentFunction = lib.makeFunction(name: "fragmentWipe")
         rd.colorAttachments[0].pixelFormat = .bgra8Unorm
+        // colorAttachments[0] is guaranteed to exist after the pixelFormat
+        // assignment above — Metal's descriptor doesn't return nil for an
+        // index it just accepted a write at.
         let att = rd.colorAttachments[0]!
         att.isBlendingEnabled             = true
         att.sourceRGBBlendFactor          = .sourceAlpha

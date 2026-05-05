@@ -142,7 +142,10 @@ struct SparkOverlayView: View {
             sparks.append(SparkParticle(
                 x: cx + cos(a) * d, y: cy + sin(a) * d,
                 size: Double.random(in: 5...13),
-                color: Self.sparkColors.randomElement()!
+                // sparkColors is a 6-entry static let — `randomElement()`
+                // can't return nil. The fallback colour just keeps the
+                // type-system happy.
+                color: Self.sparkColors.randomElement() ?? .white
             ))
         }
         // Generous safety cap kept for runaway-spawn protection only.

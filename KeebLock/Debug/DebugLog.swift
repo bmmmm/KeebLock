@@ -75,12 +75,10 @@ enum DebugLog {
     @MainActor
     static func snapshot() -> String {
         var lines: [String] = []
-        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 
         lines.append("============ KeebLock Diagnostic Snapshot ============")
         lines.append("Time:      \(isoFormatter.string(from: Date()))")
-        lines.append("App:       \(v) (\(b))  ·  \(Bundle.main.bundleIdentifier ?? "?")")
+        lines.append("App:       \(Bundle.main.keeblockVersionString)  ·  \(Bundle.main.bundleIdentifier ?? "?")")
         lines.append("System:    \(ProcessInfo.processInfo.operatingSystemVersionString)  ·  \(machineArch())  ·  PID \(ProcessInfo.processInfo.processIdentifier)")
         lines.append("Memory:    \(memoryReport())")
         lines.append("Frontmost: \(frontmostAppDescription())")
@@ -219,5 +217,15 @@ enum DebugLog {
         }
         let body = grid.map { String($0) }.joined(separator: "\n")
         return "------ Screen layout ------\n\(body)\n(0,0 in this map = upper-left of the bounding box)"
+    }
+}
+
+extension Bundle {
+    /// "1.0 (1)"-style display string used by Settings, the live debug
+    /// panel, and the diagnostic snapshot. One source of truth.
+    var keeblockVersionString: String {
+        let v = object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b = object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(v) (\(b))"
     }
 }

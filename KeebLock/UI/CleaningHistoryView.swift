@@ -170,7 +170,11 @@ struct CleaningHistoryView: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         return (0..<14).reversed().map { offset in
-            let day = cal.date(byAdding: .day, value: -offset, to: today)!
+            // Calendar.date(byAdding:) returns nil only on a calendar-
+            // arithmetic overflow, which can't happen for 14 days back
+            // from today on the Gregorian calendar. Fall back to today
+            // anyway so an unexpected nil doesn't crash the chart.
+            let day = cal.date(byAdding: .day, value: -offset, to: today) ?? today
             let keys = history.sessions
                 .filter { cal.isDate($0.startedAt, inSameDayAs: day) }
                 .reduce(0) { $0 + $1.keystrokeCount }
