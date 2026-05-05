@@ -33,6 +33,16 @@ struct LockView: View {
             )
             .padding(36)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+
+            // Border-strip live debug HUD. Layered on top of HUD so the
+            // strips draw above the codeword card; non-interactive so it
+            // can't swallow unlock-button clicks.
+            if AppSettings.shared.lockOverlayDebugLevel != .off {
+                LockOverlayDebug(
+                    controller: controller,
+                    level: AppSettings.shared.lockOverlayDebugLevel
+                )
+            }
         }
     }
 }

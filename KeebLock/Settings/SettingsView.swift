@@ -525,6 +525,22 @@ struct SettingsView: View {
             Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
             Toggle("Verbose perf sampling (callback latency, p99)", isOn: $settings.verbosePerfEnabled)
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Lock-screen overlay")
+                    .font(.callout)
+                Picker("Lock-screen overlay", selection: $settings.lockOverlayDebugLevel) {
+                    ForEach(LockOverlayDebugLevel.allCases) { lvl in
+                        Text(lvl.label).tag(lvl)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text("Border-strip HUD around the lock window. Higher levels add more rows AND dampen the spark/effect intensity so the readout stays readable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 10) {
                 Button("Save snapshot") {
                     let snap = DebugLog.snapshot()

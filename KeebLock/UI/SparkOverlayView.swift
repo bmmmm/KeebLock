@@ -111,7 +111,7 @@ struct SparkOverlayView: View {
     // MARK: - Spawn dispatcher
 
     private func spawn(in size: CGSize) {
-        let count = AppSettings.shared.sparkCount
+        let count = AppSettings.shared.effectiveSparkCount
         guard count > 0 else { return }
         switch AppSettings.shared.screenEffect {
         case .sparks:  spawnSparks(in: size, count: count)
