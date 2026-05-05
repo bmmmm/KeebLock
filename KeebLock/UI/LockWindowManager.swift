@@ -14,6 +14,8 @@ final class LockWindowManager {
     private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
     private var savedPresentationOptions: NSApplication.PresentationOptions = []
 
+    var windowCount: Int { windows.count }
+
     func show(
         controller: LockController,
         fixedBg: SIMD4<Float>? = nil,
@@ -61,10 +63,16 @@ final class LockWindowManager {
             // the window — otherwise NSHostingView (still holding CADisplayLink callbacks
             // from TimelineView and MTKView) gets freed too early → EXC_BAD_ACCESS.
             window.isReleasedWhenClosed = false
-            window.level = .screenSaver
+            // Shielding level (~2_147_483_616) sits above fullscreen apps from
+            // OTHER processes — kCGScreenSaverWindowLevel only beats normal
+            // windows. Drops `.stationary` because it contradicts `.canJoinAllSpaces`
+            // (one says "stay put across space switches", the other says "follow
+            // me everywhere"). With shielding level + canJoinAllSpaces +
+            // fullScreenAuxiliary, the lock surfaces on the user's current space
+            // even if it's a Safari/Xcode/Final-Cut fullscreen space.
+            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
             window.collectionBehavior = [
                 .canJoinAllSpaces,
-                .stationary,
                 .fullScreenAuxiliary,
                 .ignoresCycle,
             ]

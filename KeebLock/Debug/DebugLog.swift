@@ -65,75 +65,69 @@ enum DebugLog {
     @MainActor
     static func snapshot() -> String {
         var lines: [String] = []
-        lines.append("============ KeebLock Diagnostic Snapshot ============")
-        lines.append("Time: \(isoFormatter.string(from: Date()))")
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        lines.append("App version: \(v) (\(b))")
-        lines.append("Bundle ID:   \(Bundle.main.bundleIdentifier ?? "?")")
-        lines.append("macOS:       \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        lines.append("Arch:        \(machineArch())")
-        lines.append("PID:         \(ProcessInfo.processInfo.processIdentifier)")
-        lines.append("Locale:      \(Locale.current.identifier)")
-        lines.append("Timezone:    \(TimeZone.current.identifier)")
-        lines.append("Memory:      \(memoryReport())")
-        lines.append("Uptime:      \(processUptimeString())")
+
+        lines.append("============ KeebLock Diagnostic Snapshot ============")
+        lines.append("Time:      \(isoFormatter.string(from: Date()))")
+        lines.append("App:       \(v) (\(b))  ·  \(Bundle.main.bundleIdentifier ?? "?")")
+        lines.append("System:    \(ProcessInfo.processInfo.operatingSystemVersionString)  ·  \(machineArch())  ·  PID \(ProcessInfo.processInfo.processIdentifier)")
+        lines.append("Memory:    \(memoryReport())")
+        lines.append("Frontmost: \(frontmostAppDescription())")
         lines.append("")
 
         let s = AppSettings.shared
         lines.append("------ Settings ------")
-        lines.append("codeword length:   \(s.codeword.count)  (content not logged)")
-        lines.append("durationMinutes:   \(s.durationMinutes)")
-        lines.append("soundEnabled:      \(s.soundEnabled)")
-        lines.append("soundVolume:       \(String(format: "%.2f", s.soundVolume))")
-        lines.append("soundFile:         \(s.soundFileDisplayName ?? "synth click (default)")")
-        lines.append("sound dispatch:    async (event-tap non-blocking)")
-        lines.append("effectEnabled:     \(s.effectEnabled)")
-        lines.append("screenEffect:      \(s.screenEffect.rawValue)")
-        lines.append("sparkCount:        \(s.sparkCount)")
-        lines.append("pixelFineness:     \(s.pixelFineness) → cellsPerAxis=\(s.cellsPerAxis)")
-        lines.append("backgroundColor:   \(s.backgroundColor.rawValue)")
-        lines.append("pixelColor:        \(s.pixelColor.rawValue)")
-        lines.append("debugLogging:      \(s.debugLoggingEnabled)")
+        lines.append("codeword:       \(s.codeword.count) chars (content not logged)")
+        lines.append("duration:       \(s.durationMinutes) min")
+        lines.append("sound:          \(s.soundEnabled ? "on  vol=\(Int(s.soundVolume * 100))%  source=\(s.soundFileDisplayName ?? "synth click")" : "off")")
+        lines.append("effect:         \(s.effectEnabled ? "on  \(s.screenEffect.rawValue)  count=\(s.sparkCount)" : "off")")
+        lines.append("pixel grid:     cellsPerAxis=\(s.cellsPerAxis) (fineness \(s.pixelFineness)/10)")
+        lines.append("colors:         bg=\(s.backgroundColor.rawValue)  pixel=\(s.pixelColor.rawValue)")
+        lines.append("debug logging:  \(s.debugLoggingEnabled ? "on" : "off")")
         lines.append("")
 
         let screens = NSScreen.screens
-        lines.append("------ Screens (\(screens.count)) ------")
+        let mainIdx = screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1
+        lines.append("------ Screens (\(screens.count), main=\(mainIdx)) ------")
         for (i, sc) in screens.enumerated() {
-            lines.append("  [\(i)] frame=\(NSStringFromRect(sc.frame))")
-            lines.append("       visibleFrame=\(NSStringFromRect(sc.visibleFrame))")
-            lines.append("       backingScale=\(sc.backingScaleFactor)")
-            lines.append("       colorSpace=\(sc.colorSpace?.localizedName ?? "?")")
-            lines.append("       maxFPS=\(sc.maximumFramesPerSecond)")
+            lines.append("  [\(i)] \(Int(sc.frame.width))×\(Int(sc.frame.height)) @ \(sc.backingScaleFactor)x  origin=(\(Int(sc.frame.minX)),\(Int(sc.frame.minY)))  \(sc.colorSpace?.localizedName ?? "?")  \(sc.maximumFramesPerSecond)Hz")
         }
-        lines.append("Main screen index: \(screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1)")
         lines.append("")
         lines.append(asciiScreenLayout(screens))
         lines.append("")
 
         let c = LockController.shared
         lines.append("------ Lock state ------")
-        lines.append("isLocked:          \(c.isLocked)")
-        lines.append("isPaused:          \(c.isPaused)")
-        lines.append("keystrokeCount:    \(c.keystrokeCount)")
-        lines.append("remainingSeconds:  \(c.remainingSeconds) / \(c.totalSeconds)")
-        lines.append("currentCodeword:   \(c.currentCodeword.count) chars")
-        lines.append("sparkTrigger:      \(c.sparkTrigger)")
-        lines.append("keyCounts:         \(c.keyCounts.count) distinct, \(c.keyCounts.values.reduce(0, +)) total presses")
-        lines.append("keyboard:          letters=\(c.letterCount) numbers=\(c.numberCount) function=\(c.fnKeyCount) system=\(c.systemKeyCount) other=\(c.otherKeyCount)")
-        lines.append("mouse:             left=\(c.leftClickCount) right=\(c.rightClickCount) middle=\(c.middleClickCount) back=\(c.backClickCount) forward=\(c.forwardClickCount) scroll=\(c.scrollCount)")
-        lines.append("gestures:          spaces=\(c.spaceSwitchCount)")
+        lines.append("locked:          \(c.isLocked ? "true" : "false")\(c.isPaused ? " (paused)" : "")")
+        lines.append("auto-unlock:     \(c.totalSeconds > 0 ? "\(formatTime(c.remainingSeconds)) / \(formatTime(c.totalSeconds))" : "—")")
+        lines.append("windows:         \(c.lockWindowCount) (level=CGShieldingWindowLevel)")
+        lines.append("event tap:       \(c.eventTapInstalled ? "active (cgSession, headInsert)" : "inactive")")
+        lines.append("space observer:  \(c.spaceObserverInstalled ? "active" : "inactive")")
         lines.append("")
-        lines.append("------ Audio engine ------")
-        lines.append("engine status:     \(c.soundDiagnostic)")
+        lines.append("------ Input counters ------")
+        lines.append("keystrokes:      \(c.keystrokeCount)  → letters=\(c.letterCount)  numbers=\(c.numberCount)  function=\(c.fnKeyCount)  system=\(c.systemKeyCount)  other=\(c.otherKeyCount)")
+        lines.append("mouse clicks:    L=\(c.leftClickCount)  R=\(c.rightClickCount)  M=\(c.middleClickCount)  back=\(c.backClickCount)  fwd=\(c.forwardClickCount)")
+        lines.append("scroll bursts:   \(c.scrollCount)")
+        lines.append("gestures:        spaces=\(c.spaceSwitchCount)")
+        lines.append("heatmap:         \(c.keyCounts.count) distinct keys, \(c.keyCounts.values.reduce(0, +)) total presses")
         lines.append("")
-
-        lines.append("------ Permissions ------")
-        lines.append("Accessibility: \(AccessibilityPermission.isGranted ? "granted" : "denied")")
+        lines.append("------ Subsystems ------")
+        lines.append("audio engine:    \(c.soundDiagnostic)")
+        lines.append("accessibility:   \(AccessibilityPermission.isGranted ? "granted" : "denied")")
         lines.append("")
-
         lines.append("============ end snapshot ============")
         return lines.joined(separator: "\n")
+    }
+
+    private static func frontmostAppDescription() -> String {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return "?" }
+        let name = app.localizedName ?? app.bundleIdentifier ?? "?"
+        return "\(name) (\(app.bundleIdentifier ?? "?"))"
+    }
+
+    private static func formatTime(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
     // MARK: - Helpers
@@ -157,11 +151,6 @@ enum DebugLog {
         guard kerr == KERN_SUCCESS else { return "?" }
         let mb = Double(info.resident_size) / 1024 / 1024
         return String(format: "%.1f MB resident", mb)
-    }
-
-    private static func processUptimeString() -> String {
-        let uptime = ProcessInfo.processInfo.systemUptime
-        return String(format: "%.0fs since boot", uptime)
     }
 
     /// Tiny ASCII map of screen positions, normalized to fit ~60 columns.

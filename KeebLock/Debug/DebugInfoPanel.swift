@@ -22,41 +22,45 @@ struct DebugInfoPanel: View {
             }
             .foregroundStyle(.orange)
 
-            row("macOS",        ProcessInfo.processInfo.operatingSystemVersionString)
-            row("Arch",         machineArch())
-            row("App version",  appVersion())
-            row("Bundle ID",    Bundle.main.bundleIdentifier ?? "?")
+            // App + system
+            row("App",          appVersion())
+            row("macOS",        ProcessInfo.processInfo.operatingSystemVersionString + " · " + machineArch())
+            row("Frontmost",    NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")
 
             Divider().padding(.vertical, 2)
 
-            row("Screens",      "\(screens.count)")
+            // Screens
+            row("Screens",      "\(screens.count) (main=\(screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1))")
             ForEach(Array(screens.enumerated()), id: \.offset) { idx, sc in
-                row("  [\(idx)]", "\(Int(sc.frame.width))×\(Int(sc.frame.height)) @ \(sc.backingScaleFactor)x  origin=(\(Int(sc.frame.minX)), \(Int(sc.frame.minY)))")
+                row("  [\(idx)]", "\(Int(sc.frame.width))×\(Int(sc.frame.height)) @ \(sc.backingScaleFactor)x · origin=(\(Int(sc.frame.minX)),\(Int(sc.frame.minY))) · \(sc.maximumFramesPerSecond)Hz")
             }
 
             Divider().padding(.vertical, 2)
 
-            row("Pixel grid",   "\(settings.cellsPerAxis) cells/X (\(settings.pixelFineness)/10)")
-            row("Background",   settings.backgroundColor.label)
-            row("Pixel color",  settings.pixelColor.label)
-            row("Effect",       settings.effectEnabled ? "\(settings.screenEffect.label) · \(settings.sparkCount)/burst" : "off")
-            row("Sound",        settings.soundEnabled ? "vol \(Int(settings.soundVolume * 100))%" : "off")
-            row("Sound source", settings.soundFileDisplayName ?? "synth click (default)")
+            // Settings (compact)
             row("Codeword",     "\(settings.codeword.count) chars")
             row("Duration",     "\(settings.durationMinutes) min")
+            row("Sound",        settings.soundEnabled ? "on · vol \(Int(settings.soundVolume * 100))% · \(settings.soundFileDisplayName ?? "synth")" : "off")
+            row("Effect",       settings.effectEnabled ? "\(settings.screenEffect.label) · \(settings.sparkCount)/burst" : "off")
+            row("Pixel grid",   "\(settings.cellsPerAxis) cells/X · \(settings.backgroundColor.label) → \(settings.pixelColor.label)")
 
             Divider().padding(.vertical, 2)
 
-            row("Settings store", "UserDefaults (automatic, \(UserDefaults.standard.dictionaryRepresentation().count) keys)")
+            // Lock state (live)
+            row("Lock",         controller.isLocked ? "active\(controller.isPaused ? " (paused)" : "") · \(controller.remainingSeconds)s left" : "idle")
+            row("Windows",      "\(controller.lockWindowCount) · level=ShieldingWindow")
+            row("Event tap",    controller.eventTapInstalled ? "active" : "inactive")
+            row("Space obs.",   controller.spaceObserverInstalled ? "active" : "inactive")
+            row("Audio",        controller.soundDiagnostic)
             row("Accessibility", AccessibilityPermission.isGranted ? "granted ✓" : "denied ✗")
-            row("Lock state",    controller.isLocked ? "active · \(controller.keystrokeCount) keys · \(controller.remainingSeconds)s left" : "idle")
-            row("Heatmap data",  "\(controller.keyCounts.count) keys, \(controller.keyCounts.values.reduce(0, +)) presses total")
 
             Divider().padding(.vertical, 2)
 
-            row("Keyboard",      "letters=\(controller.letterCount) num=\(controller.numberCount) fn=\(controller.fnKeyCount) sys=\(controller.systemKeyCount) other=\(controller.otherKeyCount)")
-            row("Mouse",         "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount) scroll=\(controller.scrollCount)")
-            row("Gestures",      "spaces=\(controller.spaceSwitchCount)")
+            // Counters
+            row("Keyboard",     "L=\(controller.letterCount) N=\(controller.numberCount) Fn=\(controller.fnKeyCount) Sys=\(controller.systemKeyCount) Oth=\(controller.otherKeyCount)")
+            row("Mouse",        "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount)")
+            row("Scroll/Gest",  "scroll=\(controller.scrollCount) · spaces=\(controller.spaceSwitchCount)")
+            row("Heatmap",      "\(controller.keyCounts.count) keys / \(controller.keyCounts.values.reduce(0, +)) presses")
         }
         .font(.system(.caption, design: .monospaced))
         .padding(12)
