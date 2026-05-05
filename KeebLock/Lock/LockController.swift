@@ -105,11 +105,11 @@ final class LockController: ObservableObject {
         lockStartedAt = Date()
 
         guard installEventTap() else {
-            DebugLog.log("startLock: installEventTap returned false (accessibility?)")
+            DebugLog.log("startLock: installEventTap returned false — accessibility permission missing?")
             return
         }
         installSpaceObserver()
-        DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes)")
+        DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
         windowManager.show(
             controller: self,
             fixedBg: AppSettings.shared.backgroundSIMD,
@@ -122,7 +122,8 @@ final class LockController: ObservableObject {
 
     func stopLock() {
         guard isLocked else { return }
-        DebugLog.log("stopLock: keystrokes=\(keystrokeCount) remaining=\(remainingSeconds)s")
+        let secondsRun = max(0, totalSeconds - remainingSeconds)
+        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) spaces=\(spaceSwitchCount)")
         stopTimer()
         removeEventTap()
         removeSpaceObserver()

@@ -28,11 +28,12 @@ final class LockWindowManager {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         let screens = NSScreen.screens
-        DebugLog.log("show: activating lock on \(screens.count) screen(s), cellsPerAxis=\(cellsPerAxis)")
+        let screenSummary = screens.enumerated().map { i, s in
+            "[\(i)] \(Int(s.frame.width))×\(Int(s.frame.height))@\(s.backingScaleFactor)x"
+        }.joined(separator: " ")
+        DebugLog.log("show: \(screens.count) screen(s) \(screenSummary), cellsPerAxis=\(cellsPerAxis)")
 
         for (index, screen) in screens.enumerated() {
-            DebugLog.log("show:   screen \(index) frame=\(NSStringFromRect(screen.frame)) scale=\(screen.backingScaleFactor)")
-
             let renderer = WipeRenderer(
                 screen: screen,
                 fixedBg: fixedBg,
@@ -40,7 +41,7 @@ final class LockWindowManager {
                 cellsPerAxis: cellsPerAxis
             )
             if renderer == nil {
-                DebugLog.log("show:   screen \(index) WipeRenderer init failed (no Metal device?)")
+                DebugLog.log("show: screen \(index) WipeRenderer init failed (no Metal device)")
             }
             renderers.append(renderer)
 
@@ -96,11 +97,11 @@ final class LockWindowManager {
         }
         windows.first?.makeKey()
 
-        DebugLog.log("show: \(windows.count) window(s) ordered front")
+        DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver)")
     }
 
     func hide() {
-        DebugLog.log("hide: tearing down \(windows.count) window(s)")
+        DebugLog.log("hide: \(windows.count) window(s)")
 
         // 1) Stop Metal display links so draw() stops being scheduled.
         for renderer in renderers { renderer?.stop() }
@@ -127,8 +128,6 @@ final class LockWindowManager {
         windows.removeAll()
         renderers.removeAll()
         NSApp.presentationOptions = savedPresentationOptions
-
-        DebugLog.log("hide: teardown complete")
     }
 
     /// Re-promote all lock windows to the foreground. Called after a Space
