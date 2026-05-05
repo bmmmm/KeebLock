@@ -25,8 +25,21 @@ final class LockController: ObservableObject {
 
     private static let keyCountsDefaultsKey = "heatmapKeyCounts"
 
+    private var bag = Set<AnyCancellable>()
+
     private init() {
         loadKeyCounts()
+        // Pipe sound settings live to the player so volume/file changes apply
+        // without restarting the lock.
+        let s = AppSettings.shared
+        soundPlayer.setVolume(s.soundVolume)
+        soundPlayer.setCustomFile(bookmark: s.soundFileBookmark)
+        s.$soundVolume
+            .sink { [weak self] in self?.soundPlayer.setVolume($0) }
+            .store(in: &bag)
+        s.$soundFileBookmark
+            .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
+            .store(in: &bag)
     }
 
     // MARK: - Public

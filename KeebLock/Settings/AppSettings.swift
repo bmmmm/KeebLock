@@ -5,37 +5,29 @@ import SwiftUI
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
+    // MARK: - Lock
+
     @Published var codeword: String {
-        didSet { UserDefaults.standard.set(codeword, forKey: Keys.codeword) }
+        didSet { defaults.set(codeword, forKey: Keys.codeword) }
     }
 
     @Published var durationMinutes: Int {
-        didSet { UserDefaults.standard.set(durationMinutes, forKey: Keys.duration) }
+        didSet { defaults.set(durationMinutes, forKey: Keys.duration) }
     }
 
-    @Published var soundEnabled: Bool {
-        didSet { UserDefaults.standard.set(soundEnabled, forKey: Keys.sound) }
-    }
+    // MARK: - Visuals
 
-    @Published var sparksEnabled: Bool {
-        didSet { UserDefaults.standard.set(sparksEnabled, forKey: Keys.sparks) }
-    }
-
-    // 1 (big chunky pixels, fast) ... 10 (small pixels, slow)
+    /// 1 (chunky pixels, fast) ... 10 (small pixels, slow). Drives mask resolution.
     @Published var pixelFineness: Int {
-        didSet { UserDefaults.standard.set(pixelFineness, forKey: Keys.pixelFineness) }
+        didSet { defaults.set(pixelFineness, forKey: Keys.pixelFineness) }
     }
 
-    @Published var debugLoggingEnabled: Bool {
-        didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Keys.debug) }
-    }
+    /// Mask cells along the X axis. Y is derived from screen aspect.
+    var cellsPerAxis: Int { 4 * (pixelFineness + 1) }   // 1→8, 9→40, 10→44
 
-    // Mask cells along the X axis, derived from the slider.
-    var cellsPerAxis: Int { 4 * (pixelFineness + 1) }   // 1→8, 5→24, 9→40, 10→44
-
-    // [R, G, B] in 0–1 range. nil = random color per stage.
+    /// nil = pick random color per stage. Otherwise locked.
     @Published var customScreenColorRGB: [Double]? {
-        didSet { UserDefaults.standard.set(customScreenColorRGB, forKey: Keys.screenColor) }
+        didSet { defaults.set(customScreenColorRGB, forKey: Keys.screenColor) }
     }
 
     var customScreenSIMD: SIMD4<Float>? {
@@ -48,27 +40,85 @@ final class AppSettings: ObservableObject {
         return Color(red: rgb[0], green: rgb[1], blue: rgb[2])
     }
 
+    // MARK: - Sparks
+
+    @Published var sparksEnabled: Bool {
+        didSet { defaults.set(sparksEnabled, forKey: Keys.sparks) }
+    }
+
+    /// 0 = no sparks even if enabled, 30 = max splash.
+    @Published var sparkCount: Int {
+        didSet { defaults.set(sparkCount, forKey: Keys.sparkCount) }
+    }
+
+    // MARK: - Sound
+
+    @Published var soundEnabled: Bool {
+        didSet { defaults.set(soundEnabled, forKey: Keys.sound) }
+    }
+
+    /// 0.0 ... 1.0
+    @Published var soundVolume: Double {
+        didSet { defaults.set(soundVolume, forKey: Keys.soundVolume) }
+    }
+
+    /// Security-scoped bookmark to a user-picked audio file. nil = use synth click.
+    @Published var soundFileBookmark: Data? {
+        didSet { defaults.set(soundFileBookmark, forKey: Keys.soundFileBookmark) }
+    }
+
+    /// Display name of the picked audio file (cached for UI).
+    @Published var soundFileDisplayName: String? {
+        didSet { defaults.set(soundFileDisplayName, forKey: Keys.soundFileName) }
+    }
+
+    // MARK: - Debug
+
+    @Published var debugLoggingEnabled: Bool {
+        didSet { defaults.set(debugLoggingEnabled, forKey: Keys.debug) }
+    }
+
+    // MARK: - Storage
+
+    private let defaults = UserDefaults.standard
+
     private enum Keys {
-        static let codeword       = "codeword"
-        static let duration       = "durationMinutes"
-        static let sound          = "soundEnabled"
-        static let sparks         = "sparksEnabled"
-        static let pixelFineness  = "pixelFineness"
-        static let screenColor    = "screenColorRGB"
-        static let debug          = "debugLoggingEnabled"
+        static let codeword           = "codeword"
+        static let duration           = "durationMinutes"
+        static let sound              = "soundEnabled"
+        static let soundVolume        = "soundVolume"
+        static let soundFileBookmark  = "soundFileBookmark"
+        static let soundFileName      = "soundFileDisplayName"
+        static let sparks             = "sparksEnabled"
+        static let sparkCount         = "sparkCount"
+        static let pixelFineness      = "pixelFineness"
+        static let screenColor        = "screenColorRGB"
+        static let debug              = "debugLoggingEnabled"
     }
 
     private init() {
-        let defaults = UserDefaults.standard
-        let saved = defaults.string(forKey: Keys.codeword) ?? ""
+        let d = UserDefaults.standard
+
+        let saved = d.string(forKey: Keys.codeword) ?? ""
         self.codeword = saved.isEmpty ? Codewords.random() : saved
-        let dur = defaults.integer(forKey: Keys.duration)
+
+        let dur = d.integer(forKey: Keys.duration)
         self.durationMinutes = dur > 0 ? dur : 5
-        self.soundEnabled       = defaults.object(forKey: Keys.sound)   as? Bool ?? true
-        self.sparksEnabled      = defaults.object(forKey: Keys.sparks)  as? Bool ?? true
-        let pf = defaults.integer(forKey: Keys.pixelFineness)
-        self.pixelFineness      = (1...10).contains(pf) ? pf : 9   // default 9 → 40 cells
-        self.customScreenColorRGB = defaults.array(forKey: Keys.screenColor) as? [Double]
-        self.debugLoggingEnabled  = defaults.object(forKey: Keys.debug) as? Bool ?? false
+
+        self.soundEnabled = d.object(forKey: Keys.sound) as? Bool ?? true
+        self.soundVolume  = d.object(forKey: Keys.soundVolume) as? Double ?? 0.6
+        self.soundFileBookmark    = d.data(forKey: Keys.soundFileBookmark)
+        self.soundFileDisplayName = d.string(forKey: Keys.soundFileName)
+
+        self.sparksEnabled = d.object(forKey: Keys.sparks) as? Bool ?? true
+        let sc = d.object(forKey: Keys.sparkCount) as? Int
+        self.sparkCount = (sc.map { (0...30).contains($0) ? $0 : 12 }) ?? 12
+
+        let pf = d.integer(forKey: Keys.pixelFineness)
+        self.pixelFineness = (1...10).contains(pf) ? pf : 9   // default 9 → 40 cells
+
+        self.customScreenColorRGB = d.array(forKey: Keys.screenColor) as? [Double]
+
+        self.debugLoggingEnabled = d.object(forKey: Keys.debug) as? Bool ?? false
     }
 }

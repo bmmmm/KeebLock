@@ -47,7 +47,7 @@ enum DebugLog {
         guard let data = payload.data(using: .utf8) else { return }
         if FileManager.default.fileExists(atPath: logURL.path) {
             if let handle = try? FileHandle(forWritingTo: logURL) {
-                defer { try? handle.close() }
+                defer { _ = try? handle.close() }
                 try? handle.seekToEnd()
                 try? handle.write(contentsOf: data)
                 return
@@ -56,35 +56,46 @@ enum DebugLog {
         try? data.write(to: logURL)
     }
 
+    static func revealLogInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([logURL])
+    }
+
     // MARK: - Snapshot
 
     @MainActor
     static func snapshot() -> String {
         var lines: [String] = []
-        lines.append("=== KeebLock Diagnostic Snapshot ===")
+        lines.append("============ KeebLock Diagnostic Snapshot ============")
         lines.append("Time: \(isoFormatter.string(from: Date()))")
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         lines.append("App version: \(v) (\(b))")
-        lines.append("Bundle ID: \(Bundle.main.bundleIdentifier ?? "?")")
-        lines.append("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        let arch = ProcessInfo.processInfo.environment["CARCH"] ?? machineArch()
-        lines.append("Arch: \(arch)")
+        lines.append("Bundle ID:   \(Bundle.main.bundleIdentifier ?? "?")")
+        lines.append("macOS:       \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        lines.append("Arch:        \(machineArch())")
+        lines.append("PID:         \(ProcessInfo.processInfo.processIdentifier)")
+        lines.append("Locale:      \(Locale.current.identifier)")
+        lines.append("Timezone:    \(TimeZone.current.identifier)")
+        lines.append("Memory:      \(memoryReport())")
+        lines.append("Uptime:      \(processUptimeString())")
         lines.append("")
 
         let s = AppSettings.shared
-        lines.append("--- Settings ---")
-        lines.append("codeword length:   \(s.codeword.count)  (content not logged for privacy)")
+        lines.append("------ Settings ------")
+        lines.append("codeword length:   \(s.codeword.count)  (content not logged)")
         lines.append("durationMinutes:   \(s.durationMinutes)")
         lines.append("soundEnabled:      \(s.soundEnabled)")
+        lines.append("soundVolume:       \(String(format: "%.2f", s.soundVolume))")
+        lines.append("soundFile:         \(s.soundFileDisplayName ?? "synth click (default)")")
         lines.append("sparksEnabled:     \(s.sparksEnabled)")
+        lines.append("sparkCount:        \(s.sparkCount)")
         lines.append("pixelFineness:     \(s.pixelFineness) → cellsPerAxis=\(s.cellsPerAxis)")
         lines.append("customScreenColor: \(s.customScreenColorRGB.map { "\($0)" } ?? "nil (random per stage)")")
         lines.append("debugLogging:      \(s.debugLoggingEnabled)")
         lines.append("")
 
         let screens = NSScreen.screens
-        lines.append("--- Screens (\(screens.count)) ---")
+        lines.append("------ Screens (\(screens.count)) ------")
         for (i, sc) in screens.enumerated() {
             lines.append("  [\(i)] frame=\(NSStringFromRect(sc.frame))")
             lines.append("       visibleFrame=\(NSStringFromRect(sc.visibleFrame))")
@@ -94,36 +105,97 @@ enum DebugLog {
         }
         lines.append("Main screen index: \(screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1)")
         lines.append("")
+        lines.append(asciiScreenLayout(screens))
+        lines.append("")
 
         let c = LockController.shared
-        lines.append("--- Lock state ---")
-        lines.append("isLocked:           \(c.isLocked)")
-        lines.append("isPaused:           \(c.isPaused)")
-        lines.append("keystrokeCount:     \(c.keystrokeCount)")
-        lines.append("remainingSeconds:   \(c.remainingSeconds) / \(c.totalSeconds)")
-        lines.append("currentCodewordLen: \(c.currentCodeword.count)")
-        lines.append("sparkTrigger:       \(c.sparkTrigger)")
-        lines.append("keyCounts:          \(c.keyCounts.count) distinct keys, \(c.keyCounts.values.reduce(0, +)) total presses")
+        lines.append("------ Lock state ------")
+        lines.append("isLocked:          \(c.isLocked)")
+        lines.append("isPaused:          \(c.isPaused)")
+        lines.append("keystrokeCount:    \(c.keystrokeCount)")
+        lines.append("remainingSeconds:  \(c.remainingSeconds) / \(c.totalSeconds)")
+        lines.append("currentCodeword:   \(c.currentCodeword.count) chars")
+        lines.append("sparkTrigger:      \(c.sparkTrigger)")
+        lines.append("keyCounts:         \(c.keyCounts.count) distinct, \(c.keyCounts.values.reduce(0, +)) total presses")
         lines.append("")
 
-        lines.append("--- Permissions ---")
-        lines.append("Accessibility granted: \(AccessibilityPermission.isGranted)")
+        lines.append("------ Permissions ------")
+        lines.append("Accessibility: \(AccessibilityPermission.isGranted ? "granted" : "denied")")
         lines.append("")
 
-        lines.append("=== end snapshot ===")
+        lines.append("============ end snapshot ============")
         return lines.joined(separator: "\n")
     }
 
-    static func revealLogInFinder() {
-        NSWorkspace.shared.activateFileViewerSelecting([logURL])
-    }
+    // MARK: - Helpers
 
     private static func machineArch() -> String {
-        var sysinfo = utsname()
-        uname(&sysinfo)
-        let machine = withUnsafePointer(to: &sysinfo.machine) {
+        var sys = utsname()
+        uname(&sys)
+        return withUnsafePointer(to: &sys.machine) {
             $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(validatingUTF8: $0) ?? "?" }
         }
-        return machine
+    }
+
+    private static func memoryReport() -> String {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<integer_t>.size)
+        let kerr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        guard kerr == KERN_SUCCESS else { return "?" }
+        let mb = Double(info.resident_size) / 1024 / 1024
+        return String(format: "%.1f MB resident", mb)
+    }
+
+    private static func processUptimeString() -> String {
+        let uptime = ProcessInfo.processInfo.systemUptime
+        return String(format: "%.0fs since boot", uptime)
+    }
+
+    /// Tiny ASCII map of screen positions, normalized to fit ~60 columns.
+    private static func asciiScreenLayout(_ screens: [NSScreen]) -> String {
+        guard !screens.isEmpty else { return "(no screens)" }
+        let allFrames = screens.map(\.frame)
+        let minX = allFrames.map(\.minX).min() ?? 0
+        let minY = allFrames.map(\.minY).min() ?? 0
+        let maxX = allFrames.map(\.maxX).max() ?? 1
+        let maxY = allFrames.map(\.maxY).max() ?? 1
+        let totalW = max(1, maxX - minX)
+        let totalH = max(1, maxY - minY)
+
+        let cols = 60
+        let rows = 12
+        let scaleX = Double(cols) / Double(totalW)
+        let scaleY = Double(rows) / Double(totalH)
+
+        var grid = Array(repeating: Array(repeating: Character(" "), count: cols + 1), count: rows + 1)
+
+        for (i, frame) in allFrames.enumerated() {
+            let x0 = Int((frame.minX - minX) * scaleX)
+            let x1 = Int((frame.maxX - minX) * scaleX)
+            // y axis flip — our ASCII reads top-down, AppKit is bottom-up
+            let y0 = rows - Int((frame.maxY - minY) * scaleY)
+            let y1 = rows - Int((frame.minY - minY) * scaleY)
+
+            let label: Character = "\(i)".first ?? "?"
+            for y in max(0, y0)...min(rows, y1) {
+                for x in max(0, x0)...min(cols, x1) {
+                    if y == y0 || y == y1 || x == x0 || x == x1 {
+                        grid[y][x] = "█"
+                    } else if grid[y][x] == " " {
+                        grid[y][x] = "·"
+                    }
+                }
+            }
+            // place index label centred in the rect
+            let cy = max(0, min(rows, (y0 + y1) / 2))
+            let cx = max(0, min(cols, (x0 + x1) / 2))
+            grid[cy][cx] = label
+        }
+        let body = grid.map { String($0) }.joined(separator: "\n")
+        return "------ Screen layout ------\n\(body)\n(0,0 in this map = upper-left of the bounding box)"
     }
 }

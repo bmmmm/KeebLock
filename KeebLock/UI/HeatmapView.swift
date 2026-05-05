@@ -1,216 +1,165 @@
+import Combine
 import SwiftUI
 
-// US ANSI keyboard layout data
-private struct KeyDef: Identifiable {
-    let label: String
-    let keycode: UInt16
-    let widthUnits: CGFloat  // relative to standard 1.0 key
-
-    var id: UInt16 { keycode }
-}
-
-private let kUnit: CGFloat = 38  // standard key size in points
-private let kGap: CGFloat = 4
-
-private enum KeyboardLayout {
-    // Carbon / CGKeyCode constants for US ANSI
-    static let rows: [[KeyDef]] = [
-        // Function row
-        [
-            KeyDef(label: "ESC",  keycode: 53,  widthUnits: 1.0),
-            KeyDef(label: "F1",   keycode: 122, widthUnits: 1.0),
-            KeyDef(label: "F2",   keycode: 120, widthUnits: 1.0),
-            KeyDef(label: "F3",   keycode: 99,  widthUnits: 1.0),
-            KeyDef(label: "F4",   keycode: 118, widthUnits: 1.0),
-            KeyDef(label: "F5",   keycode: 96,  widthUnits: 1.0),
-            KeyDef(label: "F6",   keycode: 97,  widthUnits: 1.0),
-            KeyDef(label: "F7",   keycode: 98,  widthUnits: 1.0),
-            KeyDef(label: "F8",   keycode: 100, widthUnits: 1.0),
-            KeyDef(label: "F9",   keycode: 101, widthUnits: 1.0),
-            KeyDef(label: "F10",  keycode: 109, widthUnits: 1.0),
-            KeyDef(label: "F11",  keycode: 103, widthUnits: 1.0),
-            KeyDef(label: "F12",  keycode: 111, widthUnits: 1.0),
-        ],
-        // Number row
-        [
-            KeyDef(label: "`",    keycode: 50,  widthUnits: 1.0),
-            KeyDef(label: "1",    keycode: 18,  widthUnits: 1.0),
-            KeyDef(label: "2",    keycode: 19,  widthUnits: 1.0),
-            KeyDef(label: "3",    keycode: 20,  widthUnits: 1.0),
-            KeyDef(label: "4",    keycode: 21,  widthUnits: 1.0),
-            KeyDef(label: "5",    keycode: 23,  widthUnits: 1.0),
-            KeyDef(label: "6",    keycode: 22,  widthUnits: 1.0),
-            KeyDef(label: "7",    keycode: 26,  widthUnits: 1.0),
-            KeyDef(label: "8",    keycode: 28,  widthUnits: 1.0),
-            KeyDef(label: "9",    keycode: 25,  widthUnits: 1.0),
-            KeyDef(label: "0",    keycode: 29,  widthUnits: 1.0),
-            KeyDef(label: "-",    keycode: 27,  widthUnits: 1.0),
-            KeyDef(label: "=",    keycode: 24,  widthUnits: 1.0),
-            KeyDef(label: "DEL",  keycode: 51,  widthUnits: 1.5),
-        ],
-        // QWERTY row
-        [
-            KeyDef(label: "TAB",  keycode: 48,  widthUnits: 1.5),
-            KeyDef(label: "Q",    keycode: 12,  widthUnits: 1.0),
-            KeyDef(label: "W",    keycode: 13,  widthUnits: 1.0),
-            KeyDef(label: "E",    keycode: 14,  widthUnits: 1.0),
-            KeyDef(label: "R",    keycode: 15,  widthUnits: 1.0),
-            KeyDef(label: "T",    keycode: 17,  widthUnits: 1.0),
-            KeyDef(label: "Y",    keycode: 16,  widthUnits: 1.0),
-            KeyDef(label: "U",    keycode: 32,  widthUnits: 1.0),
-            KeyDef(label: "I",    keycode: 34,  widthUnits: 1.0),
-            KeyDef(label: "O",    keycode: 31,  widthUnits: 1.0),
-            KeyDef(label: "P",    keycode: 35,  widthUnits: 1.0),
-            KeyDef(label: "[",    keycode: 33,  widthUnits: 1.0),
-            KeyDef(label: "]",    keycode: 30,  widthUnits: 1.0),
-            KeyDef(label: "\\",   keycode: 42,  widthUnits: 1.0),
-        ],
-        // Home row
-        [
-            KeyDef(label: "CAPS", keycode: 57,  widthUnits: 1.75),
-            KeyDef(label: "A",    keycode: 0,   widthUnits: 1.0),
-            KeyDef(label: "S",    keycode: 1,   widthUnits: 1.0),
-            KeyDef(label: "D",    keycode: 2,   widthUnits: 1.0),
-            KeyDef(label: "F",    keycode: 3,   widthUnits: 1.0),
-            KeyDef(label: "G",    keycode: 5,   widthUnits: 1.0),
-            KeyDef(label: "H",    keycode: 4,   widthUnits: 1.0),
-            KeyDef(label: "J",    keycode: 38,  widthUnits: 1.0),
-            KeyDef(label: "K",    keycode: 40,  widthUnits: 1.0),
-            KeyDef(label: "L",    keycode: 37,  widthUnits: 1.0),
-            KeyDef(label: ";",    keycode: 41,  widthUnits: 1.0),
-            KeyDef(label: "'",    keycode: 39,  widthUnits: 1.0),
-            KeyDef(label: "RET",  keycode: 36,  widthUnits: 1.75),
-        ],
-        // Shift row
-        [
-            KeyDef(label: "SHIFT", keycode: 56, widthUnits: 2.25),
-            KeyDef(label: "Z",    keycode: 6,   widthUnits: 1.0),
-            KeyDef(label: "X",    keycode: 7,   widthUnits: 1.0),
-            KeyDef(label: "C",    keycode: 8,   widthUnits: 1.0),
-            KeyDef(label: "V",    keycode: 9,   widthUnits: 1.0),
-            KeyDef(label: "B",    keycode: 11,  widthUnits: 1.0),
-            KeyDef(label: "N",    keycode: 45,  widthUnits: 1.0),
-            KeyDef(label: "M",    keycode: 46,  widthUnits: 1.0),
-            KeyDef(label: ",",    keycode: 43,  widthUnits: 1.0),
-            KeyDef(label: ".",    keycode: 47,  widthUnits: 1.0),
-            KeyDef(label: "/",    keycode: 44,  widthUnits: 1.0),
-            KeyDef(label: "SHIFT", keycode: 60, widthUnits: 2.25),
-        ],
-        // Bottom row
-        [
-            KeyDef(label: "fn",   keycode: 63,  widthUnits: 1.0),
-            KeyDef(label: "ctrl", keycode: 59,  widthUnits: 1.0),
-            KeyDef(label: "opt",  keycode: 58,  widthUnits: 1.0),
-            KeyDef(label: "cmd",  keycode: 55,  widthUnits: 1.25),
-            KeyDef(label: "SPACE", keycode: 49, widthUnits: 5.75),
-            KeyDef(label: "cmd",  keycode: 54,  widthUnits: 1.25),
-            KeyDef(label: "opt",  keycode: 61,  widthUnits: 1.0),
-            KeyDef(label: "←",    keycode: 123, widthUnits: 1.0),
-            KeyDef(label: "↓",    keycode: 125, widthUnits: 1.0),
-            KeyDef(label: "↑",    keycode: 126, widthUnits: 1.0),
-            KeyDef(label: "→",    keycode: 124, widthUnits: 1.0),
-        ],
-    ]
-}
-
+// Simple sortable table — no rendered keyboard, layout-agnostic. Shows raw key
+// labels (looked up by keycode) with their counts and a relative bar.
 struct HeatmapView: View {
     @ObservedObject var controller: LockController
     @Environment(\.dismiss) private var dismiss
 
-    private var maxCount: Int { controller.keyCounts.values.max() ?? 1 }
-    private var totalSessions: Int { controller.keystrokeCount }
+    private var rows: [KeyStat] {
+        controller.keyCounts
+            .map { KeyStat(keycode: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    private var maxCount: Int { rows.first?.count ?? 1 }
+    private var totalPresses: Int { controller.keyCounts.values.reduce(0, +) }
+    private var distinctKeys: Int { controller.keyCounts.count }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            keyboardGrid
-                .padding(24)
+            if rows.isEmpty {
+                empty
+            } else {
+                table
+            }
             Divider()
             footer
         }
-        .frame(minWidth: 760, minHeight: 340)
+        .frame(minWidth: 480, minHeight: 480)
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Keystroke Heatmap")
                     .font(.title2).fontWeight(.semibold)
-                Text("\(controller.keyCounts.values.reduce(0, +)) total recorded keystrokes")
+                Text("\(distinctKeys) distinct keys · \(totalPresses) total presses")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            colorLegend
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
     }
 
-    private var colorLegend: some View {
-        HStack(spacing: 6) {
-            Text("low").font(.caption2).foregroundStyle(.secondary)
-            LinearGradient(
-                colors: (0...10).map { heatColor(fraction: Double($0) / 10) },
-                startPoint: .leading, endPoint: .trailing
-            )
-            .frame(width: 80, height: 10)
-            .clipShape(Capsule())
-            Text("high").font(.caption2).foregroundStyle(.secondary)
+    private var empty: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "keyboard")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("No keystrokes recorded yet.")
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var keyboardGrid: some View {
-        VStack(alignment: .leading, spacing: kGap) {
-            ForEach(Array(KeyboardLayout.rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: kGap) {
-                    ForEach(row) { key in
-                        keyCell(key)
-                    }
-                }
+    private var table: some View {
+        Table(rows) {
+            TableColumn("Key") { row in
+                Text(row.label)
+                    .font(.system(.body, design: .monospaced))
+            }
+            .width(min: 80, ideal: 100)
+
+            TableColumn("Count") { row in
+                Text("\(row.count)")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .width(min: 60, ideal: 80)
+
+            TableColumn("") { row in
+                HeatBar(fraction: Double(row.count) / Double(self.maxCount))
+                    .frame(height: 14)
             }
         }
-    }
-
-    private func keyCell(_ key: KeyDef) -> some View {
-        let count = controller.keyCounts[key.keycode] ?? 0
-        let fraction = maxCount > 0 ? Double(count) / Double(maxCount) : 0
-
-        return Text(key.label)
-            .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(width: key.widthUnits * kUnit + (key.widthUnits - 1) * kGap,
-                   height: kUnit)
-            .background(heatColor(fraction: fraction))
-            .foregroundStyle(fraction > 0.5 ? Color.white : Color.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-            .overlay(
-                RoundedRectangle(cornerRadius: 5)
-                    .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
-            )
-            .help(count > 0 ? "\(key.label): \(count) press\(count == 1 ? "" : "es")" : key.label)
     }
 
     private var footer: some View {
         HStack {
+            Button(role: .destructive) {
+                controller.resetKeyCounts()
+            } label: {
+                Label("Reset", systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(.bordered)
+            .disabled(rows.isEmpty)
             Spacer()
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 20)
         .padding(.vertical, 12)
     }
+}
 
-    // white (0) → light orange → red (1)
-    private func heatColor(fraction: Double) -> Color {
-        guard fraction > 0 else {
-            return Color(nsColor: .controlBackgroundColor)
+private struct KeyStat: Identifiable {
+    let keycode: UInt16
+    let count: Int
+    var id: UInt16 { keycode }
+    var label: String { KeycodeNames.label(for: keycode) }
+}
+
+private struct HeatBar: View {
+    let fraction: Double
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.primary.opacity(0.06))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color)
+                    .frame(width: geo.size.width * fraction)
+            }
         }
-        let r = 1.0
-        let g = 1.0 - fraction * 0.95
-        let b = 1.0 - fraction
-        return Color(red: r, green: g, blue: b)
+    }
+    private var color: Color {
+        // green (low) → orange (mid) → red (high)
+        let r = min(1, fraction * 1.6)
+        let g = min(1, max(0, 1 - fraction * 0.8))
+        return Color(red: r, green: g, blue: 0.25)
+    }
+}
+
+// Best-effort keycode → human label. Letters/digits printed via UCKeyTranslate fall
+// back to Apple's US ANSI default if the user's layout lookup isn't available; named
+// constants for non-printables.
+enum KeycodeNames {
+    static func label(for keycode: UInt16) -> String {
+        if let named = specials[keycode] { return named }
+        if let ch = printableChar(for: keycode) { return String(ch).uppercased() }
+        return String(format: "0x%02X", keycode)
+    }
+
+    private static let specials: [UInt16: String] = [
+        36: "Return", 48: "Tab", 49: "Space", 51: "Delete", 53: "Esc",
+        54: "Cmd", 55: "Cmd", 56: "Shift", 57: "Caps", 58: "Opt", 59: "Ctrl",
+        60: "Shift", 61: "Opt", 62: "Ctrl", 63: "Fn",
+        76: "Enter",
+        96: "F5", 97: "F6", 98: "F7", 99: "F3",
+        100: "F8", 101: "F9", 103: "F11", 105: "F13",
+        107: "F14", 109: "F10", 111: "F12",
+        113: "F15", 114: "Help", 115: "Home", 116: "PgUp",
+        117: "Fwd Del", 118: "F4", 119: "End", 120: "F2",
+        121: "PgDn", 122: "F1",
+        123: "←", 124: "→", 125: "↓", 126: "↑",
+    ]
+
+    private static let asciiMap: [UInt16: Character] = [
+        0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x",
+        8: "c", 9: "v", 11: "b", 12: "q", 13: "w", 14: "e", 15: "r",
+        16: "y", 17: "t", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+        23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+        30: "]", 31: "o", 32: "u", 33: "[", 34: "i", 35: "p",
+        37: "l", 38: "j", 39: "'", 40: "k", 41: ";", 42: "\\",
+        43: ",", 44: "/", 45: "n", 46: "m", 47: ".", 50: "`",
+    ]
+
+    private static func printableChar(for keycode: UInt16) -> Character? {
+        asciiMap[keycode]
     }
 }

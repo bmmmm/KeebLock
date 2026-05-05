@@ -61,12 +61,14 @@ struct SparkOverlayView: View {
     }
 
     private func spawnSparks(in size: CGSize) {
-        // Random anchor anywhere on this screen, with a margin so bursts don't clip.
+        let count = AppSettings.shared.sparkCount  // live: slider takes effect immediately
+        guard count > 0 else { return }
+
         let margin: Double = 80
         let cx = Double.random(in: margin...max(margin + 1, size.width - margin))
         let cy = Double.random(in: margin...max(margin + 1, size.height - margin))
 
-        for _ in 0..<12 {
+        for _ in 0..<count {
             let angle = Double.random(in: 0..<(.pi * 2))
             let dist  = Double.random(in: 15...70)
             sparks.append(SparkParticle(
@@ -76,6 +78,8 @@ struct SparkOverlayView: View {
                 size: Double.random(in: 5...13)
             ))
         }
-        if sparks.count > 300 { sparks.removeFirst(sparks.count - 300) }
+        // Keep the queue bounded — discard oldest when we exceed budget
+        let budget = max(300, count * 25)
+        if sparks.count > budget { sparks.removeFirst(sparks.count - budget) }
     }
 }

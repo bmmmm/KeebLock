@@ -1,37 +1,37 @@
 import Foundation
 
-/// Curated geology terms for use as unlock codewords.
-/// All entries are 5-9 ASCII letters, no umlauts, easy to type, mildly educational.
+/// Curated geology terms used as unlock codewords.
+/// All entries are 5–10 ASCII letters, no diacritics, easy to type, mildly educational.
 enum Codewords {
     static let all: [String] = [
-        // Volcanoes
-        "vesuv", "stromboli", "krakatau", "kilauea", "pinatubo", "cotopaxi",
+        // Volcanoes (proper names — same in English)
+        "vesuvius", "stromboli", "krakatoa", "kilauea", "pinatubo", "cotopaxi",
         "tambora", "hekla", "merapi", "surtsey", "ruapehu", "bromo",
-        "erebus", "fuego", "rainier", "lassen", "katmai", "santorin",
+        "erebus", "fuego", "rainier", "lassen", "katmai", "santorini",
         "novarupta", "tongariro", "redoubt", "izalco",
         // Rocks
-        "granit", "basalt", "gneis", "marmor", "schiefer", "kalkstein",
-        "sandstein", "quarzit", "dolomit", "obsidian", "pumice", "travertin",
-        "andesit", "diorit", "gabbro", "diabas", "rhyolith", "trachyt",
-        "phonolith", "syenit", "anorthit",
+        "granite", "basalt", "gneiss", "marble", "slate", "limestone",
+        "sandstone", "quartzite", "dolomite", "obsidian", "pumice", "travertine",
+        "andesite", "diorite", "gabbro", "diabase", "rhyolite", "trachyte",
+        "phonolite", "syenite", "anorthite",
         // Minerals
-        "quarz", "pyrit", "olivin", "calcit", "glimmer", "topas",
-        "beryll", "augit", "spinell", "apatit", "fluorit", "hematit",
-        "magnetit", "limonit", "galenit", "sphalerit", "malachit", "azurit",
-        "korund", "granat", "albit", "mikroklin", "lasurit", "markasit",
-        "chalcedon", "rutil", "zirkon", "ilmenit",
+        "quartz", "pyrite", "olivine", "calcite", "mica", "topaz",
+        "beryl", "augite", "spinel", "apatite", "fluorite", "hematite",
+        "magnetite", "limonite", "galena", "sphalerite", "malachite", "azurite",
+        "corundum", "garnet", "albite", "microcline", "lazurite", "marcasite",
+        "chalcedony", "rutile", "zircon", "ilmenite",
         // Phenomena
-        "caldera", "geysir", "lahar", "tephra", "magma", "eruption",
-        "krater", "schlot", "pluton", "lakkolith", "tsunami", "fumarole",
-        "solfatar", "mofette", "massiv", "spalte",
-        // Mountains
-        "anden", "alpen", "atlas", "himalaya", "kaukasus", "karpaten",
-        "apennin", "pamir", "tienschan", "karakorum", "sierra", "vosges",
-        "eifel", "taunus", "sudeten", "kunlun",
+        "caldera", "geyser", "lahar", "tephra", "magma", "eruption",
+        "crater", "vent", "pluton", "laccolith", "tsunami", "fumarole",
+        "solfatara", "mofette", "massif", "fissure",
+        // Mountain ranges
+        "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
+        "apennines", "pamir", "tienshan", "karakoram", "sierra", "vosges",
+        "eifel", "taunus", "sudetes", "kunlun",
     ]
 
     static func random() -> String {
-        all.randomElement() ?? "granit"
+        all.randomElement() ?? "granite"
     }
 
     static func suggestions(count: Int = 6) -> [String] {
