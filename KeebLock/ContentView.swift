@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 
@@ -12,6 +13,7 @@ struct ContentView: View {
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     @State private var selectedTab: Int = 0
     @State private var permissionPollTask: Task<Void, Never>?
+    @State private var showVerifyPopover = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -108,8 +110,105 @@ struct ContentView: View {
 
             WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted)
                 .keyboardShortcut(.return, modifiers: [])
+
+            buildIdentityFooter
         }
         .padding(28)
+    }
+
+    private var buildIdentityFooter: some View {
+        let id = SigningIdentity.current
+        let signed = id.teamID != nil
+        return Button {
+            showVerifyPopover.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: signed ? "checkmark.shield" : "exclamationmark.shield")
+                    .font(.caption2)
+                    .foregroundStyle(signed ? Color.secondary : Color.orange)
+                if let tid = id.teamID {
+                    Text("Build identity ")
+                        .foregroundStyle(.secondary)
+                    Text(tid)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Ad-hoc / unsigned build")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .font(.caption2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(signed
+              ? "Build identity \(id.teamID!). Click to see how to verify this is an authentic bmmmm build — a tampered copy cannot forge this Team ID without the original Apple signing cert."
+              : "This build is not signed with a stable identity (debug or ad-hoc). Official KeebLock release builds expose a 10-character Team ID — click for verification details.")
+        .popover(isPresented: $showVerifyPopover, arrowEdge: .top) {
+            verifyPopover(id)
+                .padding(16)
+                .frame(width: 380)
+        }
+    }
+
+    private func verifyPopover(_ id: SigningIdentity.Info) -> some View {
+        let cmd = "codesign -dv --verbose=4 /Applications/KeebLock.app 2>&1 | grep -E '^(TeamIdentifier|CDHash)='"
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Verify this build")
+                .font(.headline)
+
+            Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. To check, compare the values below with those published on the project repo, and run the command in Terminal so the OS reads them directly from disk.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                identityRow(label: "Team ID", value: id.teamID ?? "(none — ad-hoc / unsigned)")
+                identityRow(label: "CDHash", value: id.cdHash.map { String($0.prefix(16)) + "…" } ?? "(unknown)")
+            }
+
+            Divider()
+
+            Text("Run in Terminal:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: 8) {
+                Text(cmd)
+                    .font(.system(.caption2, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(cmd, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy verify command")
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+
+            if let url = URL(string: "https://github.com/bmmmm/KeebLock#authenticity") {
+                Link("Compare against published values →", destination: url)
+                    .font(.caption)
+            }
+        }
+    }
+
+    private func identityRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+        }
     }
 
     private var vibesPanel: some View {
