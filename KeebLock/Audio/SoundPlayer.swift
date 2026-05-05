@@ -72,6 +72,14 @@ final class SoundPlayer {
                 relativeTo: nil,
                 bookmarkDataIsStale: &stale
             )
+            // A stale bookmark may resolve to a moved or replaced file. Bail
+            // out — re-picking the file in Settings forces a fresh bookmark
+            // and is safer than silently playing whatever happens to live at
+            // the path the OS guessed.
+            if stale {
+                DebugLog.log("SoundPlayer: bookmark stale for \(url.lastPathComponent) — discarding; user must re-pick the file")
+                return
+            }
             guard url.startAccessingSecurityScopedResource() else {
                 DebugLog.log("SoundPlayer: could not access security-scoped resource")
                 return

@@ -62,6 +62,12 @@ enum CodewordKnowledgeBase {
     static func entry(for word: String) -> CodewordKnowledge {
         let key = word.lowercased()
         if let hit = entries[key] { return hit }
+        // Stub fallback used only for codewords missing from the bundled
+        // manifest. Falls back to the wikipedia home page if the
+        // string-interpolated URL ever fails to parse.
+        let fallbackURL = URL(string: "https://en.wikipedia.org/wiki/\(key.capitalized)")
+            ?? URL(string: "https://en.wikipedia.org")
+            ?? URL(fileURLWithPath: "/")
         return CodewordKnowledge(
             word: key,
             title: key.capitalized,
@@ -69,7 +75,7 @@ enum CodewordKnowledgeBase {
             facts: [],
             theme: "unknown",
             imageFilename: nil,
-            wikipediaURL: URL(string: "https://en.wikipedia.org/wiki/\(key.capitalized)")!
+            wikipediaURL: fallbackURL
         )
     }
 

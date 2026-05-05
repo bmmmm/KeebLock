@@ -64,9 +64,9 @@ struct KeebLockApp: App {
                 }
                 Divider()
                 Link("Support on Ko-fi",
-                     destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app")!)
+                     destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app") ?? URL(fileURLWithPath: "/"))
                 Link("Project on GitHub",
-                     destination: URL(string: "https://github.com/bmmmm")!)
+                     destination: URL(string: "https://github.com/bmmmm") ?? URL(fileURLWithPath: "/"))
             }
         }
     }

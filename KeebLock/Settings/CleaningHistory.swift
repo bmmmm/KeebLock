@@ -6,7 +6,6 @@ struct CleaningSession: Codable, Identifiable {
     let startedAt: Date
     let durationSeconds: Int
     let keystrokeCount: Int
-    let codeword: String
     let stageCount: Int
 
     init(
@@ -14,16 +13,18 @@ struct CleaningSession: Codable, Identifiable {
         startedAt: Date,
         durationSeconds: Int,
         keystrokeCount: Int,
-        codeword: String,
         stageCount: Int = 1
     ) {
         self.id = id
         self.startedAt = startedAt
         self.durationSeconds = durationSeconds
         self.keystrokeCount = keystrokeCount
-        self.codeword = codeword
         self.stageCount = stageCount
     }
+
+    // Older persisted records used to include a `codeword` field. JSONDecoder
+    // ignores unknown keys by default, so old data still loads — the next
+    // save() drops the field for good. No explicit migration required.
 
     var dateString: String {
         let f = DateFormatter()
@@ -47,7 +48,16 @@ final class CleaningHistory: ObservableObject {
     private let storageKey = "cleaningHistory"
     private let maxKeep = 100
 
-    private init() { load() }
+    private init() {
+        load()
+        // One-time migration: re-encode and overwrite so any legacy `codeword`
+        // field still embedded in the persisted JSON blob is dropped on disk
+        // (not just at decode time). Cheap (one JSON encode, max 100 records),
+        // no-op when nothing's stored.
+        if !sessions.isEmpty {
+            save()
+        }
+    }
 
     /// Insert a finished session at the front (most-recent first).
     func record(_ session: CleaningSession) {
