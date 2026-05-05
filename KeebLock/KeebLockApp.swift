@@ -3,13 +3,17 @@ import SwiftUI
 @main
 struct KeebLockApp: App {
     @StateObject private var settings = AppSettings.shared
-    @StateObject private var lockController = LockController.shared
+    // LockController is now @Observable (Swift Observation), so @State holds
+    // the singleton and .environment(_:) propagates it for child reads via
+    // @Environment(LockController.self). AppSettings stays ObservableObject
+    // for now, hence the mixed environmentObject + environment below.
+    @State private var lockController = LockController.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(settings)
-                .environmentObject(lockController)
+                .environment(lockController)
                 .frame(minWidth: 520, minHeight: 640)
         }
         .windowResizability(.contentSize)
