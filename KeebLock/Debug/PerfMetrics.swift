@@ -56,6 +56,16 @@ final class PerfMetrics: ObservableObject {
 
     private var rateTimer: Timer?
 
+    /// Chronological ring of the last N events handled by the lock loop.
+    /// Useful for spotting bursts / hangs — the per-second rates show a
+    /// moving average, but a ring of timestamped tags shows whether 80
+    /// of the 105 events landed in a single 50 ms window. Only filled
+    /// when verbose-perf is on; zero cost otherwise.
+    private var eventRing: [String] = []
+    private let eventRingCapacity = 80
+    private var eventRingHead = 0
+    private var sessionStartTicks: UInt64 = 0
+
     // mach_absolute_time → ns conversion factor (1 on x86, 125/3 on Apple silicon).
     private static let machTimebase: mach_timebase_info_data_t = {
         var info = mach_timebase_info_data_t()
@@ -72,6 +82,7 @@ final class PerfMetrics: ObservableObject {
         reset()
         memoryStartMB = Self.currentResidentMB()
         memoryNowMB = memoryStartMB
+        sessionStartTicks = mach_absolute_time()
         startRateTimer()
     }
 
@@ -102,6 +113,37 @@ final class PerfMetrics: ObservableObject {
         jsonEncodeCount = 0
         jsonDecodeCount = 0
         userDefaultsWrites = 0
+
+        eventRing.removeAll(keepingCapacity: true)
+        eventRingHead = 0
+    }
+
+    /// Append a one-line tag for the current event to the ring buffer.
+    /// Includes elapsed-ms relative to session start so timing patterns
+    /// are visible at a glance in the snapshot. Cheap when verbose-perf
+    /// is off (single bool check + return).
+    func recordEvent(_ tag: String) {
+        guard AppSettings.shared.verbosePerfEnabled else { return }
+        let elapsedMs = Self.ticksToNs(mach_absolute_time() &- sessionStartTicks) / 1_000_000
+        let line = "+\(elapsedMs)ms \(tag)"
+        if eventRing.count < eventRingCapacity {
+            eventRing.append(line)
+        } else {
+            eventRing[eventRingHead] = line
+            eventRingHead = (eventRingHead &+ 1) % eventRingCapacity
+        }
+    }
+
+    /// Chronologically-ordered copy of the ring (oldest first). Used by
+    /// DebugLog.snapshot to tail the recent activity into the report.
+    func eventLines() -> [String] {
+        guard !eventRing.isEmpty else { return [] }
+        if eventRing.count < eventRingCapacity {
+            return eventRing
+        }
+        let tail = Array(eventRing[eventRingHead...])
+        let head = Array(eventRing[..<eventRingHead])
+        return tail + head
     }
 
     // MARK: - Recording (cheap, called from hot paths)
