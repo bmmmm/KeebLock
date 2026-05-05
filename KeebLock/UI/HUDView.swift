@@ -10,6 +10,15 @@ struct HUDView: View {
     @State private var pulseScale: CGFloat = 1.0
     @State private var pulseAlpha: Double = 0.0
 
+    /// Cached on appear / on codeword change. Replaces a recomputing
+    /// `currentEntry` that used to do a manifest dict lookup AND an
+    /// NSCache image fetch on every body() invocation — i.e. on every
+    /// keystroke, since LockController's @Published cascade forces
+    /// HUDView to re-evaluate. Caching here cuts the per-keystroke body
+    /// cost by skipping both lookups.
+    @State private var cachedEntry: CodewordKnowledge?
+    @State private var cachedImage: NSImage?
+
     /// Modulo the controller's session-wide rotation tick by the current
     /// fact count. Single source of truth lives in LockController so all
     /// monitors show the same fact in lock-step.
@@ -30,13 +39,7 @@ struct HUDView: View {
                 .font(.subheadline)
                 .opacity(0.85)
 
-            Text(controller.currentCodeword.uppercased())
-                .font(.system(size: 30, weight: .heavy, design: .monospaced))
-                .tracking(4)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 10)
-                .background(.black.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+            codewordDisplay
 
             statsRow
             inputBreakdown
@@ -46,10 +49,54 @@ struct HUDView: View {
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 12)
+        .onAppear { refreshEntry(for: controller.currentCodeword) }
+        .onChange(of: controller.currentCodeword) { _, new in
+            refreshEntry(for: new)
+        }
+    }
+
+    private func refreshEntry(for codeword: String) {
+        let entry = CodewordKnowledgeBase.entry(for: codeword)
+        cachedEntry = entry
+        cachedImage = entry.loadImage()
     }
 
     private var currentEntry: CodewordKnowledge {
-        CodewordKnowledgeBase.entry(for: controller.currentCodeword)
+        cachedEntry ?? CodewordKnowledgeBase.entry(for: controller.currentCodeword)
+    }
+
+    // MARK: - Codeword display (per-character green tint as match progresses)
+
+    private var codewordDisplay: some View {
+        let chars = Array(controller.currentCodeword.uppercased())
+        let progress = controller.codewordMatchProgress
+        let total = max(1, chars.count)
+        return HStack(spacing: 6) {
+            ForEach(Array(chars.enumerated()), id: \.offset) { i, c in
+                Text(String(c))
+                    .foregroundStyle(charTint(index: i, progress: progress, total: total))
+            }
+        }
+        .font(.system(size: 30, weight: .heavy, design: .monospaced))
+        .padding(.horizontal, 28)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .animation(.easeOut(duration: 0.2), value: progress)
+    }
+
+    /// White until matched, then a green-Verlauf where the first matched
+    /// letter is light/bright lime and the last matched letter is deep
+    /// saturated forest-green — gradient stride scales with codeword
+    /// length so a 5-char and a 10-char codeword both reach full green
+    /// on the final letter.
+    private func charTint(index i: Int, progress: Int, total: Int) -> Color {
+        guard i < progress else { return .white }
+        let t = total > 1 ? Double(i) / Double(total - 1) : 1.0
+        let hue = (105 + 25 * t) / 360                  // 105° → 130°
+        let saturation = 0.45 + 0.45 * t                 // 0.45 → 0.90
+        let brightness = 1.0 - 0.10 * t                  // 1.00 → 0.90
+        return Color(hue: hue, saturation: saturation, brightness: brightness)
     }
 
     @ViewBuilder
@@ -263,7 +310,7 @@ struct HUDView: View {
             topLeadingRadius: 14,
             topTrailingRadius: 14
         )
-        if let image = currentEntry.loadImage() {
+        if let image = cachedImage {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
