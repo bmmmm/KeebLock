@@ -20,9 +20,13 @@ final class SoundPlayer {
     private var customPlayer: AVAudioPlayer?
 
     private var lastPlayTime: TimeInterval = -.infinity
-    // 50 ms keeps perceived "click density" while easing burst pressure on
-    // CoreAudio's HALC scheduler under fast trackpad-scroll / typing.
-    private let throttleInterval: TimeInterval = 0.05
+    // 80 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
+    // tolerance, so the original 50 ms cap was producing "skipping
+    // cycle due to overload" warnings under sustained typing + active
+    // gesture streams (pinch/swipe each fire at ~60 Hz before our
+    // debounce). 80 ms = 12 plays/s is still plenty dense for tactile
+    // click feedback and lets HAL stay in its budget.
+    private let throttleInterval: TimeInterval = 0.08
 
     // High-priority serial queue for AVAudioEngine/PlayerNode scheduling.
     // AVAudioPlayerNode.scheduleBuffer is thread-safe and can be called from here.
