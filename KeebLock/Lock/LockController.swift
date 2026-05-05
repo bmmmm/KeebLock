@@ -111,24 +111,6 @@ final class LockController: ObservableObject {
             AccessibilityPermission.request()
             return
         }
-
-        // If the user fires the lock from a Ghostty/Safari/etc. fullscreen
-        // space, our screensaver-level window won't surface there (each
-        // fullscreen app gets an exclusive Space). Pre-empt by un-fullscreening
-        // the frontmost app, wait for the AppKit zoom-out animation to settle,
-        // then continue with the normal start sequence on the main desk.
-        if exitFrontmostFullscreenIfNeeded() {
-            DebugLog.log("startLock: exited frontmost app fullscreen — deferring 0.6s")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                self?.continueStartLock(codeword: codeword, durationMinutes: durationMinutes)
-            }
-            return
-        }
-        continueStartLock(codeword: codeword, durationMinutes: durationMinutes)
-    }
-
-    private func continueStartLock(codeword: String, durationMinutes: Int) {
-        guard !isLocked else { return }
         currentCodeword = codeword
         matcher = CodewordMatcher(target: codeword)
         keystrokeCount = 0
@@ -312,31 +294,6 @@ final class LockController: ObservableObject {
         }
         eventTap = nil
         runLoopSource = nil
-    }
-
-    // MARK: - Fullscreen escape
-
-    /// If the frontmost app is in macOS fullscreen, ask its focused window to
-    /// leave fullscreen via the Accessibility API. Returns true if a transition
-    /// was triggered (caller should defer ~0.6s for the animation), false if
-    /// no action was taken.
-    private func exitFrontmostFullscreenIfNeeded() -> Bool {
-        guard let app = NSWorkspace.shared.frontmostApplication,
-              app.bundleIdentifier != Bundle.main.bundleIdentifier else { return false }
-
-        let appElement = AXUIElementCreateApplication(app.processIdentifier)
-        var focusedRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedRef) == .success,
-              let focused = focusedRef else { return false }
-        let window = focused as! AXUIElement
-
-        var fullscreenRef: CFTypeRef?
-        let attr = "AXFullScreen" as CFString  // not exposed as a constant, but the documented attribute
-        guard AXUIElementCopyAttributeValue(window, attr, &fullscreenRef) == .success,
-              let isFullscreen = fullscreenRef as? Bool, isFullscreen else { return false }
-
-        AXUIElementSetAttributeValue(window, attr, false as CFBoolean)
-        return true
     }
 
     // MARK: - Space (Desktop) observer

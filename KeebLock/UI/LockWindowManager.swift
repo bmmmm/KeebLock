@@ -91,13 +91,19 @@ final class LockWindowManager {
         }
 
         // Activate AFTER all windows exist so the foreground promotion is atomic.
+        // Two-step: activate the process, then promote the windows AND make one
+        // key. makeKeyAndOrderFront on the main-screen window pulls focus to us
+        // even if the user was just typing in another app. Trailing
+        // orderFrontRegardless on every window covers the secondary screens.
         NSApp.activate(ignoringOtherApps: true)
-        for window in windows {
+        let mainScreen = NSScreen.main
+        let primary = windows.first { $0.screen == mainScreen } ?? windows.first
+        primary?.makeKeyAndOrderFront(nil)
+        for window in windows where window !== primary {
             window.orderFrontRegardless()
         }
-        windows.first?.makeKey()
 
-        DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver)")
+        DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver, key=screen[\(mainScreen.flatMap(NSScreen.screens.firstIndex(of:)) ?? -1)])")
     }
 
     func hide() {
