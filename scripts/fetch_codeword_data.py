@@ -177,7 +177,7 @@ class _ParagraphCollector(HTMLParser):
             text = "".join(self._current).strip()
             text = re.sub(r"\[\d+\]", "", text)         # strip citation markers
             text = re.sub(r"\s+", " ", text)            # collapse whitespace
-            if len(text) >= 120:
+            if len(text) >= 80:
                 self.paragraphs.append(text)
             self._current = []
         elif tag in self.SKIP_TAGS or tag == "ol":
@@ -252,7 +252,10 @@ def fetch_word(word: str, force: bool) -> dict | None:
         return None
 
     facts = extract_facts(html, limit=10)
-    if len(facts) < 3:
+    # Need at least 6 facts so the in-app rotation has variety. Below that,
+    # the user would see the same handful repeat in any session longer than
+    # 3 minutes.
+    if len(facts) < 6:
         print(f"      only {len(facts)} usable paragraphs — skipping", flush=True)
         if image_target.exists():
             image_target.unlink()
