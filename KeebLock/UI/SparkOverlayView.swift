@@ -57,6 +57,7 @@ struct SparkOverlayView: View {
     @State private var bubbles:  [BubbleParticle]   = []
     @State private var flakes:   [SnowFlake]        = []
     @State private var viewSize: CGSize = .zero
+    @State private var spawnPending: Bool = false
 
     private static let sparkColors: [Color] = [
         Color(red: 1.0, green: 0.72, blue: 0.82),
@@ -91,10 +92,19 @@ struct SparkOverlayView: View {
         .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
         .onChange(of: triggerCount) { _, _ in
             guard AppSettings.shared.effectEnabled else { return }
-            // Defer to next runloop so rapid bursts of triggers don't pile up
-            // multiple State mutations inside a single SwiftUI view update.
+            // Coalesce: if a spawn is already scheduled for this frame, skip.
+            // Rapid trigger bursts (typing, scroll wheel) would otherwise
+            // schedule several async blocks that all mutate State within the
+            // same runloop tick — SwiftUI flags that as "onChange tried to
+            // update multiple times per frame". One spawn per frame is plenty
+            // for the visual effect.
+            guard !spawnPending else { return }
+            spawnPending = true
             let size = viewSize.width > 0 ? viewSize : CGSize(width: 1920, height: 1080)
-            DispatchQueue.main.async { spawn(in: size) }
+            DispatchQueue.main.async {
+                spawnPending = false
+                spawn(in: size)
+            }
         }
     }
 
