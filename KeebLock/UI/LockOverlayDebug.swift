@@ -89,11 +89,12 @@ struct LockOverlayDebug: View {
     private var topStrip: some View {
         HStack(spacing: 18) {
             field("KEYS",     "\(controller.keystrokeCount)")
-            field("LET",      "\(controller.letterCount)", dim: controller.letterCount == 0)
-            field("NUM",      "\(controller.numberCount)", dim: controller.numberCount == 0)
-            field("FN",       "\(controller.fnKeyCount)",  dim: controller.fnKeyCount == 0)
-            field("SYS",      "\(controller.systemKeyCount)", dim: controller.systemKeyCount == 0)
-            field("OTH",      "\(controller.otherKeyCount)",  dim: controller.otherKeyCount == 0)
+            field("LET",      "\(controller.letterCount)",     dim: controller.letterCount == 0)
+            field("NUM",      "\(controller.numberCount)",     dim: controller.numberCount == 0)
+            field("SYM",      "\(controller.symbolCount)",     dim: controller.symbolCount == 0)
+            field("CTL",      "\(controller.controlKeyCount)", dim: controller.controlKeyCount == 0)
+            field("FN",       "\(controller.functionKeyCount)", dim: controller.functionKeyCount == 0)
+            field("MED",      "\(controller.mediaKeyCount)",   dim: controller.mediaKeyCount == 0)
             divider
             field("L",        "\(controller.leftClickCount)",  dim: controller.leftClickCount == 0)
             field("R",        "\(controller.rightClickCount)", dim: controller.rightClickCount == 0)
@@ -102,10 +103,9 @@ struct LockOverlayDebug: View {
             field("FWD",      "\(controller.forwardClickCount)", dim: controller.forwardClickCount == 0)
             field("SCRL",     "\(controller.scrollCount)",      dim: controller.scrollCount == 0)
             divider
-            field("SWP",      "\(controller.gestureAttemptCount)", dim: controller.gestureAttemptCount == 0)
-            field("PIN",      "\(controller.pinchCount)",          dim: controller.pinchCount == 0)
-            field("ROT",      "\(controller.rotateCount)",         dim: controller.rotateCount == 0)
-            field("SPC",      "\(controller.spaceSwitchCount)",    dim: controller.spaceSwitchCount == 0)
+            field("SWP",      "\(controller.swipeCount)",   dim: controller.swipeCount == 0)
+            field("PIN",      "\(controller.pinchCount)",   dim: controller.pinchCount == 0)
+            field("ROT",      "\(controller.rotateCount)",  dim: controller.rotateCount == 0)
             divider
             field("MATCH",    "\(controller.codewordMatchProgress)/\(controller.currentCodeword.count)")
             Spacer(minLength: 0)

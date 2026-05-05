@@ -11,9 +11,6 @@ struct HUDView: View {
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int
 
-    @State private var pulseScale: CGFloat = 1.0
-    @State private var pulseAlpha: Double = 0.0
-
     /// Cached on appear / on codeword change. Replaces a recomputing
     /// `currentEntry` that used to do a manifest dict lookup AND an
     /// NSCache image fetch on every body() invocation — i.e. on every
@@ -43,13 +40,19 @@ struct HUDView: View {
                 .font(.subheadline)
                 .opacity(0.85)
 
-            codewordDisplay
+            HStack(alignment: .center, spacing: 12) {
+                CodewordDisplayView(
+                    codeword: controller.currentCodeword,
+                    controller: controller,
+                    settings: settings
+                )
+                CompactUnlockButton(controller: controller)
+            }
 
             statsRow
             inputBreakdown
             colorIndicators
             knowledgeFooter
-            unlockButton
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 12)
@@ -67,44 +70,6 @@ struct HUDView: View {
 
     private var currentEntry: CodewordKnowledge {
         cachedEntry ?? CodewordKnowledgeBase.entry(for: controller.currentCodeword)
-    }
-
-    // MARK: - Codeword display (per-character green tint as match progresses)
-
-    private var codewordDisplay: some View {
-        let chars = Array(controller.currentCodeword.uppercased())
-        let progress = controller.codewordMatchProgress
-        let total = max(1, chars.count)
-        return HStack(spacing: 6) {
-            ForEach(Array(chars.enumerated()), id: \.offset) { i, c in
-                Text(String(c))
-                    .foregroundStyle(charTint(index: i, progress: progress, total: total))
-            }
-        }
-        .font(.system(size: 30, weight: .heavy, design: .monospaced))
-        .padding(.horizontal, 28)
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        // No animation: easeOut(0.2) used to queue when the user mistyped
-        // (progress collapses to 0) and immediately corrected — the green
-        // would linger for 200 ms before snapping back. Keystroke feedback
-        // should be frame-tight; the per-character color change is small
-        // enough that an unanimated swap reads cleanly.
-    }
-
-    /// White until matched, then a green-Verlauf where the first matched
-    /// letter is light/bright lime and the last matched letter is deep
-    /// saturated forest-green — gradient stride scales with codeword
-    /// length so a 5-char and a 10-char codeword both reach full green
-    /// on the final letter.
-    private func charTint(index i: Int, progress: Int, total: Int) -> Color {
-        guard i < progress else { return .white }
-        let t = total > 1 ? Double(i) / Double(total - 1) : 1.0
-        let hue = (105 + 25 * t) / 360                  // 105° → 130°
-        let saturation = 0.45 + 0.45 * t                 // 0.45 → 0.90
-        let brightness = 1.0 - 0.10 * t                  // 1.00 → 0.90
-        return Color(hue: hue, saturation: saturation, brightness: brightness)
     }
 
     @ViewBuilder
@@ -137,9 +102,10 @@ struct HUDView: View {
         [
             .init(label: "Letters",  count: controller.letterCount),
             .init(label: "Numbers",  count: controller.numberCount),
-            .init(label: "Function", count: controller.fnKeyCount),
-            .init(label: "System",   count: controller.systemKeyCount),
-            .init(label: "Other",    count: controller.otherKeyCount),
+            .init(label: "Symbols",  count: controller.symbolCount),
+            .init(label: "Control",  count: controller.controlKeyCount),
+            .init(label: "Function", count: controller.functionKeyCount),
+            .init(label: "Media",    count: controller.mediaKeyCount),
         ]
     }
 
@@ -156,10 +122,9 @@ struct HUDView: View {
 
     private var gestureCategories: [InputCategory] {
         [
-            .init(label: "Swipes", count: controller.gestureAttemptCount),
+            .init(label: "Swipes", count: controller.swipeCount),
             .init(label: "Pinch",  count: controller.pinchCount),
             .init(label: "Rotate", count: controller.rotateCount),
-            .init(label: "Spaces", count: controller.spaceSwitchCount),
         ]
     }
 
@@ -352,17 +317,70 @@ struct HUDView: View {
         String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    // MARK: - Unlock button
+}
 
-    // Opacity and interactivity scale with how close the typed buffer is to the
-    // codeword. Invisible at 0% match, clickable at ≥50%, full brightness never
-    // reached (the codeword itself triggers unlock before that).
-    private var unlockOpacity: Double {
-        let len = controller.currentCodeword.count
-        guard len > 0 else { return 0 }
-        let p = Double(controller.codewordMatchProgress) / Double(len)
-        return p > 0 ? max(0.12, p) : 0
+// MARK: - Codeword display
+
+/// Lifts the per-character green-tint render out of HUDView's body so a
+/// match-progress bump only invalidates this small subview, not the entire
+/// HUD. When `settings.showCodewordProgress` is off, `codewordMatchProgress`
+/// is never read here — Observation tracks reads at body-evaluation time,
+/// so toggling it off severs the dependency entirely and a typing burst
+/// causes zero HUD redraws beyond the keystroke counter.
+private struct CodewordDisplayView: View {
+    let codeword: String
+    var controller: LockController
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        let chars = Array(codeword.uppercased())
+        let total = max(1, chars.count)
+        // Guard read of `codewordMatchProgress` behind the toggle. With
+        // showCodewordProgress=false the property is never accessed during
+        // body evaluation, so SwiftUI Observation doesn't subscribe — match
+        // updates publish freely without invalidating this view.
+        let progress = settings.showCodewordProgress ? controller.codewordMatchProgress : 0
+        return HStack(spacing: 6) {
+            ForEach(Array(chars.enumerated()), id: \.offset) { i, c in
+                Text(String(c))
+                    .foregroundStyle(charTint(index: i, progress: progress, total: total))
+            }
+        }
+        .font(.system(size: 30, weight: .heavy, design: .monospaced))
+        .padding(.horizontal, 28)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
+
+    /// White until matched, then a green-Verlauf where the first matched
+    /// letter is light/bright lime and the last matched letter is deep
+    /// saturated forest-green — gradient stride scales with codeword
+    /// length so a 5-char and a 10-char codeword both reach full green
+    /// on the final letter.
+    private func charTint(index i: Int, progress: Int, total: Int) -> Color {
+        guard i < progress else { return .white }
+        let t = total > 1 ? Double(i) / Double(total - 1) : 1.0
+        let hue = (105 + 25 * t) / 360                  // 105° → 130°
+        let saturation = 0.45 + 0.45 * t                 // 0.45 → 0.90
+        let brightness = 1.0 - 0.10 * t                  // 1.00 → 0.90
+        return Color(hue: hue, saturation: saturation, brightness: brightness)
+    }
+}
+
+// MARK: - Unlock button
+
+/// Compact icon-only unlock button rendered next to the codeword. Replaces
+/// an earlier full-width button with a 1 Hz pulse animation that ran a
+/// `task(id:)`-driven `withAnimation` loop on the MainActor — that loop
+/// + a spring-animated opacity binding fired on every codeword match
+/// update, stacking animation transactions and starving the audio HALC
+/// scheduler under sustained typing.
+///
+/// Now: pure binary visibility, single eased opacity transition, no
+/// pulse, no spring, no scale animation, no `task(id:)`.
+private struct CompactUnlockButton: View {
+    var controller: LockController
 
     private var unlockClickable: Bool {
         let len = controller.currentCodeword.count
@@ -370,76 +388,24 @@ struct HUDView: View {
         return controller.codewordMatchProgress >= (len + 1) / 2
     }
 
-    @ViewBuilder
-    private var unlockButton: some View {
-        // Wrap in a fixed-size container so scaleEffect on the inner button
-        // never shifts surrounding layout, regardless of match progress.
-        // Frame is sized to hold the button at full scale + a calmer pulse
-        // ring without overlapping the knowledge card above.
-        ZStack {
-            // Expanding pulse ring — calmer magnitude (1.0 → 1.08) so it
-            // stays inside the reserved frame and doesn't visually clip
-            // into the hero-image card.
-            if unlockClickable {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.white.opacity(pulseAlpha), lineWidth: 2.5)
-                    .scaleEffect(pulseScale)
-                    .padding(-8)
-                    .allowsHitTesting(false)
-            }
-
-            Button { controller.stopLock() } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "lock.open.fill")
-                        .font(.system(size: 18, weight: .bold))
-                    Text("Unlock now")
-                        .font(.system(size: 17, weight: .bold))
-                }
-                .padding(.horizontal, 34)
-                .padding(.vertical, 14)
+    var body: some View {
+        Button { controller.stopLock() } label: {
+            Image(systemName: "lock.open.fill")
+                .font(.system(size: 20, weight: .bold))
+                .frame(width: 52, height: 52)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(unlockClickable
-                              ? Color.white.opacity(0.93)
-                              : Color.white.opacity(unlockOpacity * 0.18))
-                        .shadow(
-                            color: Color.white.opacity(unlockClickable ? 0.7 : unlockOpacity * 0.2),
-                            radius: unlockClickable ? 24 : 8, y: 0
-                        )
+                    Circle()
+                        .fill(Color.white.opacity(0.92))
+                        .shadow(color: Color.white.opacity(0.45), radius: 14, y: 0)
                 )
-                .foregroundStyle(unlockClickable ? Color.black.opacity(0.82) : Color.white)
-            }
-            .buttonStyle(.plain)
-            .disabled(!unlockClickable)
-            // Grow from 0.85 → 1.0 (was 0.6 → 1.0). Smaller delta = less
-            // bounce next to a static-layout hero card right above it.
-            .scaleEffect(0.85 + min(unlockOpacity, 1.0) * 0.15)
-            .opacity(unlockOpacity)
-            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: unlockOpacity)
-            .animation(.easeInOut(duration: 0.28), value: unlockClickable)
+                .foregroundStyle(Color.black.opacity(0.82))
         }
-        .frame(height: 70)
-        .padding(.top, 8)
-        .task(id: unlockClickable) {
-            guard unlockClickable else {
-                pulseScale = 1.0
-                pulseAlpha = 0.0
-                return
-            }
-            while !Task.isCancelled {
-                withAnimation(.easeOut(duration: 0.85)) {
-                    pulseScale = 1.08
-                    pulseAlpha = 0
-                }
-                try? await Task.sleep(for: .milliseconds(1000))
-                guard !Task.isCancelled else { break }
-                withAnimation(.none) {
-                    pulseScale = 1.0
-                    pulseAlpha = 0.72
-                }
-                try? await Task.sleep(for: .milliseconds(150))
-            }
-        }
+        .buttonStyle(.plain)
+        .disabled(!unlockClickable)
+        .opacity(unlockClickable ? 1.0 : 0.0)
+        .allowsHitTesting(unlockClickable)
+        .animation(.easeInOut(duration: 0.25), value: unlockClickable)
+        .accessibilityLabel("Unlock now")
     }
 }
 

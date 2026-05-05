@@ -26,9 +26,14 @@ final class LockController {
     // Keyboard breakdown
     private(set) var letterCount: Int = 0
     private(set) var numberCount: Int = 0
-    private(set) var fnKeyCount: Int = 0
-    private(set) var systemKeyCount: Int = 0
-    private(set) var otherKeyCount: Int = 0
+    /// Punctuation, !@#$%&, all printable non-letter / non-number chars.
+    private(set) var symbolCount: Int = 0
+    /// Esc, Tab, Return, Space, Backspace, Delete, Arrows, Home/End/PgUp/PgDn.
+    private(set) var controlKeyCount: Int = 0
+    /// F1–F20.
+    private(set) var functionKeyCount: Int = 0
+    /// Brightness, Volume, Play/Next/Prev — emitted by NX_SYSDEFINED subtype 8.
+    private(set) var mediaKeyCount: Int = 0
     // Mouse breakdown
     private(set) var leftClickCount: Int = 0
     private(set) var rightClickCount: Int = 0
@@ -37,12 +42,15 @@ final class LockController {
     private(set) var forwardClickCount: Int = 0
     private(set) var scrollCount: Int = 0
     // Gestures
-    private(set) var spaceSwitchCount: Int = 0
-    /// 3/4-finger trackpad swipes the user attempted while locked. Counts
-    /// once per physical swipe (debounced) regardless of whether macOS
-    /// would have completed the swipe's intended action.
-    private(set) var gestureAttemptCount: Int = 0
-    /// 2-finger pinch (magnify) attempts. NSEventType 30, debounced.
+    /// Discrete 3/4-finger trackpad swipes — counts both NSEventType.swipe
+    /// (31) when the tap sees it AND `activeSpaceDidChange` notifications
+    /// (which is how 4-finger swipes manifest on macOS 26+ where the OS
+    /// dispatches the gesture above our event tap). Debounced across both
+    /// paths so a swipe that triggers a Space change counts once, not twice.
+    private(set) var swipeCount: Int = 0
+    /// 2-finger pinch (NSEventType.magnify = 30) plus double-tap zoom
+    /// (NSEventType.smartMagnify = 35). Magnify streams during a pinch, so
+    /// debounced; smartMagnify is discrete and counted directly.
     private(set) var pinchCount: Int = 0
     /// 2-finger rotation attempts. NSEventType 32, debounced.
     private(set) var rotateCount: Int = 0
@@ -69,9 +77,31 @@ final class LockController {
     var spaceObserverInstalled: Bool { spaceObserver != nil }
     var lockWindowCount: Int { windowManager.windowCount }
 
-    private static let fnKeycodes: Set<UInt16> = [
+    private static let functionKeycodes: Set<UInt16> = [
         122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1–F12
         105, 107, 113, 106, 64, 79, 80, 90,                     // F13–F20 (extended Apple keyboards)
+    ]
+
+    /// Non-printable navigation / editing / whitespace keys. Distinguished
+    /// from `symbolCount` so the breakdown shows e.g. heavy Backspace usage
+    /// separately from punctuation.
+    private static let controlKeycodes: Set<UInt16> = [
+        36,   // Return
+        48,   // Tab
+        49,   // Space
+        51,   // Delete (Backspace)
+        53,   // Escape
+        76,   // Enter (Numpad)
+        114,  // Help / Insert
+        115,  // Home
+        116,  // Page Up
+        117,  // Forward Delete
+        119,  // End
+        121,  // Page Down
+        123,  // Left Arrow
+        124,  // Right Arrow
+        125,  // Down Arrow
+        126,  // Up Arrow
     ]
 
     /// NX_KEYTYPE → F-key keycode. macOS fires media/brightness keys as
@@ -112,14 +142,21 @@ final class LockController {
     @ObservationIgnored private var runLoopSource: CFRunLoopSource?
     @ObservationIgnored private var matcher = CodewordMatcher(target: "")
     @ObservationIgnored private var unlockTimer: Timer?
-    @ObservationIgnored private var lastKeystrokeAt: Date?
+    @ObservationIgnored private var lastInputAt: Date?
     @ObservationIgnored private var lastScrollAt: Date?
-    @ObservationIgnored private var lastGestureAt: Date?
+    @ObservationIgnored private var lastSwipeAt: Date?
     @ObservationIgnored private var lastPinchAt: Date?
     @ObservationIgnored private var lastRotateAt: Date?
     @ObservationIgnored private var spaceObserver: NSObjectProtocol?
 
     @ObservationIgnored private let pauseDetectThreshold: TimeInterval = 30
+    /// Window after lockStartedAt during which non-keyboard events are still
+    /// swallowed by the tap but not counted/sounded/sparked. Eats the burst
+    /// from `windowManager.show()` activating the lock window — Magic Mouse
+    /// emits a `.gesture` stream the moment the cursor crosses the new
+    /// window, and `activeSpaceDidChange` may fire from the AppKit promotion
+    /// itself. 0.7 s is the longest of those bursts I've measured.
+    @ObservationIgnored private let warmupGracePeriod: TimeInterval = 0.7
     @ObservationIgnored private let windowManager = LockWindowManager()
     @ObservationIgnored private let soundPlayer = SoundPlayer()
 
@@ -175,23 +212,23 @@ final class LockController {
         keystrokeCount = 0
         letterCount = 0
         numberCount = 0
-        fnKeyCount = 0
-        systemKeyCount = 0
-        otherKeyCount = 0
+        symbolCount = 0
+        controlKeyCount = 0
+        functionKeyCount = 0
+        mediaKeyCount = 0
         leftClickCount = 0
         rightClickCount = 0
         middleClickCount = 0
         backClickCount = 0
         forwardClickCount = 0
         scrollCount = 0
-        spaceSwitchCount = 0
-        gestureAttemptCount = 0
+        swipeCount = 0
         pinchCount = 0
         rotateCount = 0
         // Per-session heatmap starts fresh; overall heatmap accumulates.
         sessionKeyCounts = [:]
         lastScrollAt = nil
-        lastGestureAt = nil
+        lastSwipeAt = nil
         lastPinchAt = nil
         lastRotateAt = nil
         codewordMatchProgress = 0
@@ -201,7 +238,7 @@ final class LockController {
         lastFactRotationKeystroke = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
-        lastKeystrokeAt = Date()
+        lastInputAt = Date()
         isPaused = false
 
         // Bring up the tap FIRST. Only when it sticks do we mark the session
@@ -229,7 +266,7 @@ final class LockController {
     func stopLock() {
         guard isLocked else { return }
         let secondsRun = max(0, totalSeconds - remainingSeconds)
-        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(gestureAttemptCount) pinch=\(pinchCount) rotate=\(rotateCount) spaces=\(spaceSwitchCount)")
+        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) sym=\(symbolCount) ctl=\(controlKeyCount) fn=\(functionKeyCount) med=\(mediaKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(swipeCount) pinch=\(pinchCount) rotate=\(rotateCount)")
         if AppSettings.shared.unlockChimeEnabled {
             soundPlayer.playUnlockChime()
         }
@@ -373,7 +410,7 @@ final class LockController {
     }
 
     private func tick() {
-        if let last = lastKeystrokeAt,
+        if let last = lastInputAt,
            Date().timeIntervalSince(last) > pauseDetectThreshold {
             isPaused = true
             return
@@ -392,6 +429,12 @@ final class LockController {
     // MARK: - Event tap
 
     private func installEventTap() -> Bool {
+        // NSEventType raw values — verified against AppKit's NSEvent.h:
+        //   gesture=29  magnify=30  swipe=31  rotate=18  beginGesture=19
+        //   endGesture=20  smartMagnify=32  pressure=34
+        // Earlier code had rotate/beginGesture/endGesture/smartMagnify wrong
+        // (32/33/34/35), which left rotate uncovered, made every smartMagnify
+        // misclassify as rotate, and caused phantom counters.
         let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
                               | (1 << CGEventType.keyUp.rawValue)
                               | (1 << CGEventType.flagsChanged.rawValue)
@@ -400,13 +443,13 @@ final class LockController {
                               | (1 << CGEventType.otherMouseDown.rawValue)
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
+                              | (1 << 18) // NSEventType.rotate — 2-finger rotation
+                              | (1 << 19) // NSEventType.beginGesture
+                              | (1 << 20) // NSEventType.endGesture
                               | (1 << 29) // NSEventType.gesture — continuous multi-touch
                               | (1 << 30) // NSEventType.magnify — 2-finger pinch
                               | (1 << 31) // NSEventType.swipe — discrete 3/4-finger swipe
-                              | (1 << 32) // NSEventType.rotate — 2-finger rotation
-                              | (1 << 33) // NSEventType.beginGesture
-                              | (1 << 34) // NSEventType.endGesture
-                              | (1 << 35) // NSEventType.smartMagnify — double-tap zoom
+                              | (1 << 32) // NSEventType.smartMagnify — double-tap zoom
                               // .screenSaver-level alone no longer prevents 3/4-finger
                               // swipes on macOS 26+ (the OS dispatches them via the
                               // WindowServer/Dock path that runs above app event taps).
@@ -474,15 +517,40 @@ final class LockController {
             queue: .main
         ) { [weak self] _ in
             guard let self, self.isLocked else { return }
-            self.spaceSwitchCount += 1
-            PerfMetrics.shared.recordEvent("space")
-            self.triggerInputFeedback()
             // Re-promote our windows on the (possibly newly created) space.
             // canJoinAllSpaces should handle this automatically, but a manual
             // orderFront covers edge cases like spaces created via Mission
-            // Control's "+" while we're already locked.
+            // Control's "+" while we're already locked. This must run even
+            // during warmup — it's the recovery path, not user-attributed.
             self.windowManager.refreshSpaceCoverage()
+            // The notification can fire from AppKit's own window-promotion
+            // path during lock startup; ignore those so the user doesn't see
+            // a phantom swipe on a clean start.
+            guard !self.isInWarmup else { return }
+            // Space changes are how 4-finger swipes manifest on macOS 26+
+            // (the OS dispatches the gesture above our event tap). Map
+            // them onto swipeCount with a debounce so a `.swipe` (31) and
+            // its follow-up activeSpaceDidChange don't double-count.
+            let now = Date()
+            if self.lastSwipeAt == nil || now.timeIntervalSince(self.lastSwipeAt!) > 0.4 {
+                self.swipeCount += 1
+                PerfMetrics.shared.recordEvent("swipe (space)")
+                self.triggerInputFeedback()
+            }
+            self.lastSwipeAt = now
         }
+    }
+
+    /// True for the first `warmupGracePeriod` seconds after a successful
+    /// `startLock`. The event tap still swallows everything during this
+    /// window — we just refrain from counting / sounding / sparking on
+    /// non-keyboard events to absorb the burst that the lock-window
+    /// activation itself produces (Magic Mouse `.gesture` stream, AppKit-
+    /// induced `activeSpaceDidChange`, etc.). Keyboard is exempt elsewhere
+    /// so the user can start typing the codeword immediately.
+    private var isInWarmup: Bool {
+        guard let started = lockStartedAt else { return false }
+        return Date().timeIntervalSince(started) < warmupGracePeriod
     }
 
     private func removeSpaceObserver() {
@@ -509,6 +577,7 @@ final class LockController {
                 triggerInlineSnapshot()
                 return nil
             }
+            if isInWarmup { return nil }
             leftClickCount += 1
             PerfMetrics.shared.recordEvent("mouseL")
             triggerInputFeedback()
@@ -521,12 +590,14 @@ final class LockController {
             return nil
         }
         if type == .rightMouseDown {
+            if isInWarmup { return nil }
             rightClickCount += 1
             PerfMetrics.shared.recordEvent("mouseR")
             triggerInputFeedback()
             return nil
         }
         if type == .otherMouseDown {
+            if isInWarmup { return nil }
             // Button number: 2 = middle/wheel-click, 3 = back, 4 = forward (typical
             // 5-button mice). Higher numbers exist on some gaming mice — bucket as middle.
             let button = event.getIntegerValueField(.mouseEventButtonNumber)
@@ -540,10 +611,14 @@ final class LockController {
             return nil
         }
         if type == .scrollWheel {
+            if isInWarmup { return nil }
             // Trackpad/Magic-Mouse scrolls fire ~60 events/sec — debounce so a single
             // gesture maps to ~1 count + one feedback burst, not a machine-gun.
+            // 0.4 s is conservative: a quick two-finger flick still registers
+            // as one scroll, but a slow continuous drag no longer machine-guns
+            // the counter every quarter-second.
             let now = Date()
-            if lastScrollAt == nil || now.timeIntervalSince(lastScrollAt!) > 0.25 {
+            if lastScrollAt == nil || now.timeIntervalSince(lastScrollAt!) > 0.4 {
                 scrollCount += 1
                 PerfMetrics.shared.recordEvent("scroll")
                 triggerInputFeedback()
@@ -551,27 +626,45 @@ final class LockController {
             lastScrollAt = now
             return nil
         }
-        if type.rawValue == 29 || type.rawValue == 31 {
-            // NSEventType.gesture (29) streams ~60 Hz; NSEventType.swipe (31)
-            // is a discrete 3/4-finger directional swipe. Swallowed (return
-            // nil) so Mission Control / Spaces / Expose can't trigger while
-            // locked — though for trackpad space-swipes macOS 26+ may still
-            // complete the action above our tap. Debounce so one physical
-            // swipe = one count + one feedback burst, even though 29 streams.
+        if type.rawValue == 29 {
+            // NSEventType.gesture — continuous multi-touch stream (~60 Hz)
+            // while a finger is on the trackpad / Magic Mouse, even without
+            // movement. No counter / sound / spark — but we DO bump
+            // lastInputAt so the pause-detection timer doesn't trip on a
+            // user who's actively touching the Magic Mouse but hasn't
+            // clicked or typed. Without this update the auto-unlock timer
+            // freezes after `pauseDetectThreshold` even though the user is
+            // physically present at the keyboard.
+            lastInputAt = Date()
+            return nil
+        }
+        if type.rawValue == 31 {
+            // NSEventType.swipe — discrete 3/4-finger directional swipe.
+            // The OS emits one event per physical swipe. Debounce against
+            // the space observer so a swipe that ALSO triggers an
+            // activeSpaceDidChange (typical case on macOS 26+) only counts
+            // once across both code paths.
+            if isInWarmup { return nil }
             let now = Date()
-            if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
-                gestureAttemptCount += 1
+            if lastSwipeAt == nil || now.timeIntervalSince(lastSwipeAt!) > 0.4 {
+                swipeCount += 1
                 PerfMetrics.shared.recordEvent("swipe")
                 triggerInputFeedback()
             }
-            lastGestureAt = now
+            lastSwipeAt = now
             return nil
         }
         if type.rawValue == 30 {
-            // NSEventType.magnify — pinch-to-zoom. Streams while pinching;
-            // debounce to one count per physical pinch.
+            // NSEventType.magnify — pinch-to-zoom. macOS only emits this
+            // when it has classified a touch session as a pinch attempt
+            // (you can't hold two static fingers on a Magic Mouse and get
+            // .magnify — that path produces .gesture 29 instead, which we
+            // already swallow silently). So we accept every .magnify; the
+            // 1.0 s debounce collapses one physical pinch (which streams
+            // ~60 Hz) into one count.
+            if isInWarmup { return nil }
             let now = Date()
-            if lastPinchAt == nil || now.timeIntervalSince(lastPinchAt!) > 0.4 {
+            if lastPinchAt == nil || now.timeIntervalSince(lastPinchAt!) > 1.0 {
                 pinchCount += 1
                 PerfMetrics.shared.recordEvent("pinch")
                 triggerInputFeedback()
@@ -579,10 +672,14 @@ final class LockController {
             lastPinchAt = now
             return nil
         }
-        if type.rawValue == 32 {
-            // NSEventType.rotate — 2-finger rotation. Streams; debounce.
+        if type.rawValue == 18 {
+            // NSEventType.rotate — same accounting as .magnify. macOS gates
+            // emission on intent-classification, so any rotate we see is
+            // already real; debounce collapses the per-frame stream to
+            // one count.
+            if isInWarmup { return nil }
             let now = Date()
-            if lastRotateAt == nil || now.timeIntervalSince(lastRotateAt!) > 0.4 {
+            if lastRotateAt == nil || now.timeIntervalSince(lastRotateAt!) > 1.0 {
                 rotateCount += 1
                 PerfMetrics.shared.recordEvent("rotate")
                 triggerInputFeedback()
@@ -590,11 +687,22 @@ final class LockController {
             lastRotateAt = now
             return nil
         }
-        if type.rawValue == 33 || type.rawValue == 34 || type.rawValue == 35 {
-            // beginGesture / endGesture / smartMagnify — bookend events
-            // around touch sessions. Swallow silently; the streaming branches
-            // above already counted the underlying physical gesture, so we'd
-            // only inflate counts by handling these.
+        if type.rawValue == 32 {
+            // NSEventType.smartMagnify — discrete double-tap zoom. Folded
+            // into pinchCount because it's the same conceptual gesture for
+            // the user; counted directly with no debounce.
+            if isInWarmup { return nil }
+            pinchCount += 1
+            PerfMetrics.shared.recordEvent("smartMagnify")
+            triggerInputFeedback()
+            return nil
+        }
+        if type.rawValue == 19 || type.rawValue == 20 {
+            // beginGesture / endGesture — touch-session boundary events.
+            // Swallow silently; the discrete branches above own the count.
+            // Bump lastInputAt so the pause timer doesn't trip on a user
+            // who's mid-touch-session without producing a discrete event.
+            lastInputAt = Date()
             return nil
         }
 
@@ -612,8 +720,8 @@ final class LockController {
                 let keyState = (flags & 0xFF00) >> 8
                 let isRepeat = (flags & 0x1) != 0
                 if keyState == 0x0A && !isRepeat {
-                    systemKeyCount += 1
-                    PerfMetrics.shared.recordEvent("sysKey")
+                    mediaKeyCount += 1
+                    PerfMetrics.shared.recordEvent("mediaKey")
                     // Project onto the F-row so the visual heatmap shows
                     // these hits at the key the user physically pressed.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
@@ -645,32 +753,43 @@ final class LockController {
     /// mouse, fn/system key, etc.). Pixel wipe is intentionally NOT here —
     /// it stays exclusive to keyDown so non-keyboard inputs don't grant free
     /// cleaning progress.
+    ///
+    /// Side-effect: also bumps `lastInputAt` so the pause-detection timer
+    /// resets on any input, not just keystrokes. Without this the auto-
+    /// unlock timer would freeze after `pauseDetectThreshold` seconds of
+    /// no-typing even when the user is actively mousing / clicking /
+    /// scrolling around the keyboard during cleaning.
     private func triggerInputFeedback() {
+        lastInputAt = Date()
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
         if AppSettings.shared.effectEnabled { sparkTrigger += 1 }
     }
 
     private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
-        lastKeystrokeAt = Date()
+        lastInputAt = Date()
         PerfMetrics.shared.recordEvent("key kc=\(keycode)")
         if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
             lastFactRotationKeystroke = keystrokeCount
             factRotationTick &+= 1
         }
 
-        // Classify into one bucket. Order matters: F-keys are checked first because
-        // they have keycodes but produce no printable chars on most layouts.
-        if Self.fnKeycodes.contains(keycode) {
-            fnKeyCount += 1
+        // Classify into one bucket. Order matters: F-keys and control keys
+        // are checked first because they have keycodes but their printable
+        // chars can be misleading (e.g. arrow keys produce private-use
+        // codepoints that pass `isLetter` on some layouts).
+        if Self.functionKeycodes.contains(keycode) {
+            functionKeyCount += 1
+        } else if Self.controlKeycodes.contains(keycode) {
+            controlKeyCount += 1
         } else if let first = chars.first, first.isLetter {
             letterCount += 1
         } else if let first = chars.first, first.isNumber {
             numberCount += 1
         } else {
-            // Esc, Tab, Return, Space, Arrows, Delete, Punctuation that's neither
-            // letter nor number, etc.
-            otherKeyCount += 1
+            // Punctuation and printable symbols that are neither letter nor
+            // number: , . ; : ' " ! @ # $ % & * ( ) - _ = + [ ] { } etc.
+            symbolCount += 1
         }
 
         sessionKeyCounts[keycode, default: 0] += 1
