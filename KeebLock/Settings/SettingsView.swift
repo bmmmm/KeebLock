@@ -450,6 +450,56 @@ struct SettingsView: View {
 
             Divider()
 
+            // Support / donation
+            Link(destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app")!) {
+                HStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .foregroundStyle(.pink)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Support development on Ko-fi")
+                            .font(.callout.weight(.semibold))
+                        Text("ko-fi.com/bmabma")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+
+            // Content attribution — required when shipping CC-BY-SA Wikimedia images
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Content credits")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text("Codeword summaries and facts:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Link("Wikipedia", destination: URL(string: "https://en.wikipedia.org")!)
+                        .font(.caption)
+                }
+                HStack(spacing: 4) {
+                    Text("Lead images:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Link("Wikimedia Commons", destination: URL(string: "https://commons.wikimedia.org")!)
+                        .font(.caption)
+                    Text("(CC-BY-SA)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider()
+
             HStack(spacing: 8) {
                 Image(systemName: "trash")
                     .font(.caption)
