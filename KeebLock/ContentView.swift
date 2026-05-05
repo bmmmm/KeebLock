@@ -14,6 +14,13 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var permissionPollTask: Task<Void, Never>?
     @State private var showVerifyPopover = false
+    /// CDHash the user has manually verified against the published values.
+    /// Empty until they actively confirm; resets implicitly with every new
+    /// release because each build has a fresh CDHash. The shield only glows
+    /// green when this matches the running binary — anything else (no entry,
+    /// stale entry from a previous build) keeps it orange so the user can't
+    /// mistake "merely signed" for "actually checked".
+    @AppStorage("KeebLock.verifiedCDHash") private var verifiedCDHash: String = ""
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -116,17 +123,26 @@ struct ContentView: View {
         .padding(28)
     }
 
+    private enum BuildVerification { case verified, needsVerification, invalid }
+
+    private var verificationState: BuildVerification {
+        let id = SigningIdentity.current
+        guard let cd = id.cdHash, id.teamID != nil else { return .invalid }
+        return cd == verifiedCDHash ? .verified : .needsVerification
+    }
+
     private var buildIdentityFooter: some View {
         let id = SigningIdentity.current
-        let signed = id.teamID != nil
+        let state = verificationState
+        let color = shieldColor(for: state)
         return Button {
             showVerifyPopover.toggle()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: signed ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                Image(systemName: shieldIcon(for: state))
                     .font(.caption2)
-                    .foregroundStyle(signed ? Color.green : Color.red)
-                    .shadow(color: (signed ? Color.green : Color.red).opacity(0.55), radius: 3)
+                    .foregroundStyle(color)
+                    .shadow(color: color.opacity(0.55), radius: 3)
                 if let tid = id.teamID {
                     Text("Build identity ")
                         .foregroundStyle(.secondary)
@@ -135,30 +151,56 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     Text("Ad-hoc / unsigned build")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.red)
                 }
             }
             .font(.caption2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(signed
-              ? "Build identity \(id.teamID!). Click to see how to verify this is an authentic bmmmm build — a tampered copy cannot forge this Team ID without the original Apple signing cert."
-              : "This build is not signed with a stable identity (debug or ad-hoc). Official KeebLock release builds expose a 10-character Team ID — click for verification details.")
+        .help(helpText(for: state, id: id))
         .popover(isPresented: $showVerifyPopover, arrowEdge: .top) {
-            verifyPopover(id)
+            verifyPopover(id, state: state)
                 .padding(16)
                 .frame(width: 380)
         }
     }
 
-    private func verifyPopover(_ id: SigningIdentity.Info) -> some View {
+    private func shieldColor(for state: BuildVerification) -> Color {
+        switch state {
+        case .verified:          return .green
+        case .needsVerification: return .orange
+        case .invalid:           return .red
+        }
+    }
+
+    private func shieldIcon(for state: BuildVerification) -> String {
+        switch state {
+        case .verified:          return "checkmark.shield.fill"
+        case .needsVerification: return "questionmark.shield.fill"
+        case .invalid:           return "xmark.shield.fill"
+        }
+    }
+
+    private func helpText(for state: BuildVerification, id: SigningIdentity.Info) -> String {
+        switch state {
+        case .verified:
+            return "Verified by you. Click for details."
+        case .needsVerification:
+            let tid = id.teamID ?? "?"
+            return "Signed as \(tid) but not yet verified by you. Click and compare the values with the latest release notes to turn the shield green."
+        case .invalid:
+            return "This build is not signed with a stable identity (debug or ad-hoc). Official release builds expose a 10-character Team ID — click for details."
+        }
+    }
+
+    private func verifyPopover(_ id: SigningIdentity.Info, state: BuildVerification) -> some View {
         let cmd = "codesign -dv --verbose=4 /Applications/KeebLock.app 2>&1 | grep -E '^(TeamIdentifier|CDHash)='"
         return VStack(alignment: .leading, spacing: 12) {
             Text("Verify this build")
                 .font(.headline)
 
-            Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. To check, compare the values below with those published on the project repo, and run the command in Terminal so the OS reads them directly from disk.")
+            Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. Compare the values below with the latest release notes, run the command in Terminal so the OS reads them directly from disk, then mark the build verified.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -197,6 +239,37 @@ struct ContentView: View {
                 Link("Compare with the latest release notes →", destination: url)
                     .font(.caption)
             }
+
+            Divider()
+
+            verifyAction(state: state, id: id)
+        }
+    }
+
+    @ViewBuilder
+    private func verifyAction(state: BuildVerification, id: SigningIdentity.Info) -> some View {
+        switch state {
+        case .verified:
+            HStack {
+                Label("Verified by you", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+                Spacer()
+                Button("Reset") { verifiedCDHash = "" }
+                    .controlSize(.small)
+            }
+        case .needsVerification:
+            Button {
+                if let cd = id.cdHash {
+                    verifiedCDHash = cd
+                }
+            } label: {
+                Label("I've checked these values — mark verified", systemImage: "checkmark.circle")
+                    .font(.caption)
+            }
+            .controlSize(.small)
+        case .invalid:
+            EmptyView()
         }
     }
 
