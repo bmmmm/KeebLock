@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#ffe6f0"/>
+      <stop offset="50%"  stop-color="#ffd3df"/>
+      <stop offset="100%" stop-color="#fff4d8"/>
+    </linearGradient>
+    <linearGradient id="bgSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="capSide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffd0e4"/>
+      <stop offset="55%"  stop-color="#e89bb8"/>
+      <stop offset="100%" stop-color="#a45c78"/>
+    </linearGradient>
+    <linearGradient id="capFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fffaf5"/>
+      <stop offset="55%"  stop-color="#fff0e8"/>
+      <stop offset="100%" stop-color="#f4cfd8"/>
+    </linearGradient>
+    <linearGradient id="capFaceGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="heart" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffafcc"/>
+      <stop offset="55%"  stop-color="#ff70a8"/>
+      <stop offset="100%" stop-color="#c84e84"/>
+    </linearGradient>
+    <linearGradient id="heartGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="shackle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fafbfc"/>
+      <stop offset="55%"  stop-color="#cbd0d6"/>
+      <stop offset="100%" stop-color="#8b929a"/>
+    </linearGradient>
+    <radialGradient id="petal" cx="0.4" cy="0.3" r="0.7">
+      <stop offset="0%"  stop-color="#fff5fa"/>
+      <stop offset="60%" stop-color="#ffc8d8"/>
+      <stop offset="100%" stop-color="#ff90b4"/>
+    </radialGradient>
+    <linearGradient id="branch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#7a4a32"/>
+      <stop offset="100%" stop-color="#3a1f10"/>
+    </linearGradient>
+    <radialGradient id="capShadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#000" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bgSheen)"/>
+
+  <!-- Sakura branch reaching from upper-left -->
+  <g>
+    <path d="M 60 60 q 120 80 220 110 q 80 26 160 28"
+          fill="none" stroke="url(#branch)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M 200 130 q 30 -40 60 -30"
+          fill="none" stroke="url(#branch)" stroke-width="9" stroke-linecap="round"/>
+    <path d="M 320 178 q 24 -50 50 -42"
+          fill="none" stroke="url(#branch)" stroke-width="9" stroke-linecap="round"/>
+  </g>
+
+  <!-- Sakura petals (5-petal flowers) -->
+  <g>
+    <!-- Flower factory: each flower is 5 petals + yellow center -->
+    <!-- Big flower top-left -->
+    <g transform="translate(120, 130) rotate(15)">
+      <g>
+        <ellipse cx="0" cy="-30" rx="22" ry="32" fill="url(#petal)"/>
+        <ellipse cx="0" cy="-30" rx="22" ry="32" fill="url(#petal)" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-30" rx="22" ry="32" fill="url(#petal)" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-30" rx="22" ry="32" fill="url(#petal)" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-30" rx="22" ry="32" fill="url(#petal)" transform="rotate(288)"/>
+      </g>
+      <circle cx="0" cy="0" r="9" fill="#ffd84a"/>
+    </g>
+
+    <!-- Medium flower mid-left on branch -->
+    <g transform="translate(252, 116) rotate(-20)">
+      <g>
+        <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#petal)"/>
+        <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#petal)" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#petal)" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#petal)" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#petal)" transform="rotate(288)"/>
+      </g>
+      <circle cx="0" cy="0" r="6" fill="#ffd84a"/>
+    </g>
+
+    <!-- Small flower top-right -->
+    <g transform="translate(870, 230) rotate(40)">
+      <g>
+        <ellipse cx="0" cy="-20" rx="14" ry="22" fill="url(#petal)"/>
+        <ellipse cx="0" cy="-20" rx="14" ry="22" fill="url(#petal)" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-20" rx="14" ry="22" fill="url(#petal)" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-20" rx="14" ry="22" fill="url(#petal)" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-20" rx="14" ry="22" fill="url(#petal)" transform="rotate(288)"/>
+      </g>
+      <circle cx="0" cy="0" r="5" fill="#ffd84a"/>
+    </g>
+
+    <!-- Falling single petals scattered (simple ovals tilted) -->
+    <g fill="url(#petal)" stroke="#e98ab2" stroke-opacity="0.4" stroke-width="1.5">
+      <ellipse cx="180" cy="380" rx="12" ry="20" transform="rotate(35 180 380)"/>
+      <ellipse cx="900" cy="500" rx="10" ry="16" transform="rotate(-25 900 500)"/>
+      <ellipse cx="80"  cy="640" rx="11" ry="18" transform="rotate(60 80 640)"/>
+      <ellipse cx="940" cy="780" rx="12" ry="20" transform="rotate(15 940 780)"/>
+      <ellipse cx="220" cy="900" rx="10" ry="16" transform="rotate(-40 220 900)"/>
+      <ellipse cx="780" cy="940" rx="11" ry="18" transform="rotate(50 780 940)"/>
+    </g>
+  </g>
+
+  <!-- Drop shadow under keycap -->
+  <ellipse cx="512" cy="892" rx="296" ry="22" fill="url(#capShadow)"/>
+
+  <!-- Keycap skirt -->
+  <rect x="200" y="328" width="624" height="552" rx="92" ry="92" fill="url(#capSide)"/>
+  <rect x="200" y="328" width="624" height="552" rx="92" ry="92"
+        fill="none" stroke="#000" stroke-opacity="0.18" stroke-width="2"/>
+  <!-- Top face -->
+  <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFace)"/>
+  <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFaceGloss)"/>
+
+  <!-- Heart padlock — shackle -->
+  <path d="M 446 580 L 446 502 A 66 66 0 0 1 578 502 L 578 580"
+        fill="none" stroke="url(#shackle)" stroke-width="34" stroke-linecap="round"/>
+
+  <!-- Heart body -->
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heart)"/>
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heartGloss)" opacity="0.7"/>
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="none" stroke="#7a1c44" stroke-opacity="0.45" stroke-width="3"/>
+
+  <!-- Tiny sakura flower stamped on the heart (top-left) as a "patch" -->
+  <g transform="translate(420, 580) scale(0.42)">
+    <ellipse cx="0" cy="-22" rx="16" ry="24" fill="#fff5fa" stroke="#e98ab2" stroke-opacity="0.6" stroke-width="2"/>
+    <ellipse cx="0" cy="-22" rx="16" ry="24" fill="#fff5fa" stroke="#e98ab2" stroke-opacity="0.6" stroke-width="2" transform="rotate(72)"/>
+    <ellipse cx="0" cy="-22" rx="16" ry="24" fill="#fff5fa" stroke="#e98ab2" stroke-opacity="0.6" stroke-width="2" transform="rotate(144)"/>
+    <ellipse cx="0" cy="-22" rx="16" ry="24" fill="#fff5fa" stroke="#e98ab2" stroke-opacity="0.6" stroke-width="2" transform="rotate(216)"/>
+    <ellipse cx="0" cy="-22" rx="16" ry="24" fill="#fff5fa" stroke="#e98ab2" stroke-opacity="0.6" stroke-width="2" transform="rotate(288)"/>
+    <circle cx="0" cy="0" r="6" fill="#ffd84a"/>
+  </g>
+
+  <!-- Big happy face on heart — crescent eyes ^_^, big smile -->
+  <ellipse cx="500" cy="660" rx="32" ry="18" fill="#ff7aa7" opacity="0.6"/>
+  <ellipse cx="624" cy="660" rx="28" ry="16" fill="#ff7aa7" opacity="0.55"/>
+  <!-- Crescent (^) eyes -->
+  <path d="M 470 612 q 22 -22 44 0" fill="none" stroke="#3a1530" stroke-width="11" stroke-linecap="round"/>
+  <path d="M 566 612 q 22 -22 44 0" fill="none" stroke="#3a1530" stroke-width="11" stroke-linecap="round"/>
+  <!-- Big smile -->
+  <path d="M 484 658 q 28 28 56 0" fill="none" stroke="#3a1530" stroke-width="10" stroke-linecap="round"/>
+</svg>

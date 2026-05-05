@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#fff1d8"/>
+      <stop offset="50%"  stop-color="#f0d3a8"/>
+      <stop offset="100%" stop-color="#b88858"/>
+    </linearGradient>
+    <linearGradient id="bgSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="capSide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#e6c098"/>
+      <stop offset="55%"  stop-color="#b8835a"/>
+      <stop offset="100%" stop-color="#6e4528"/>
+    </linearGradient>
+    <linearGradient id="capFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fffaf0"/>
+      <stop offset="55%"  stop-color="#fff1d8"/>
+      <stop offset="100%" stop-color="#f4d7b0"/>
+    </linearGradient>
+    <linearGradient id="capFaceGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="heart" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ff9ec7"/>
+      <stop offset="55%"  stop-color="#ff5e9b"/>
+      <stop offset="100%" stop-color="#c83972"/>
+    </linearGradient>
+    <linearGradient id="heartGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="shackle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fafbfc"/>
+      <stop offset="55%"  stop-color="#cbd0d6"/>
+      <stop offset="100%" stop-color="#8b929a"/>
+    </linearGradient>
+    <linearGradient id="mug" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fff8ec"/>
+      <stop offset="100%" stop-color="#c8b08a"/>
+    </linearGradient>
+    <linearGradient id="coffeeStream" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#6a3a1a"/>
+      <stop offset="100%" stop-color="#3a1f10"/>
+    </linearGradient>
+    <radialGradient id="capShadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#000" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bgSheen)"/>
+
+  <!-- Steam wisps in background -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round">
+    <path d="M 760 80 q -14 30 0 60 q 14 30 0 60"/>
+    <path d="M 820 100 q 14 30 0 60 q -14 30 0 60"/>
+    <path d="M 880 120 q -14 26 0 52"/>
+  </g>
+
+  <!-- Tipped coffee mug (upper-right) -->
+  <g transform="translate(820, 230) rotate(-55)">
+    <!-- Body -->
+    <rect x="-70" y="-90" width="140" height="180" rx="18" ry="18" fill="url(#mug)"/>
+    <rect x="-70" y="-90" width="140" height="180" rx="18" ry="18" fill="none" stroke="#5a3a18" stroke-opacity="0.55" stroke-width="3"/>
+    <!-- Lip rim -->
+    <ellipse cx="0" cy="-90" rx="70" ry="14" fill="#3a1f10"/>
+    <ellipse cx="0" cy="-90" rx="70" ry="14" fill="none" stroke="#5a3a18" stroke-opacity="0.7" stroke-width="3"/>
+    <!-- Inside (dark coffee surface) -->
+    <ellipse cx="0" cy="-92" rx="62" ry="10" fill="#2a1408"/>
+    <!-- Handle -->
+    <path d="M 70 -40 q 60 0 60 60 q 0 60 -60 60" fill="none" stroke="url(#mug)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M 70 -40 q 60 0 60 60 q 0 60 -60 60" fill="none" stroke="#5a3a18" stroke-opacity="0.55" stroke-width="3"/>
+  </g>
+
+  <!-- Coffee stream pouring out — arcs toward the heart shield, then deflects away -->
+  <path d="M 760 250 Q 700 360 640 460 Q 600 520 540 540"
+        fill="none" stroke="url(#coffeeStream)" stroke-width="22" stroke-linecap="round" opacity="0.92"/>
+
+  <!-- Splash droplets bouncing OFF the heart -->
+  <g fill="#3a1f10">
+    <ellipse cx="350" cy="540" rx="14" ry="10" transform="rotate(-30 350 540)"/>
+    <ellipse cx="300" cy="500" rx="10" ry="7"  transform="rotate(-20 300 500)"/>
+    <ellipse cx="250" cy="600" rx="12" ry="8"  transform="rotate(20 250 600)"/>
+    <ellipse cx="700" cy="430" rx="11" ry="8"  transform="rotate(40 700 430)"/>
+    <ellipse cx="760" cy="500" rx="14" ry="10" transform="rotate(50 760 500)"/>
+    <circle cx="220" cy="540" r="6"/>
+    <circle cx="320" cy="450" r="4"/>
+    <circle cx="730" cy="380" r="5"/>
+  </g>
+
+  <!-- Small "shield ping" sparks where coffee hits the heart -->
+  <g fill="#fff7c8">
+    <path d="M 564 520 l 6 -28 l 6 28 l 28 6 l -28 6 l -6 28 l -6 -28 l -28 -6 z" opacity="0.95"/>
+    <path d="M 600 490 l 4 -18 l 4 18 l 18 4 l -18 4 l -4 18 l -4 -18 l -18 -4 z" opacity="0.85"/>
+  </g>
+
+  <!-- Drop shadow under keycap -->
+  <ellipse cx="512" cy="892" rx="296" ry="22" fill="url(#capShadow)"/>
+
+  <!-- Keycap skirt -->
+  <rect x="200" y="328" width="624" height="552" rx="92" ry="92" fill="url(#capSide)"/>
+  <rect x="200" y="328" width="624" height="552" rx="92" ry="92"
+        fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="2"/>
+  <!-- Top face -->
+  <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFace)"/>
+  <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFaceGloss)"/>
+
+  <!-- Heart padlock — shackle -->
+  <path d="M 446 580 L 446 502 A 66 66 0 0 1 578 502 L 578 580"
+        fill="none" stroke="url(#shackle)" stroke-width="34" stroke-linecap="round"/>
+
+  <!-- Heart body -->
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heart)"/>
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heartGloss)" opacity="0.7"/>
+  <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="none" stroke="#7a1c44" stroke-opacity="0.45" stroke-width="3"/>
+
+  <!-- Determined "rescue!" face — focused round eyes + small "!" + tight mouth -->
+  <ellipse cx="412" cy="650" rx="28" ry="16" fill="#ff7aa7" opacity="0.55"/>
+  <ellipse cx="612" cy="650" rx="28" ry="16" fill="#ff7aa7" opacity="0.55"/>
+  <!-- Determined eyes — wide ovals with sharp brows -->
+  <ellipse cx="464" cy="612" rx="14" ry="20" fill="#3a1530"/>
+  <ellipse cx="560" cy="612" rx="14" ry="20" fill="#3a1530"/>
+  <circle cx="468" cy="606" r="4" fill="#ffffff" opacity="0.95"/>
+  <circle cx="564" cy="606" r="4" fill="#ffffff" opacity="0.95"/>
+  <!-- Brows (angled down inward — "determined") -->
+  <path d="M 440 580 l 38 14" stroke="#3a1530" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 584 580 l -38 14" stroke="#3a1530" stroke-width="9" stroke-linecap="round"/>
+  <!-- Tight closed-mouth line -->
+  <path d="M 488 678 q 24 -10 48 0" fill="none" stroke="#3a1530" stroke-width="9" stroke-linecap="round"/>
+</svg>
