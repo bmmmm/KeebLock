@@ -86,7 +86,11 @@ struct HUDView: View {
         .padding(.vertical, 10)
         .background(.black.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .animation(.easeOut(duration: 0.2), value: progress)
+        // No animation: easeOut(0.2) used to queue when the user mistyped
+        // (progress collapses to 0) and immediately corrected — the green
+        // would linger for 200 ms before snapping back. Keystroke feedback
+        // should be frame-tight; the per-character color change is small
+        // enough that an unanimated swap reads cleanly.
     }
 
     /// White until matched, then a green-Verlauf where the first matched
