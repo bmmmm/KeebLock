@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @ObservedObject var controller: LockController
+    var controller: LockController
     @ObservedObject var history: CleaningHistory = .shared
 
     @State private var suggestions: [String] = Codewords.suggestions()

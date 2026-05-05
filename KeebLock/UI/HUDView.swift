@@ -2,7 +2,11 @@ import Combine
 import SwiftUI
 
 struct HUDView: View {
-    @ObservedObject var controller: LockController
+    /// LockController is @Observable; SwiftUI tracks the specific properties
+    /// the body reads automatically — no @ObservedObject wrapper needed,
+    /// and unrelated mutations (e.g. heatmap dictionary writes that no view
+    /// in this hierarchy reads) no longer invalidate this view.
+    var controller: LockController
     @ObservedObject var rendererProxy: RendererProxy
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int

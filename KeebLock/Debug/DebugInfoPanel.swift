@@ -6,7 +6,7 @@ import SwiftUI
 // is true. Refreshes once per second so screens, lock state and counts stay current.
 struct DebugInfoPanel: View {
     @ObservedObject var settings: AppSettings
-    @ObservedObject var controller: LockController
+    var controller: LockController
     @ObservedObject private var perf: PerfMetrics = .shared
 
     @State private var screens: [NSScreen] = NSScreen.screens

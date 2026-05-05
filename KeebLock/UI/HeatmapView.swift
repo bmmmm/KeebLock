@@ -7,7 +7,7 @@ import SwiftUI
 // breakdown below, and the legacy sortable table at the bottom for users
 // who want exact numbers per key.
 struct HeatmapView: View {
-    @ObservedObject var controller: LockController
+    var controller: LockController
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @Environment(\.dismiss) private var dismiss
 

@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 
 struct LockView: View {
-    @ObservedObject var controller: LockController
+    var controller: LockController
     @StateObject private var rendererProxy: RendererProxy
     let renderer: WipeRenderer?
     let screenIndex: Int

@@ -7,7 +7,7 @@ extension Notification.Name {
 
 struct ContentView: View {
     @EnvironmentObject var settings: AppSettings
-    @EnvironmentObject var controller: LockController
+    @Environment(LockController.self) var controller
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     @State private var selectedTab: Int = 0

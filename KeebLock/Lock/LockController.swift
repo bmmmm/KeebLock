@@ -1,49 +1,51 @@
 import AppKit
 import Combine
+import Observation
 
-final class LockController: ObservableObject {
-    static let shared = LockController()
+@Observable
+final class LockController {
+    @MainActor static let shared = LockController()
 
-    @Published private(set) var isLocked: Bool = false
-    @Published private(set) var keystrokeCount: Int = 0
-    @Published private(set) var remainingSeconds: Int = 0
-    @Published private(set) var totalSeconds: Int = 0
-    @Published private(set) var currentCodeword: String = ""
-    @Published private(set) var isPaused: Bool = false
-    @Published private(set) var keyCounts: [UInt16: Int] = [:]
-    @Published private(set) var sparkTrigger: Int = 0
+    private(set) var isLocked: Bool = false
+    private(set) var keystrokeCount: Int = 0
+    private(set) var remainingSeconds: Int = 0
+    private(set) var totalSeconds: Int = 0
+    private(set) var currentCodeword: String = ""
+    private(set) var isPaused: Bool = false
+    private(set) var keyCounts: [UInt16: Int] = [:]
+    private(set) var sparkTrigger: Int = 0
     // Keyboard breakdown
-    @Published private(set) var letterCount: Int = 0
-    @Published private(set) var numberCount: Int = 0
-    @Published private(set) var fnKeyCount: Int = 0
-    @Published private(set) var systemKeyCount: Int = 0
-    @Published private(set) var otherKeyCount: Int = 0
+    private(set) var letterCount: Int = 0
+    private(set) var numberCount: Int = 0
+    private(set) var fnKeyCount: Int = 0
+    private(set) var systemKeyCount: Int = 0
+    private(set) var otherKeyCount: Int = 0
     // Mouse breakdown
-    @Published private(set) var leftClickCount: Int = 0
-    @Published private(set) var rightClickCount: Int = 0
-    @Published private(set) var middleClickCount: Int = 0
-    @Published private(set) var backClickCount: Int = 0
-    @Published private(set) var forwardClickCount: Int = 0
-    @Published private(set) var scrollCount: Int = 0
+    private(set) var leftClickCount: Int = 0
+    private(set) var rightClickCount: Int = 0
+    private(set) var middleClickCount: Int = 0
+    private(set) var backClickCount: Int = 0
+    private(set) var forwardClickCount: Int = 0
+    private(set) var scrollCount: Int = 0
     // Gestures
-    @Published private(set) var spaceSwitchCount: Int = 0
+    private(set) var spaceSwitchCount: Int = 0
     /// 3/4-finger trackpad swipes the user attempted while locked. Counts
     /// once per physical swipe (debounced) regardless of whether macOS
     /// would have completed the swipe's intended action.
-    @Published private(set) var gestureAttemptCount: Int = 0
+    private(set) var gestureAttemptCount: Int = 0
     /// 2-finger pinch (magnify) attempts. NSEventType 30, debounced.
-    @Published private(set) var pinchCount: Int = 0
+    private(set) var pinchCount: Int = 0
     /// 2-finger rotation attempts. NSEventType 32, debounced.
-    @Published private(set) var rotateCount: Int = 0
+    private(set) var rotateCount: Int = 0
 
-    @Published private(set) var codewordMatchProgress: Int = 0
+    private(set) var codewordMatchProgress: Int = 0
 
     /// Monotonically increasing counter; HUDView modulos by `currentEntry.facts.count`
     /// to pick which fact to show. Lives here (not per-HUDView) so multi-monitor
     /// users see the same fact on every screen instead of each window
     /// independently rolling its own.
-    @Published private(set) var factRotationTick: Int = 0
-    private var lastFactRotationKeystroke: Int = 0
+    private(set) var factRotationTick: Int = 0
+    @ObservationIgnored private var lastFactRotationKeystroke: Int = 0
     private static let factRotationStride = 30
 
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz" }
@@ -87,20 +89,24 @@ final class LockController: ObservableObject {
         45: "n", 46: "m",
     ]
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var matcher = CodewordMatcher(target: "")
-    private var unlockTimer: Timer?
-    private var lastKeystrokeAt: Date?
-    private var lastScrollAt: Date?
-    private var lastGestureAt: Date?
-    private var lastPinchAt: Date?
-    private var lastRotateAt: Date?
-    private var spaceObserver: NSObjectProtocol?
+    // @ObservationIgnored: these are internal state, never read from a
+    // SwiftUI body. Without the annotation, mutating them through the
+    // event-tap callback would still post observation tracking events
+    // even though no view reads them — pure cost, no benefit.
+    @ObservationIgnored private var eventTap: CFMachPort?
+    @ObservationIgnored private var runLoopSource: CFRunLoopSource?
+    @ObservationIgnored private var matcher = CodewordMatcher(target: "")
+    @ObservationIgnored private var unlockTimer: Timer?
+    @ObservationIgnored private var lastKeystrokeAt: Date?
+    @ObservationIgnored private var lastScrollAt: Date?
+    @ObservationIgnored private var lastGestureAt: Date?
+    @ObservationIgnored private var lastPinchAt: Date?
+    @ObservationIgnored private var lastRotateAt: Date?
+    @ObservationIgnored private var spaceObserver: NSObjectProtocol?
 
-    private let pauseDetectThreshold: TimeInterval = 30
-    private let windowManager = LockWindowManager()
-    private let soundPlayer = SoundPlayer()
+    @ObservationIgnored private let pauseDetectThreshold: TimeInterval = 30
+    @ObservationIgnored private let windowManager = LockWindowManager()
+    @ObservationIgnored private let soundPlayer = SoundPlayer()
 
     /// Legacy UserDefaults key that used to hold persisted heatmap data. We no
     /// longer write here — per-keycode counts are a biometric signature
@@ -109,8 +115,8 @@ final class LockController: ObservableObject {
     /// remove-on-launch can reference it.
     private static let legacyKeyCountsDefaultsKey = "heatmapKeyCounts"
 
-    private var lockStartedAt: Date?
-    private var bag = Set<AnyCancellable>()
+    @ObservationIgnored private var lockStartedAt: Date?
+    @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
         // One-time PII migration: scrub previously-persisted heatmap data on
