@@ -102,30 +102,23 @@ struct HUDView: View {
         ]
     }
 
-    @ViewBuilder
     private var inputBreakdown: some View {
-        let kbTotal = keyboardCategories.reduce(0) { $0 + $1.count }
-        let msTotal = mouseCategories.reduce(0) { $0 + $1.count }
-        let gsTotal = gestureCategories.reduce(0) { $0 + $1.count }
-        if kbTotal > 0 || msTotal > 0 || gsTotal > 0 {
-            HStack(alignment: .top, spacing: 18) {
-                if kbTotal > 0 {
-                    breakdownCard(title: "Keyboard", categories: keyboardCategories)
-                }
-                if msTotal > 0 {
-                    breakdownCard(title: "Mouse", categories: mouseCategories)
-                }
-                if gsTotal > 0 {
-                    breakdownCard(title: "Gestures", categories: gestureCategories)
-                }
-            }
-            .frame(maxWidth: 980)
+        // Render all three cards from the start, even when every counter is 0.
+        // The previous "show only when count > 0" version made the entire HUD
+        // shift downward on the very first keystroke (and again whenever a
+        // new category appeared), which yanked the knowledge card out from
+        // under the user's eye. Constant layout > slightly emptier first
+        // second.
+        HStack(alignment: .top, spacing: 18) {
+            breakdownCard(title: "Keyboard", categories: keyboardCategories)
+            breakdownCard(title: "Mouse",    categories: mouseCategories)
+            breakdownCard(title: "Gestures", categories: gestureCategories)
         }
+        .frame(maxWidth: 980)
     }
 
     private func breakdownCard(title: String, categories: [InputCategory]) -> some View {
-        let visible = categories.filter { $0.count > 0 }
-        return VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             Text(title.uppercased())
                 .font(.system(size: 13, weight: .heavy, design: .rounded))
                 .tracking(2.4)
@@ -135,7 +128,9 @@ struct HUDView: View {
                 alignment: .leading,
                 spacing: 14
             ) {
-                ForEach(visible) { cat in
+                // No .filter — render every tile so the card height never
+                // changes when a new category gets its first hit.
+                ForEach(categories) { cat in
                     breakdownTile(cat)
                 }
             }
@@ -150,10 +145,10 @@ struct HUDView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(cat.count)")
                 .font(.system(size: 38, weight: .heavy, design: .monospaced))
-                .foregroundStyle(.white)
+                .foregroundStyle(cat.count > 0 ? .white : .white.opacity(0.22))
             Text(cat.label)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(cat.count > 0 ? 0.7 : 0.4))
         }
     }
 
@@ -206,26 +201,25 @@ struct HUDView: View {
         .background(.black.opacity(0.25), in: Capsule())
     }
 
+    // Card width and the body text's reserved line count are intentionally
+    // hard-coded so a fact rotating from a 2-line fact to a 5-line fact (or
+    // a portrait-aspect bundled image vs. a landscape one) doesn't reflow
+    // the entire HUD column under the unlock button. Pick numbers that hold
+    // the longest bundled fact at 16-pt body without truncation.
+    private static let knowledgeCardWidth: CGFloat = 540
+    private static let knowledgeImageHeight: CGFloat = 220
+    private static let knowledgeFactLineCount = 5
+
     @ViewBuilder
     private var knowledgeFooter: some View {
         if settings.showCodewordKnowledge {
             VStack(alignment: .leading, spacing: 0) {
-                if let image = currentEntry.loadImage() {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: 540, maxHeight: 220)
-                        .clipped()
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: 14,
-                                topTrailingRadius: 14
-                            )
-                        )
-                }
+                knowledgeImage
                 VStack(alignment: .leading, spacing: 12) {
                     Text(currentEntry.title)
                         .font(.system(size: 24, weight: .heavy))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     if !currentEntry.facts.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("DID YOU KNOW?")
@@ -236,6 +230,12 @@ struct HUDView: View {
                                 .font(.body)
                                 .opacity(0.92)
                                 .multilineTextAlignment(.leading)
+                                // reservesSpace keeps the card's vertical
+                                // size stable across fact rotations; without
+                                // it a 1-line fact next to a 5-line fact
+                                // would jolt the whole HUD column.
+                                .lineLimit(Self.knowledgeFactLineCount, reservesSpace: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(factIndex)
                                 .transition(.opacity)
                         }
@@ -243,8 +243,37 @@ struct HUDView: View {
                 }
                 .padding(20)
             }
-            .frame(maxWidth: 540, alignment: .leading)
+            // Fixed width — not maxWidth — so a smaller bundled image (or no
+            // image at all) doesn't pull the card narrower than its sibling
+            // sections.
+            .frame(width: Self.knowledgeCardWidth, alignment: .leading)
             .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    @ViewBuilder
+    private var knowledgeImage: some View {
+        let topShape = UnevenRoundedRectangle(
+            topLeadingRadius: 14,
+            topTrailingRadius: 14
+        )
+        if let image = currentEntry.loadImage() {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                // Fixed (not max-) frame so the image area is the same height
+                // for every codeword. With max-frames a portrait JPG would
+                // shrink the visible band and the title below would jump up.
+                .frame(width: Self.knowledgeCardWidth, height: Self.knowledgeImageHeight)
+                .clipped()
+                .clipShape(topShape)
+        } else {
+            // Reserve the same slab so the absence of a bundled image doesn't
+            // make the whole card collapse upward.
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(width: Self.knowledgeCardWidth, height: Self.knowledgeImageHeight)
+                .clipShape(topShape)
         }
     }
 
