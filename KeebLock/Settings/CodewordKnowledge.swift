@@ -13,24 +13,41 @@ struct CodewordKnowledge {
     let imageFilename: String?  // resource filename in CodewordImages/, nil if unavailable
     let wikipediaURL: URL
 
-    /// Resolves the bundled image to an NSImage. Returns nil if the file
-    /// isn't in the bundle (which would mean the dataset is corrupted).
+    /// Resolves the bundled image to an NSImage, cached per session. Without
+    /// the cache, SwiftUI body re-evaluations on every keystroke would trigger
+    /// a fresh `NSImage(contentsOf:)` (disk read + JPEG decode) ~60× per second
+    /// during fast typing — the source of the "buggy near codeword completion"
+    /// lag. NSCache evicts under memory pressure, so worst case we reload.
     func loadImage() -> NSImage? {
         guard let name = imageFilename else { return nil }
-        // Strip extension; Bundle.image looks up by name.
-        let stem = (name as NSString).deletingPathExtension
-        if let img = NSImage(named: stem) { return img }
-        // Fallback: locate by URL (works even when assets are loose files
-        // rather than entries in an Asset Catalog).
-        if let url = Bundle.main.url(forResource: stem, withExtension: "jpg") {
-            return NSImage(contentsOf: url)
+        if let cached = CodewordKnowledgeBase.imageCache.object(forKey: name as NSString) {
+            return cached
         }
-        return nil
+        let stem = (name as NSString).deletingPathExtension
+        let img: NSImage? = {
+            if let asset = NSImage(named: stem) { return asset }
+            if let url = Bundle.main.url(forResource: stem, withExtension: "jpg") {
+                return NSImage(contentsOf: url)
+            }
+            return nil
+        }()
+        if let img {
+            CodewordKnowledgeBase.imageCache.setObject(img, forKey: name as NSString)
+        }
+        return img
     }
 }
 
 /// Static accessor — one shared in-memory copy loaded eagerly at app launch.
 enum CodewordKnowledgeBase {
+
+    /// Per-session NSImage cache so we don't re-decode JPGs on every SwiftUI
+    /// body re-evaluation.
+    static let imageCache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 32  // a handful of recent codeword images
+        return c
+    }()
 
     /// Words we have full data for. Keyed by lowercase word.
     static let entries: [String: CodewordKnowledge] = loadEntries()
