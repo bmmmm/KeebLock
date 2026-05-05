@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct CleaningHistoryView: View {
     @ObservedObject var history: CleaningHistory = .shared
+    @EnvironmentObject var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
     @State private var itemsPerPage: Int = 25
@@ -138,8 +139,8 @@ struct CleaningHistoryView: View {
                             .fill(active
                                 ? LinearGradient(
                                     colors: [
-                                        Color.accentColor.opacity(0.5 + fraction * 0.5),
-                                        Color.accentColor,
+                                        settings.appTheme.color.opacity(0.5 + fraction * 0.5),
+                                        settings.appTheme.color,
                                     ],
                                     startPoint: .bottom, endPoint: .top
                                   )
@@ -153,7 +154,7 @@ struct CleaningHistoryView: View {
 
                         Text(chartDayLabel(day.date, index: i))
                             .font(.system(size: 9))
-                            .foregroundStyle(Calendar.current.isDateInToday(day.date) ? Color.accentColor : .secondary)
+                            .foregroundStyle(Calendar.current.isDateInToday(day.date) ? settings.appTheme.color : .secondary)
                             .frame(maxWidth: .infinity)
                     }
                     .frame(maxWidth: .infinity)
@@ -249,7 +250,7 @@ struct CleaningHistoryView: View {
                     let maxD = Double(history.sessions.map(\.durationSeconds).max() ?? 1)
                     let f = min(1, Double(session.durationSeconds) / maxD)
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.accentColor.opacity(0.45))
+                        .fill(settings.appTheme.color.opacity(0.45))
                         .frame(width: max(4, g.size.width * f), height: 3)
                 }
                 .frame(height: 3)
@@ -273,7 +274,7 @@ struct CleaningHistoryView: View {
             HStack(spacing: 4) {
                 ForEach(0..<min(session.stageCount, 8), id: \.self) { i in
                     Circle()
-                        .fill(Color.accentColor.opacity(0.35 + Double(i) / Double(max(1, session.stageCount - 1)) * 0.55))
+                        .fill(settings.appTheme.color.opacity(0.35 + Double(i) / Double(max(1, session.stageCount - 1)) * 0.55))
                         .frame(width: 7, height: 7)
                 }
             }

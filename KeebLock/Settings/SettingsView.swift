@@ -11,33 +11,53 @@ struct SettingsView: View {
     @State private var showHeatmap = false
     @State private var showHistory = false
     @State private var snapshotMessage: String?
+    @State private var copiedCommand: String?
     @State private var codewordEditing = false
     @FocusState private var codewordFocused: Bool
 
     var body: some View {
-        Form {
-            codewordSection
-            themeSection
-            pixelSection
-            colorsSection
-            effectSection
-            soundSection
-            knowledgeSection
-            heatmapSection
-            historySection
-            autoUnlockSection
-            aboutSection
-            debugSection
-        }
-        .formStyle(.grouped)
-        .frame(minWidth: 540, minHeight: 640)
-        .sheet(isPresented: $showHeatmap) {
-            HeatmapView(controller: controller)
-        }
-        .sheet(isPresented: $showHistory) {
-            CleaningHistoryView(history: history)
+        ScrollViewReader { proxy in
+            Form {
+                codewordSection
+                themeSection
+                pixelSection
+                colorsSection
+                effectSection
+                soundSection
+                knowledgeSection
+                heatmapSection
+                historySection
+                autoUnlockSection
+                aboutSection
+                debugSection
+            }
+            .formStyle(.grouped)
+            .onChange(of: settings.debugLoggingEnabled) { _, enabled in
+                guard enabled else { return }
+                // Defer one runloop tick so the conditional sub-views in
+                // debugSection are already in the layout before we scroll —
+                // otherwise the destination is the *old* debugSection end.
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        proxy.scrollTo(Self.debugBottomID, anchor: .bottom)
+                    }
+                }
+            }
+            .sheet(isPresented: $showHeatmap) {
+                HeatmapView(controller: controller)
+            }
+            .sheet(isPresented: $showHistory) {
+                CleaningHistoryView(history: history)
+            }
         }
     }
+
+    private static let debugBottomID = "keeblock.settings.debug.bottom"
+
+    private let uninstallCommands = [
+        "open '/Applications/KeebLock.app/Contents/Resources/'",
+        "scripts/uninstall.sh",
+    ]
 
     // MARK: - Sections
 
@@ -57,10 +77,10 @@ struct SettingsView: View {
                         .padding(.vertical, 14)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.accentColor.opacity(0.08))
+                                .fill(settings.appTheme.color.opacity(0.08))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                                        .strokeBorder(settings.appTheme.color, lineWidth: 1.5)
                                 )
                         )
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
@@ -127,17 +147,17 @@ struct SettingsView: View {
                             .padding(.vertical, 6)
                             .background(
                                 settings.codeword == word
-                                ? RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.15))
+                                ? RoundedRectangle(cornerRadius: 8).fill(settings.appTheme.color.opacity(0.15))
                                 : RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
                                     .strokeBorder(
-                                        settings.codeword == word ? Color.accentColor.opacity(0.5) : Color.clear,
+                                        settings.codeword == word ? settings.appTheme.color.opacity(0.5) : Color.clear,
                                         lineWidth: 1
                                     )
                             )
-                            .foregroundStyle(settings.codeword == word ? Color.accentColor : .primary)
+                            .foregroundStyle(settings.codeword == word ? settings.appTheme.color : .primary)
                     }
                     .buttonStyle(.plain)
                     .animation(.spring(response: 0.25), value: settings.codeword)
@@ -230,7 +250,7 @@ struct SettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(isSelected ? Color.accentColor : .secondary.opacity(0.25), lineWidth: isSelected ? 2 : 1)
+                    .strokeBorder(isSelected ? settings.appTheme.color : .secondary.opacity(0.25), lineWidth: isSelected ? 2 : 1)
             )
         }
         .buttonStyle(.plain)
@@ -304,11 +324,22 @@ struct SettingsView: View {
             if settings.soundEnabled {
                 HStack(spacing: 12) {
                     Image(systemName: "speaker.wave.1")
-                    Slider(value: $settings.soundVolume, in: 0...1)
+                    Slider(value: $settings.soundVolume, in: 0...2.0)
                     Image(systemName: "speaker.wave.3")
-                    Text("\(Int(settings.soundVolume * 100))%")
+                        .foregroundStyle(settings.soundVolume > 1.0 ? .red : .primary)
+                    Text(volumeLabel)
                         .font(.system(.body, design: .monospaced))
-                        .frame(width: 40, alignment: .trailing)
+                        .foregroundStyle(settings.soundVolume > 1.0 ? .red : .primary)
+                        .frame(width: 64, alignment: .trailing)
+                }
+                if settings.soundVolume > 1.0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text("Overdrive — output is clipping. Lower for clean audio.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
 
                 HStack {
@@ -340,15 +371,74 @@ struct SettingsView: View {
                 ForEach(AppTheme.allCases) { theme in
                     themeChip(theme)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 12)
+                themePreview
             }
             .padding(.vertical, 4)
             Text("Tints the entire app. Light/Dark mode follows your system.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Divider()
+
+            // App-zoom indicator. No slider — the slider was a UX trap
+            // because dynamic-type-based scaling under-amplifies native
+            // AppKit controls on macOS, so the slider felt unresponsive.
+            // The new mechanism is a scaleEffect zoom on the whole window,
+            // controlled exclusively via ⌘+ / ⌘− / ⌘0 from the View menu.
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                Text("App zoom")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int((settings.appZoom * 100).rounded())) %")
+                    .font(.system(.body, design: .monospaced))
+                Button("Reset") {
+                    settings.appZoom = 1.0
+                }
+                .buttonStyle(.borderless)
+                .disabled(abs(settings.appZoom - 1.0) < 0.001)
+            }
+            Text("Visual zoom for the entire KeebLock window — launcher and settings together. Use ⌘+ / ⌘− to step in 10 % increments, ⌘0 to reset. Doesn't affect the lock screen.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         } header: {
             Text("Theme")
         }
+    }
+
+    /// Three-element live sample — same colour applied as icon tint, as
+    /// border+foreground, and as fill — so the user can see at a glance
+    /// how the chosen theme reads across the typical roles SwiftUI's
+    /// `.tint` ends up in (text accents, outlined controls, filled buttons).
+    /// Animated together with the chip selection.
+    private var themePreview: some View {
+        let c = settings.appTheme.color
+        return HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(c)
+
+            Text("Aa")
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .foregroundStyle(c)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .strokeBorder(c, lineWidth: 1.2)
+                )
+
+            Text("Action")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(c))
+        }
+        .animation(.easeInOut(duration: 0.25), value: settings.appTheme)
     }
 
     private func themeChip(_ theme: AppTheme) -> some View {
@@ -388,10 +478,20 @@ struct SettingsView: View {
 
     private var knowledgeSection: some View {
         Section("Codeword knowledge") {
-            Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
-            Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher to reveal each fact, or read them rotating in the lock screen.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
+                Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher, or read them rotating in the lock screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Tint codeword green as you type it", isOn: $settings.showCodewordProgress)
+                Text("Off skips a per-keystroke HUD redraw — turn off if you hear sound stutter under sustained typing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -464,167 +564,180 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section("About") {
-            HStack(spacing: 14) {
+            // Header line: icon + name/version + GitHub-link inline.
+            HStack(spacing: 12) {
                 Image(systemName: "keyboard.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Color.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("KeebLock")
-                        .font(.headline)
+                    .font(.system(size: 22))
+                    .foregroundStyle(settings.appTheme.color)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("KeebLock").font(.headline)
                     Text("Version \(appVersion)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-            }
-
-            Text("Swallows keystrokes via macOS Accessibility while you wipe down your keys. Type the codeword (suffix-match) to escape — or click \"Unlock now\" once you're half-way through.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 16) {
                 Link(destination: URL(string: "https://github.com/bmmmm") ?? URL(fileURLWithPath: "/")) {
                     Label("@bmmmm", systemImage: "person.circle")
                         .font(.callout)
                 }
-
-                Divider().frame(height: 16)
-
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("Project repo coming soon")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
 
-            Divider()
+            Text("Swallows keystrokes via macOS Accessibility while you wipe down your keys. Type the codeword (suffix-match) to escape — or click the unlock icon once you're half-way through.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Support / donation
+            // Ko-fi support
             Link(destination: URL(string: "https://ko-fi.com/bmabma?utm_source=keeblock&utm_medium=desktop_app") ?? URL(fileURLWithPath: "/")) {
                 HStack(spacing: 8) {
                     Image(systemName: "cup.and.saucer.fill")
                         .foregroundStyle(.pink)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Support development on Ko-fi")
-                            .font(.callout.weight(.semibold))
-                        Text("ko-fi.com/bmabma")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Support development on Ko-fi")
+                        .font(.callout.weight(.semibold))
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(10)
-                .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
 
-            Divider()
-
-            // Content attribution — required when shipping CC-BY-SA Wikimedia images
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Content credits")
+            // Credits + uninstall folded into a disclosure so the section
+            // doesn't dominate the form for the 95 % of opens that don't
+            // need them.
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text("Summaries & facts:")
+                            .foregroundStyle(.secondary)
+                        Link("Wikipedia", destination: URL(string: "https://en.wikipedia.org") ?? URL(fileURLWithPath: "/"))
+                    }
+                    HStack(spacing: 4) {
+                        Text("Lead images:")
+                            .foregroundStyle(.secondary)
+                        Link("Wikimedia Commons", destination: URL(string: "https://commons.wikimedia.org") ?? URL(fileURLWithPath: "/"))
+                        Text("(CC-BY-SA)")
+                            .foregroundStyle(.secondary)
+                    }
+                    Divider().padding(.vertical, 2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                            Text("Uninstall — run either:")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(uninstallCommands, id: \.self) { cmd in
+                            HStack(spacing: 6) {
+                                Text(cmd)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(cmd, forType: .string)
+                                    copiedCommand = cmd
+                                    Task { @MainActor in
+                                        try? await Task.sleep(for: .milliseconds(1500))
+                                        if copiedCommand == cmd { copiedCommand = nil }
+                                    }
+                                } label: {
+                                    Image(systemName: copiedCommand == cmd ? "checkmark.circle.fill" : "doc.on.doc")
+                                        .foregroundStyle(copiedCommand == cmd ? .green : .secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Copy to clipboard")
+                            }
+                        }
+                    }
+                }
+                .font(.caption)
+                .padding(.top, 4)
+            } label: {
+                Text("Credits & uninstall")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                HStack(spacing: 4) {
-                    Text("Codeword summaries and facts:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Link("Wikipedia", destination: URL(string: "https://en.wikipedia.org") ?? URL(fileURLWithPath: "/"))
-                        .font(.caption)
-                }
-                HStack(spacing: 4) {
-                    Text("Lead images:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Link("Wikimedia Commons", destination: URL(string: "https://commons.wikimedia.org") ?? URL(fileURLWithPath: "/"))
-                        .font(.caption)
-                    Text("(CC-BY-SA)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
-
-            Divider()
-
-            HStack(spacing: 8) {
-                Image(systemName: "trash")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("To uninstall: open **KeebLock.app/Contents/Resources/** in Finder and run **Uninstall KeebLock.command**, or run `scripts/uninstall.sh` from the project directory.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, 2)
         }
     }
 
     private var appVersion: String { Bundle.main.keeblockVersionString }
 
+    /// Slider label: dB scale because amplitude perception is logarithmic.
+    /// 100 % = 0 dB (full output), 50 % ≈ −6 dB, 10 % ≈ −20 dB,
+    /// 200 % ≈ +6 dB (overdrive). 0 % shows −∞ to make it obvious the
+    /// click is silent rather than just quiet. Positive values are
+    /// signed to make the overdrive zone unambiguous.
+    private var volumeLabel: String {
+        if settings.soundVolume <= 0.001 { return "−∞ dB" }
+        let db = 20 * log10(settings.soundVolume)
+        return String(format: "%+.0f dB", db)
+    }
+
     private var debugSection: some View {
         Section("Debug") {
             Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
-            Toggle("Verbose perf sampling (callback latency, p99)", isOn: $settings.verbosePerfEnabled)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Lock-screen overlay")
-                    .font(.callout)
-                Picker("Lock-screen overlay", selection: $settings.lockOverlayDebugLevel) {
-                    ForEach(LockOverlayDebugLevel.allCases) { lvl in
-                        Text(lvl.label).tag(lvl)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Text("Border-strip HUD around the lock window. Higher levels add more rows AND dampen the spark/effect intensity so the readout stays readable.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: 10) {
-                Button("Save snapshot") {
-                    let snap = DebugLog.snapshot()
-                    DebugLog.writeForced(snap)
-                    snapshotMessage = "Snapshot appended to log."
-                }
-                .buttonStyle(.bordered)
-
-                Button("Copy all debug info") {
-                    let snap = DebugLog.snapshot()
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(snap, forType: .string)
-                    snapshotMessage = "Copied to clipboard."
-                }
-                .buttonStyle(.bordered)
-
-                Button("Reveal log") {
-                    DebugLog.revealLogInFinder()
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if let snapshotMessage {
-                Text(snapshotMessage)
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-
-            Text("Log path: ~/Library/Logs/KeebLock/keeblock.log")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if settings.debugLoggingEnabled {
+                Toggle("Verbose perf sampling (callback latency, p99)", isOn: $settings.verbosePerfEnabled)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Lock-screen overlay")
+                        .font(.callout)
+                    Picker("Lock-screen overlay", selection: $settings.lockOverlayDebugLevel) {
+                        ForEach(LockOverlayDebugLevel.allCases) { lvl in
+                            Text(lvl.label).tag(lvl)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text("Border-strip HUD around the lock window. Higher levels add more rows AND dampen the spark/effect intensity so the readout stays readable.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 10) {
+                    Button("Save snapshot") {
+                        let snap = DebugLog.snapshot()
+                        DebugLog.writeForced(snap)
+                        snapshotMessage = "Snapshot appended to log."
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Copy all debug info") {
+                        let snap = DebugLog.snapshot()
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(snap, forType: .string)
+                        snapshotMessage = "Copied to clipboard."
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Open log folder") {
+                        DebugLog.revealLogInFinder()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let snapshotMessage {
+                    Text(snapshotMessage)
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+
+                Text("Log path: ~/Library/Logs/KeebLock/keeblock.log")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 DebugInfoPanel(settings: settings, controller: controller)
                     .padding(.top, 8)
+                    .id(Self.debugBottomID)
             }
         }
     }

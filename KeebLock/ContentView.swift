@@ -63,7 +63,7 @@ struct ContentView: View {
         VStack(spacing: 18) {
             Image(systemName: "keyboard")
                 .font(.system(size: 64))
-                .foregroundStyle(accessibilityGranted ? Color.accentColor : .orange)
+                .foregroundStyle(accessibilityGranted ? settings.appTheme.color : .orange)
 
             Text("KeebLock")
                 .font(.system(size: 32, weight: .bold))
@@ -118,6 +118,7 @@ struct ContentView: View {
             WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted)
                 .keyboardShortcut(.return, modifiers: [])
 
+            shortcutHints
             buildIdentityFooter
         }
         .padding(28)
@@ -129,6 +130,32 @@ struct ContentView: View {
         let id = SigningIdentity.current
         guard let cd = id.cdHash, id.teamID != nil else { return .invalid }
         return cd == verifiedCDHash ? .verified : .needsVerification
+    }
+
+    /// Discreet shortcut hint row beneath the start button. Mirrors the
+    /// menu-bar shortcuts so first-time users see the keyboard handles
+    /// without having to crack open the app menu. Symbols-first for a
+    /// macOS-native feel; labels stay caption-sized.
+    private var shortcutHints: some View {
+        HStack(spacing: 14) {
+            shortcutBadge(keys: "⌘S",   label: "Start")
+            shortcutBadge(keys: "⌘R",   label: "Roll codeword")
+            shortcutBadge(keys: "⌘,",   label: "Settings")
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+
+    private func shortcutBadge(keys: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(keys)
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(.primary.opacity(0.7))
+            Text(label)
+        }
     }
 
     private var buildIdentityFooter: some View {

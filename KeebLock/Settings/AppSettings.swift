@@ -302,10 +302,42 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showCodewordKnowledge, forKey: Keys.knowledge) }
     }
 
+    /// When on, the lock screen tints the typed-codeword characters green
+    /// as the match progresses. Off keeps the codeword display white at all
+    /// times — also stops `codewordMatchProgress` from being read in the
+    /// HUD body, which avoids a SwiftUI re-render of the whole HUD on every
+    /// matched keystroke. Users with sound stutter under sustained typing
+    /// see relief here even though sound and matching themselves are
+    /// untouched.
+    @Published var showCodewordProgress: Bool {
+        didSet { defaults.set(showCodewordProgress, forKey: Keys.codewordProgress) }
+    }
+
+    /// App-wide visual zoom (0.80 → 1.60). Applied as a `scaleEffect` on
+    /// the WindowGroup root, with a matching outer frame so the window
+    /// resizes proportionally. Affects launcher AND settings — anything
+    /// rendered inside the main window grows / shrinks together.
+    /// Independent of the macOS-wide accessibility setting; only changes
+    /// KeebLock's own window. ⌘+ / ⌘− / ⌘0 are the only UI controls
+    /// (no slider — it was tried as text-scale via dynamicTypeSize, the
+    /// underlying SwiftUI mechanism under-scales native AppKit controls
+    /// on macOS so the result felt dead even at large values).
+    @Published var appZoom: Double {
+        didSet { defaults.set(appZoom, forKey: Keys.appZoom) }
+    }
+
     // MARK: - Debug
 
     @Published var debugLoggingEnabled: Bool {
-        didSet { defaults.set(debugLoggingEnabled, forKey: Keys.debug) }
+        didSet {
+            defaults.set(debugLoggingEnabled, forKey: Keys.debug)
+            // Master-toggle off resets all subordinate debug settings so the
+            // hidden state can't outlive the visible toggle.
+            if !debugLoggingEnabled {
+                if verbosePerfEnabled { verbosePerfEnabled = false }
+                if lockOverlayDebugLevel != .off { lockOverlayDebugLevel = .off }
+            }
+        }
     }
 
     /// Gates per-event latency sampling in PerfMetrics. Aggregate counters
@@ -353,6 +385,8 @@ final class AppSettings: ObservableObject {
         static let bgColor            = "backgroundColorPreset"
         static let pixelColor         = "pixelColorPreset"
         static let knowledge          = "showCodewordKnowledge"
+        static let codewordProgress   = "showCodewordProgress"
+        static let appZoom            = "appZoom"
         static let debug              = "debugLoggingEnabled"
         static let verbosePerf        = "verbosePerfEnabled"
         static let lockOverlayLevel   = "lockOverlayDebugLevel"
@@ -392,6 +426,9 @@ final class AppSettings: ObservableObject {
         self.pixelColor = ColorPreset(rawValue: pxRaw) ?? .transparent
 
         self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
+        self.showCodewordProgress  = d.object(forKey: Keys.codewordProgress) as? Bool ?? true
+        let zoom = d.object(forKey: Keys.appZoom) as? Double ?? 1.0
+        self.appZoom = (0.80...1.60).contains(zoom) ? zoom : 1.0
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false
         self.verbosePerfEnabled    = d.object(forKey: Keys.verbosePerf)  as? Bool ?? false
 
