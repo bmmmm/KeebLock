@@ -15,9 +15,10 @@ final class LockController: ObservableObject {
     @Published private(set) var leftClickCount: Int = 0
     @Published private(set) var rightClickCount: Int = 0
     @Published private(set) var fnKeyCount: Int = 0
+    @Published private(set) var mediaKeyCount: Int = 0
     @Published private(set) var codewordMatchProgress: Int = 0
 
-    var missClickCount: Int { leftClickCount + rightClickCount + fnKeyCount }
+    var missClickCount: Int { leftClickCount + rightClickCount + fnKeyCount + mediaKeyCount }
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz · async dispatch" }
 
     private static let fnKeycodes: Set<UInt16> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
@@ -66,6 +67,7 @@ final class LockController: ObservableObject {
         leftClickCount = 0
         rightClickCount = 0
         fnKeyCount = 0
+        mediaKeyCount = 0
         codewordMatchProgress = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
@@ -181,6 +183,7 @@ final class LockController: ObservableObject {
                               | (1 << CGEventType.flagsChanged.rawValue)
                               | (1 << CGEventType.leftMouseDown.rawValue)
                               | (1 << CGEventType.rightMouseDown.rawValue)
+                              | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
@@ -238,6 +241,17 @@ final class LockController: ObservableObject {
         if type == .rightMouseDown {
             rightClickCount += 1
             return nil
+        }
+
+        if type.rawValue == 14 {
+            // NX_SYSDEFINED: subtype 8 = aux control buttons (brightness, volume,
+            // mission control, spotlight, media keys on Fn-layer). Other subtypes
+            // (power button, mouse aux buttons) pass through untouched.
+            if let nsEvent = NSEvent(cgEvent: event), nsEvent.subtype.rawValue == 8 {
+                mediaKeyCount += 1
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
         }
 
         if type == .keyDown {
