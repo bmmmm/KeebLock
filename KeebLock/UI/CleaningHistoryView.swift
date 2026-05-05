@@ -4,9 +4,28 @@ struct CleaningHistoryView: View {
     @ObservedObject var history: CleaningHistory = .shared
     @Environment(\.dismiss) private var dismiss
 
+    @State private var itemsPerPage: Int = 25
+    @State private var currentPage: Int = 0
+    private static let pageSizeOptions = [10, 25, 50, 100]
+
+    private var sortedSessions: [CleaningSession] {
+        history.sessions.sorted { $0.startedAt > $1.startedAt }
+    }
+
+    private var totalPages: Int {
+        max(1, (sortedSessions.count + itemsPerPage - 1) / itemsPerPage)
+    }
+
+    private var pagedSessions: [CleaningSession] {
+        let start = currentPage * itemsPerPage
+        let end = min(start + itemsPerPage, sortedSessions.count)
+        guard start < end else { return [] }
+        return Array(sortedSessions[start..<end])
+    }
+
     private var grouped: [(day: Date, sessions: [CleaningSession])] {
         let cal = Calendar.current
-        let byDay = Dictionary(grouping: history.sessions) {
+        let byDay = Dictionary(grouping: pagedSessions) {
             cal.startOfDay(for: $0.startedAt)
         }
         return byDay.sorted { $0.key > $1.key }.map { (day: $0.key, sessions: $0.value) }
@@ -287,7 +306,7 @@ struct CleaningHistoryView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button {
                 history.clear()
             } label: {
@@ -298,19 +317,65 @@ struct CleaningHistoryView: View {
             .buttonStyle(.bordered)
             .disabled(history.sessions.isEmpty)
 
-            Spacer()
+            if !history.sessions.isEmpty {
+                paginationControls
+            }
 
-            Text("\(history.sessions.count) total sessions")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
+            Spacer(minLength: 8)
 
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
+    }
+
+    private var paginationControls: some View {
+        HStack(spacing: 10) {
+            // Items-per-page picker
+            Picker("", selection: $itemsPerPage) {
+                ForEach(Self.pageSizeOptions, id: \.self) { n in
+                    Text("\(n) / page").tag(n)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .onChange(of: itemsPerPage) { _, _ in currentPage = 0 }
+
+            Divider().frame(height: 16)
+
+            // Page navigation
+            Button {
+                if currentPage > 0 { currentPage -= 1 }
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.bordered)
+            .disabled(currentPage == 0)
+
+            Text("Page \(currentPage + 1) / \(totalPages)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 86)
+
+            Button {
+                if currentPage + 1 < totalPages { currentPage += 1 }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .disabled(currentPage + 1 >= totalPages)
+
+            Divider().frame(height: 16)
+
+            Text("\(history.sessions.count) total")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .onChange(of: history.sessions.count) { _, _ in
+            // History grew/shrunk — clamp page in case currentPage now exceeds totalPages.
+            if currentPage >= totalPages { currentPage = max(0, totalPages - 1) }
+        }
     }
 
     // MARK: - Formatting
