@@ -178,7 +178,7 @@ struct ContentView: View {
     private func shieldIcon(for state: BuildVerification) -> String {
         switch state {
         case .verified:          return "checkmark.shield.fill"
-        case .needsVerification: return "questionmark.shield.fill"
+        case .needsVerification: return "exclamationmark.shield.fill"
         case .invalid:           return "xmark.shield.fill"
         }
     }
