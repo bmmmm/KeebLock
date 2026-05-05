@@ -27,6 +27,10 @@ final class LockController: ObservableObject {
     @Published private(set) var scrollCount: Int = 0
     // Gestures
     @Published private(set) var spaceSwitchCount: Int = 0
+    /// 3/4-finger trackpad swipes the user attempted while locked. Counts
+    /// once per physical swipe (debounced) regardless of whether macOS
+    /// would have completed the swipe's intended action.
+    @Published private(set) var gestureAttemptCount: Int = 0
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
@@ -85,6 +89,7 @@ final class LockController: ObservableObject {
     private var unlockTimer: Timer?
     private var lastKeystrokeAt: Date?
     private var lastScrollAt: Date?
+    private var lastGestureAt: Date?
     private var spaceObserver: NSObjectProtocol?
 
     private let pauseDetectThreshold: TimeInterval = 30
@@ -154,7 +159,9 @@ final class LockController: ObservableObject {
         forwardClickCount = 0
         scrollCount = 0
         spaceSwitchCount = 0
+        gestureAttemptCount = 0
         lastScrollAt = nil
+        lastGestureAt = nil
         codewordMatchProgress = 0
         // Random starting tick so the same codeword doesn't always reveal
         // the same opening fact across sessions.
@@ -190,7 +197,7 @@ final class LockController: ObservableObject {
     func stopLock() {
         guard isLocked else { return }
         let secondsRun = max(0, totalSeconds - remainingSeconds)
-        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) spaces=\(spaceSwitchCount)")
+        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) fn=\(fnKeyCount) sys=\(systemKeyCount) other=\(otherKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) gestures=\(gestureAttemptCount) spaces=\(spaceSwitchCount)")
         if AppSettings.shared.unlockChimeEnabled {
             soundPlayer.playUnlockChime()
         }
@@ -268,13 +275,16 @@ final class LockController: ObservableObject {
                               | (1 << CGEventType.otherMouseDown.rawValue)
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
-                              // NOTE: trackpad gesture/swipe events (NSEventType 29/31)
-                              // intentionally NOT tapped. Type 29 conflicts with 2-finger
-                              // scroll; type 31 doesn't fire for 4-finger between-spaces
-                              // swipes anyway. The screensaver-level lock window keeps the
-                              // user on the current Space without needing to swallow the
-                              // gesture, and activeSpaceDidChangeNotification catches any
-                              // edge case where a switch does slip through.
+                              | (1 << 29) // NSEventType.gesture — continuous multi-touch
+                              | (1 << 31) // NSEventType.swipe — discrete 3/4-finger swipe
+                              // Earlier .screenSaver-only coverage relied on the OS
+                              // swallowing gesture events at the window-level. On
+                              // macOS 26+ that no longer holds for 3/4-finger swipes
+                              // (Mission Control / between-spaces still completes),
+                              // so we tap them here and swallow them at the source.
+                              // Both rawValues come from NSEventType — CGEventType
+                              // doesn't expose them but the underlying tap mask is
+                              // bit-indexed and accepts the higher values fine.
         // passUnretained is safe here because LockController is a process-wide
         // singleton (`shared`) — the userInfo pointer is valid for the entire
         // app lifetime. If the singleton invariant ever changes, switch to
@@ -394,6 +404,21 @@ final class LockController: ObservableObject {
                 triggerInputFeedback()
             }
             lastScrollAt = now
+            return nil
+        }
+        if type.rawValue == 29 || type.rawValue == 31 {
+            // NSEventType.gesture (29) fires ~60 Hz throughout a continuous
+            // multi-touch gesture; NSEventType.swipe (31) fires once per
+            // discrete 3/4-finger directional swipe. Both are swallowed
+            // (return nil) so Mission Control / Spaces / Expose can't
+            // run while locked. Debounce so one physical swipe = one
+            // count + one feedback burst, even though type 29 streams.
+            let now = Date()
+            if lastGestureAt == nil || now.timeIntervalSince(lastGestureAt!) > 0.4 {
+                gestureAttemptCount += 1
+                triggerInputFeedback()
+            }
+            lastGestureAt = now
             return nil
         }
 
