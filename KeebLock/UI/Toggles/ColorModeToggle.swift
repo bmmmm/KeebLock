@@ -111,7 +111,7 @@ struct ColorModeToggle: View {
             .frame(width: 36, height: 36)
             .clipShape(Circle())
             .overlay(
-                Circle().strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2)
+                Circle().strokeBorder(selected ? settings.appTheme.color : .clear, lineWidth: 2)
             )
             .scaleEffect(selected ? 1.05 : 1.0)
         }

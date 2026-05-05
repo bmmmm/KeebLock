@@ -43,7 +43,11 @@ final class SoundPlayer {
         let samples = buffer.floatChannelData![0]
         for i in 0..<Int(frameCount) {
             let t = Float(i) / 44100.0
-            samples[i] = Float.random(in: -1.0...1.0) * expf(-t * 300.0) * 0.25
+            // Amplitude 1.0: full PCM headroom. Earlier 0.25 capped peak loudness
+            // at -12 dB regardless of slider position, so users on quiet outputs
+            // (laptop speakers in a noisy room) couldn't get audible feedback.
+            // The slider's `playerNode.volume` (0…1) still attenuates from here.
+            samples[i] = Float.random(in: -1.0...1.0) * expf(-t * 300.0)
         }
         clickBuffer = buffer
 
@@ -59,10 +63,24 @@ final class SoundPlayer {
 
     // MARK: - Public
 
+    /// Volume mapping:
+    ///   0…1.0 — normal range, set on playerNode (and customPlayer where present).
+    ///   1.0…2.0 — overdrive: playerNode stays at 1.0 (its hard cap), the
+    ///   extra gain rides on the engine's main mixer (outputVolume), which
+    ///   accepts >1.0 and pushes the synth-click into hard-clip territory.
+    ///   Audible as harsher attack — intentional, that's what the red zone
+    ///   in the slider signals.
+    ///
+    ///   AVAudioPlayer (custom file mode) clamps .volume at 1.0 internally,
+    ///   so the boost only affects the synth-click path. Documented here
+    ///   so future work doesn't rely on file-mode going louder.
     func setVolume(_ volume: Double) {
-        let v = Float(max(0, min(1, volume)))
-        playerNode.volume = v
-        customPlayer?.volume = v
+        let v = max(0, min(2.0, volume))
+        let nodeVol = Float(min(1.0, v))
+        let mixerVol = Float(max(1.0, v))
+        playerNode.volume = nodeVol
+        engine.mainMixerNode.outputVolume = mixerVol
+        customPlayer?.volume = nodeVol
     }
 
     func setCustomFile(bookmark: Data?) {
