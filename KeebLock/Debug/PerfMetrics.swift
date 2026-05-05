@@ -41,6 +41,14 @@ final class PerfMetrics: ObservableObject {
     private var latencyRing: [UInt64] = []
     private let latencyRingCapacity = 1024
     private var latencyRingHead = 0
+    /// Cumulative ns over the session, used to derive eventCallbackAvgNs as
+    /// `total / samples`. Replaces an earlier Welford-style streaming
+    /// average — that one used `&+` / `&-` on UInt64, so any sample below
+    /// the running mean wrapped the diff into the 10^19 range and yielded
+    /// avg readings of ~5 days. Cumulative-sum overflow only matters above
+    /// 5×10^14 ns of total latency (~5 days at 1 µs/sample); a lock session
+    /// won't get there.
+    private var eventCallbackTotalNs: UInt64 = 0
 
     private var eventBucket = 0
     private var wipeBucket = 0
@@ -79,6 +87,7 @@ final class PerfMetrics: ObservableObject {
         eventCallbackAvgNs = 0
         eventCallbackP99Ns = 0
         eventCallbackSamples = 0
+        eventCallbackTotalNs = 0
         latencyRing.removeAll(keepingCapacity: true)
         latencyRingHead = 0
 
@@ -103,9 +112,8 @@ final class PerfMetrics: ObservableObject {
         let ns = Self.ticksToNs(machTicks)
         eventCallbackSamples &+= 1
         if ns > eventCallbackMaxNs { eventCallbackMaxNs = ns }
-        let n = UInt64(eventCallbackSamples)
-        // Streaming average: avg += (sample - avg) / n
-        eventCallbackAvgNs = eventCallbackAvgNs &+ (ns &- eventCallbackAvgNs) / n
+        eventCallbackTotalNs &+= ns
+        eventCallbackAvgNs = eventCallbackTotalNs / UInt64(eventCallbackSamples)
         if latencyRing.count < latencyRingCapacity {
             latencyRing.append(ns)
         } else {
