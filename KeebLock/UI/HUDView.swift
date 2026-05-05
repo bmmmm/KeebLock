@@ -7,10 +7,16 @@ struct HUDView: View {
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int
 
-    @State private var factIndex = 0
+    @State private var factIndex: Int = 0
+    @State private var lastFactRotateAt: Int = 0
     @State private var pulseScale: CGFloat = 1.0
     @State private var pulseAlpha: Double = 0.0
-    private let factTimer = Timer.publish(every: 20, on: .main, in: .common).autoconnect()
+
+    /// Rotate to a new random fact every N keystrokes. Slow enough that the
+    /// reader has time to actually digest a fact — at ~3 keys/sec that's a
+    /// fact every ~10s of typing, faster if you type fast (which mirrors
+    /// engagement well).
+    private let keystrokesPerFactRotation = 30
 
     var body: some View {
         VStack(spacing: 22) {
@@ -37,9 +43,22 @@ struct HUDView: View {
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 12)
-        .onReceive(factTimer) { _ in
-            let count = max(1, currentEntry.facts.count)
-            factIndex = (factIndex + 1) % count
+        .onAppear {
+            // New session: pick a random starting fact so the same codeword
+            // doesn't always reveal the same opening fact.
+            let count = currentEntry.facts.count
+            factIndex = count > 0 ? Int.random(in: 0..<count) : 0
+            lastFactRotateAt = controller.keystrokeCount
+        }
+        .onChange(of: controller.keystrokeCount) { _, newCount in
+            guard newCount - lastFactRotateAt >= keystrokesPerFactRotation else { return }
+            lastFactRotateAt = newCount
+            let count = currentEntry.facts.count
+            guard count > 1 else { return }
+            // Pick a random fact different from the current one.
+            var next = Int.random(in: 0..<count)
+            if next == factIndex { next = (next + 1) % count }
+            factIndex = next
         }
     }
 
@@ -280,13 +299,19 @@ struct HUDView: View {
 
     @ViewBuilder
     private var unlockButton: some View {
+        // Wrap in a fixed-size container so scaleEffect on the inner button
+        // never shifts surrounding layout, regardless of match progress.
+        // Frame is sized to hold the button at full scale + a calmer pulse
+        // ring without overlapping the knowledge card above.
         ZStack {
-            // Expanding pulse ring — animates outward and fades when clickable
+            // Expanding pulse ring — calmer magnitude (1.0 → 1.08) so it
+            // stays inside the reserved frame and doesn't visually clip
+            // into the hero-image card.
             if unlockClickable {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(Color.white.opacity(pulseAlpha), lineWidth: 2.5)
                     .scaleEffect(pulseScale)
-                    .padding(-12)
+                    .padding(-8)
                     .allowsHitTesting(false)
             }
 
@@ -313,12 +338,15 @@ struct HUDView: View {
             }
             .buttonStyle(.plain)
             .disabled(!unlockClickable)
-            .scaleEffect(0.6 + min(unlockOpacity, 1.0) * 0.4)
+            // Grow from 0.85 → 1.0 (was 0.6 → 1.0). Smaller delta = less
+            // bounce next to a static-layout hero card right above it.
+            .scaleEffect(0.85 + min(unlockOpacity, 1.0) * 0.15)
             .opacity(unlockOpacity)
-            .animation(.spring(response: 0.45, dampingFraction: 0.60), value: unlockOpacity)
+            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: unlockOpacity)
             .animation(.easeInOut(duration: 0.28), value: unlockClickable)
         }
-        .padding(.top, 14)
+        .frame(height: 70)
+        .padding(.top, 28)
         .task(id: unlockClickable) {
             guard unlockClickable else {
                 pulseScale = 1.0
@@ -327,7 +355,7 @@ struct HUDView: View {
             }
             while !Task.isCancelled {
                 withAnimation(.easeOut(duration: 0.85)) {
-                    pulseScale = 1.22
+                    pulseScale = 1.08
                     pulseAlpha = 0
                 }
                 try? await Task.sleep(for: .milliseconds(1000))
