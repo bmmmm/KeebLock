@@ -11,6 +11,24 @@ struct HeatmapView: View {
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @Environment(\.dismiss) private var dismiss
 
+    enum Scope: String, CaseIterable, Identifiable {
+        case session = "Current session"
+        case overall = "Overall"
+        var id: String { rawValue }
+    }
+
+    @State private var scope: Scope = .session
+
+    /// The dictionary the rest of the view reads from. Switches between
+    /// per-session (cleared on each lock start) and persistent overall
+    /// (accumulates across sessions, saved to UserDefaults on stopLock).
+    private var keyCounts: [UInt16: Int] {
+        switch scope {
+        case .session: return controller.sessionKeyCounts
+        case .overall: return controller.overallKeyCounts
+        }
+    }
+
     /// Layout-translated labels per keycode. Recomputed when the active TIS
     /// source changes (e.g. user switches German ↔ U.S. via ⌃⌥Space).
     @State private var dynamicLabels: [UInt16: String] = [:]
@@ -28,14 +46,14 @@ struct HeatmapView: View {
     ]
 
     private var rows: [KeyStat] {
-        controller.keyCounts
+        keyCounts
             .map { KeyStat(keycode: $0.key, count: $0.value) }
             .sorted { $0.count > $1.count }
     }
 
     private var maxCount: Int { rows.first?.count ?? 1 }
-    private var totalPresses: Int { controller.keyCounts.values.reduce(0, +) }
-    private var distinctKeys: Int { controller.keyCounts.count }
+    private var totalPresses: Int { keyCounts.values.reduce(0, +) }
+    private var distinctKeys: Int { keyCounts.count }
 
     /// Highest single mouse counter — drives heat scaling for the mouse panel
     /// independent of keyboard scale (keyboards rack up much bigger numbers).
@@ -107,6 +125,13 @@ struct HeatmapView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            Picker("", selection: $scope) {
+                ForEach(Scope.allCases) { s in
+                    Text(s.rawValue).tag(s)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -126,9 +151,12 @@ struct HeatmapView: View {
     private var footer: some View {
         HStack {
             Button(role: .destructive) {
-                controller.resetKeyCounts()
+                switch scope {
+                case .session: controller.resetSessionHeatmap()
+                case .overall: controller.resetOverallHeatmap()
+                }
             } label: {
-                Label("Reset", systemImage: "arrow.counterclockwise")
+                Label("Reset \(scope.rawValue.lowercased())", systemImage: "arrow.counterclockwise")
                     .foregroundStyle(.red)
             }
             .buttonStyle(.bordered)
@@ -154,7 +182,7 @@ struct HeatmapView: View {
                             KeyTile(
                                 key: key,
                                 resolvedLabel: resolvedLabel(for: key),
-                                count: key.code.map { controller.keyCounts[$0] ?? 0 } ?? 0,
+                                count: key.code.map { keyCounts[$0] ?? 0 } ?? 0,
                                 maxCount: maxCount
                             )
                         }

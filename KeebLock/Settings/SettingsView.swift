@@ -348,7 +348,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accumulated keystroke data")
                         .font(.body)
-                    Text("\(controller.keyCounts.values.reduce(0, +)) presses across \(controller.keyCounts.count) keys")
+                    Text("\(controller.overallKeyCounts.values.reduce(0, +)) overall · \(controller.sessionKeyCounts.values.reduce(0, +)) this session · \(controller.overallKeyCounts.count) keys")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -359,7 +359,7 @@ struct SettingsView: View {
                     Label("View", systemImage: "chart.bar.fill")
                 }
                 .buttonStyle(.bordered)
-                .disabled(controller.keyCounts.isEmpty)
+                .disabled(controller.overallKeyCounts.isEmpty && controller.sessionKeyCounts.isEmpty)
             }
         }
     }

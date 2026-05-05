@@ -12,7 +12,16 @@ final class LockController {
     private(set) var totalSeconds: Int = 0
     private(set) var currentCodeword: String = ""
     private(set) var isPaused: Bool = false
-    private(set) var keyCounts: [UInt16: Int] = [:]
+    /// Per-keycode counts for the *current* lock session. Reset on each
+    /// startLock(). Lives in memory only.
+    private(set) var sessionKeyCounts: [UInt16: Int] = [:]
+    /// Per-keycode counts accumulated across every lock session on this
+    /// machine. Persisted to UserDefaults on each stopLock and re-loaded
+    /// on launch. The user can clear it via the Heatmap view's Reset
+    /// button. Privacy-trade-off acknowledged: this is keystroke-pattern
+    /// data and stays on-disk, scoped to this user's UserDefaults — never
+    /// leaves the machine.
+    private(set) var overallKeyCounts: [UInt16: Int] = [:]
     private(set) var sparkTrigger: Int = 0
     // Keyboard breakdown
     private(set) var letterCount: Int = 0
@@ -108,20 +117,19 @@ final class LockController {
     @ObservationIgnored private let windowManager = LockWindowManager()
     @ObservationIgnored private let soundPlayer = SoundPlayer()
 
-    /// Legacy UserDefaults key that used to hold persisted heatmap data. We no
-    /// longer write here — per-keycode counts are a biometric signature
-    /// (typing rhythm, modifier usage, language) and shouldn't outlive the
-    /// app's process. Keys retained as a constant only so the migration
-    /// remove-on-launch can reference it.
+    /// Legacy UserDefaults key — single combined dictionary blob. Replaced
+    /// by `overallKeyCountsKey` below; folded into overall on first launch
+    /// after the migration (so existing users don't lose their accumulated
+    /// counts), then removed.
     private static let legacyKeyCountsDefaultsKey = "heatmapKeyCounts"
+    /// Key for the persistent overall-heatmap blob.
+    private static let overallKeyCountsKey = "heatmapOverallKeyCounts"
 
     @ObservationIgnored private var lockStartedAt: Date?
     @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
-        // One-time PII migration: scrub previously-persisted heatmap data on
-        // app launch so existing installs lose the pattern leak too.
-        UserDefaults.standard.removeObject(forKey: Self.legacyKeyCountsDefaultsKey)
+        loadOverallKeyCounts()
 
         // Pipe sound settings live to the player so volume/file changes apply
         // without restarting the lock.
@@ -174,6 +182,8 @@ final class LockController {
         gestureAttemptCount = 0
         pinchCount = 0
         rotateCount = 0
+        // Per-session heatmap starts fresh; overall heatmap accumulates.
+        sessionKeyCounts = [:]
         lastScrollAt = nil
         lastGestureAt = nil
         lastPinchAt = nil
@@ -222,6 +232,7 @@ final class LockController {
         removeSpaceObserver()
         soundPlayer.stop()
         recordSession()
+        saveOverallKeyCounts()
         PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
@@ -244,8 +255,54 @@ final class LockController {
         lockStartedAt = nil
     }
 
-    func resetKeyCounts() {
-        keyCounts = [:]
+    /// Wipe the current-session heatmap. Doesn't touch overall.
+    func resetSessionHeatmap() {
+        sessionKeyCounts = [:]
+    }
+
+    /// Wipe the persistent overall heatmap and the on-disk blob.
+    func resetOverallHeatmap() {
+        overallKeyCounts = [:]
+        UserDefaults.standard.removeObject(forKey: Self.overallKeyCountsKey)
+    }
+
+    // MARK: - Heatmap persistence
+
+    private func loadOverallKeyCounts() {
+        // Pick up the new blob first.
+        if let data = UserDefaults.standard.data(forKey: Self.overallKeyCountsKey),
+           let dict = try? JSONDecoder().decode([String: Int].self, from: data) {
+            PerfMetrics.shared.recordJSONDecode()
+            overallKeyCounts = Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
+                guard let code = UInt16(key) else { return nil }
+                return (code, val)
+            })
+        }
+        // One-time migration: existing users had data under the legacy key
+        // before the privacy-pass dropped persistence. Now that overall-
+        // heatmap persistence is back (per-user request), fold whatever's
+        // still under the legacy key into overall and remove the legacy
+        // entry so we don't double-count on the next launch.
+        if let legacyData = UserDefaults.standard.data(forKey: Self.legacyKeyCountsDefaultsKey),
+           let legacyDict = try? JSONDecoder().decode([String: Int].self, from: legacyData) {
+            PerfMetrics.shared.recordJSONDecode()
+            for (key, val) in legacyDict {
+                guard let code = UInt16(key) else { continue }
+                overallKeyCounts[code, default: 0] += val
+            }
+            UserDefaults.standard.removeObject(forKey: Self.legacyKeyCountsDefaultsKey)
+        }
+    }
+
+    private func saveOverallKeyCounts() {
+        let stringDict = Dictionary(uniqueKeysWithValues:
+            overallKeyCounts.map { (String($0.key), $0.value) }
+        )
+        if let data = try? JSONEncoder().encode(stringDict) {
+            PerfMetrics.shared.recordJSONEncode()
+            UserDefaults.standard.set(data, forKey: Self.overallKeyCountsKey)
+            PerfMetrics.shared.recordUserDefaultsWrite()
+        }
     }
 
     // MARK: - Timer (pause-aware)
@@ -490,7 +547,8 @@ final class LockController {
                     // these hits at the key the user physically pressed.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
                     if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
-                        keyCounts[fKeycode, default: 0] += 1
+                        sessionKeyCounts[fKeycode, default: 0] += 1
+                        overallKeyCounts[fKeycode, default: 0] += 1
                     }
                     triggerInputFeedback()
                 }
@@ -543,7 +601,8 @@ final class LockController {
             otherKeyCount += 1
         }
 
-        keyCounts[keycode, default: 0] += 1
+        sessionKeyCounts[keycode, default: 0] += 1
+        overallKeyCounts[keycode, default: 0] += 1
         PerfMetrics.shared.recordWipe()
         windowManager.wipeOnAllScreens()
         triggerInputFeedback()
