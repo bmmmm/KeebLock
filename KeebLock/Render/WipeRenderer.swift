@@ -175,7 +175,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     private func setupPipeline() {
         guard let lib = device.makeDefaultLibrary() else {
-            NSLog("[KeebLock] Metal: no default shader library")
+            DebugLog.log("Metal: no default shader library")
             return
         }
         let rd = MTLRenderPipelineDescriptor()
@@ -190,7 +190,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         att.destinationAlphaBlendFactor   = .oneMinusSourceAlpha
         renderPipeline = try? device.makeRenderPipelineState(descriptor: rd)
         if renderPipeline == nil {
-            NSLog("[KeebLock] Metal: render pipeline creation failed")
+            DebugLog.log("Metal: render pipeline creation failed")
         }
     }
 

@@ -276,12 +276,6 @@ struct CleaningHistoryView: View {
             .frame(width: 80, alignment: .leading)
             .padding(.leading, 8)
 
-            // Codeword
-            Text(session.codeword)
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 8)
-
             Spacer()
         }
         .padding(.vertical, 11)
