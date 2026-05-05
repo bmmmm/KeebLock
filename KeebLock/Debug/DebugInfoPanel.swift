@@ -37,8 +37,9 @@ struct DebugInfoPanel: View {
             Divider().padding(.vertical, 2)
 
             row("Pixel grid",   "\(settings.cellsPerAxis) cells/X (\(settings.pixelFineness)/10)")
-            row("Pixel color",  settings.customScreenColorRGB == nil ? "random/stage" : "fixed")
-            row("Sparks",       settings.sparksEnabled ? "\(settings.sparkCount)/burst" : "off")
+            row("Background",   settings.backgroundColor.label)
+            row("Pixel color",  settings.pixelColor.label)
+            row("Effect",       settings.effectEnabled ? "\(settings.screenEffect.label) · \(settings.sparkCount)/burst" : "off")
             row("Sound",        settings.soundEnabled ? "vol \(Int(settings.soundVolume * 100))%" : "off")
             row("Sound source", settings.soundFileDisplayName ?? "synth click (default)")
             row("Codeword",     "\(settings.codeword.count) chars")
@@ -49,6 +50,13 @@ struct DebugInfoPanel: View {
             row("Accessibility", AccessibilityPermission.isGranted ? "granted ✓" : "denied ✗")
             row("Lock state",    controller.isLocked ? "active · \(controller.keystrokeCount) keys · \(controller.remainingSeconds)s left" : "idle")
             row("Heatmap data",  "\(controller.keyCounts.count) keys, \(controller.keyCounts.values.reduce(0, +)) presses total")
+
+            Divider().padding(.vertical, 2)
+
+            row("Left clicks",   "\(controller.leftClickCount)")
+            row("Right clicks",  "\(controller.rightClickCount)")
+            row("Fn key hits",   "\(controller.fnKeyCount)")
+            row("Miss clicks",   "\(controller.missClickCount) total")
         }
         .font(.system(.caption, design: .monospaced))
         .padding(12)

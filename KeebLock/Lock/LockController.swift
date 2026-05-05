@@ -12,6 +12,14 @@ final class LockController: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var keyCounts: [UInt16: Int] = [:]
     @Published private(set) var sparkTrigger: Int = 0
+    @Published private(set) var leftClickCount: Int = 0
+    @Published private(set) var rightClickCount: Int = 0
+    @Published private(set) var fnKeyCount: Int = 0
+    @Published private(set) var codewordMatchProgress: Int = 0
+
+    var missClickCount: Int { leftClickCount + rightClickCount + fnKeyCount }
+
+    private static let fnKeycodes: Set<UInt16> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -25,6 +33,7 @@ final class LockController: ObservableObject {
 
     private static let keyCountsDefaultsKey = "heatmapKeyCounts"
 
+    private var lockStartedAt: Date?
     private var bag = Set<AnyCancellable>()
 
     private init() {
@@ -53,10 +62,15 @@ final class LockController: ObservableObject {
         currentCodeword = codeword
         matcher = CodewordMatcher(target: codeword)
         keystrokeCount = 0
+        leftClickCount = 0
+        rightClickCount = 0
+        fnKeyCount = 0
+        codewordMatchProgress = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
         lastKeystrokeAt = Date()
         isPaused = false
+        lockStartedAt = Date()
 
         guard installEventTap() else {
             DebugLog.log("startLock: installEventTap returned false (accessibility?)")
@@ -65,7 +79,8 @@ final class LockController: ObservableObject {
         DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes)")
         windowManager.show(
             controller: self,
-            fixedColor: AppSettings.shared.customScreenSIMD,
+            fixedBg: AppSettings.shared.backgroundSIMD,
+            fixedPixel: AppSettings.shared.pixelSIMD,
             cellsPerAxis: AppSettings.shared.cellsPerAxis
         )
         isLocked = true
@@ -79,6 +94,7 @@ final class LockController: ObservableObject {
         removeEventTap()
         soundPlayer.stop()
         saveKeyCounts()
+        recordSession()
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
         // pools un-drained and causes EXC_BAD_ACCESS when SwiftUI starts updating.
@@ -86,6 +102,19 @@ final class LockController: ObservableObject {
             self.windowManager.hide()
             self.isLocked = false
         }
+    }
+
+    private func recordSession() {
+        guard let started = lockStartedAt else { return }
+        let session = CleaningSession(
+            startedAt: started,
+            durationSeconds: max(0, Int(Date().timeIntervalSince(started))),
+            keystrokeCount: keystrokeCount,
+            codeword: currentCodeword,
+            stageCount: windowManager.maxStage
+        )
+        CleaningHistory.shared.record(session)
+        lockStartedAt = nil
     }
 
     func resetKeyCounts() {
@@ -115,6 +144,9 @@ final class LockController: ObservableObject {
             return
         }
         isPaused = false
+        // Auto-unlock is opt-in. When off, the timer just decorates the HUD and
+        // never closes the lock — the user controls exit via codeword or button.
+        guard AppSettings.shared.autoUnlockEnabled else { return }
         if remainingSeconds > 0 {
             remainingSeconds -= 1
         } else {
@@ -146,6 +178,8 @@ final class LockController: ObservableObject {
         let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
                               | (1 << CGEventType.keyUp.rawValue)
                               | (1 << CGEventType.flagsChanged.rawValue)
+                              | (1 << CGEventType.leftMouseDown.rawValue)
+                              | (1 << CGEventType.rightMouseDown.rawValue)
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
@@ -190,6 +224,21 @@ final class LockController: ObservableObject {
             return nil
         }
 
+        if type == .leftMouseDown {
+            leftClickCount += 1
+            // Pass through once the user has typed ≥ half the codeword — the unlock
+            // button becomes visible and clickable at that threshold.
+            let halfLen = max(1, (currentCodeword.count + 1) / 2)
+            if codewordMatchProgress >= halfLen {
+                return Unmanaged.passUnretained(event)
+            }
+            return nil
+        }
+        if type == .rightMouseDown {
+            rightClickCount += 1
+            return nil
+        }
+
         if type == .keyDown {
             let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             var length = 0
@@ -207,12 +256,14 @@ final class LockController: ObservableObject {
         keystrokeCount += 1
         lastKeystrokeAt = Date()
 
+        if Self.fnKeycodes.contains(keycode) { fnKeyCount += 1 }
+
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
 
         keyCounts[keycode, default: 0] += 1
         windowManager.wipeOnAllScreens()
 
-        if AppSettings.shared.sparksEnabled {
+        if AppSettings.shared.effectEnabled {
             sparkTrigger += 1
         }
 
@@ -222,5 +273,7 @@ final class LockController: ObservableObject {
                 return
             }
         }
+        let progress = matcher.matchProgress
+        if progress != codewordMatchProgress { codewordMatchProgress = progress }
     }
 }

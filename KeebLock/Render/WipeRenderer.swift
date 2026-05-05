@@ -4,12 +4,9 @@ import Metal
 import MetalKit
 import SwiftUI
 
-// One WipeRenderer per screen. MTKView runs at 60fps; draw(in:) may be called from a
-// private Metal thread. All shared mutable state is protected by `stateLock`.
-// @Published updates always hop to MainActor.
-//
-// Each keystroke clears exactly one random mask cell. Mask resolution is fixed
-// independent of physical screen pixels so the "pixel" feel stays minimal.
+// One WipeRenderer per screen. Renders a fullscreen quad whose colour is a lerp
+// between two SIMD4 colours (bg, pixel) driven by an r8 mask texture. Each
+// keystroke clears one random mask cell.
 final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     let metalView: MTKView
@@ -21,30 +18,33 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     private let commandQueue: MTLCommandQueue
     private var renderPipeline: MTLRenderPipelineState?
 
-    private let fixedColor: SIMD4<Float>?
+    private let fixedBg: SIMD4<Float>?
+    private let fixedPixel: SIMD4<Float>?
 
-    // Shared mutable state
     private let stateLock = NSLock()
     private var maskTexture: MTLTexture?
     private var maskBytes: [UInt8] = []
     private var maskDirty = false
     private var remainingIndices: [Int] = []
     private var wipedCellCount = 0
-    private var currentBgColor: SIMD4<Float> = .one
+    private var currentBg: SIMD4<Float>
+    private var currentPixel: SIMD4<Float>
 
     private let maskDims: (w: Int, h: Int)
 
     let screenFrame: CGRect
 
-    // Mask cells along the X axis. Y derived from screen aspect.
-    // Driven by AppSettings.pixelFineness (slider 1-10 → cells 8..44).
-    init?(screen: NSScreen, fixedColor: SIMD4<Float>? = nil, cellsPerAxis: Int) {
+    init?(screen: NSScreen,
+          fixedBg: SIMD4<Float>?,
+          fixedPixel: SIMD4<Float>?,
+          cellsPerAxis: Int) {
         guard let dev = MTLCreateSystemDefaultDevice(),
               let queue = dev.makeCommandQueue() else { return nil }
         device = dev
         commandQueue = queue
         screenFrame = screen.frame
-        self.fixedColor = fixedColor
+        self.fixedBg = fixedBg
+        self.fixedPixel = fixedPixel
 
         let aspect = screen.frame.height / max(1, screen.frame.width)
         let cellsX = max(2, cellsPerAxis)
@@ -54,7 +54,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         let total = cellsX * cellsY
         maskBytes = [UInt8](repeating: 255, count: total)
         remainingIndices = (0..<total).shuffled()
-        currentBgColor = fixedColor ?? Self.randomColor()
+        currentBg = fixedBg ?? Self.randomColor()
+        currentPixel = fixedPixel ?? Self.randomColor()
 
         let view = MTKView(
             frame: NSRect(origin: .zero, size: screen.frame.size),
@@ -65,6 +66,12 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         view.clearColor = MTLClearColorMake(0, 0, 0, 0)
         view.colorPixelFormat = .bgra8Unorm
         view.framebufferOnly = false
+        // Must be false so transparent (alpha=0) fragments show the desktop through the window.
+        view.layer?.isOpaque = false
+        if let metalLayer = view.layer as? CAMetalLayer {
+            metalLayer.isOpaque = false
+            metalLayer.backgroundColor = CGColor(gray: 0, alpha: 0)
+        }
         metalView = view
 
         super.init()
@@ -73,9 +80,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         view.delegate = self
     }
 
-    // MARK: - Public API (main thread)
+    // MARK: - Public API
 
-    /// Clears one random unwiped cell. Call once per keystroke.
     func wipeRandomCell() {
         stateLock.lock()
         guard let idx = remainingIndices.popLast() else {
@@ -94,7 +100,6 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         if advance { advanceStage() }
     }
 
-    /// Stops the display link before window teardown.
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true
@@ -111,15 +116,14 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
               let passDesc = view.currentRenderPassDescriptor,
               let cmdBuf = commandQueue.makeCommandBuffer() else { return }
 
-        // Snapshot state
         stateLock.lock()
-        let color = currentBgColor
+        let bg = currentBg
+        let px = currentPixel
         let dirty = maskDirty
         let snapshot = dirty ? maskBytes : []
         if dirty { maskDirty = false }
         stateLock.unlock()
 
-        // Push mask updates to GPU
         if dirty, let mask = maskTexture {
             mask.replace(
                 region: MTLRegionMake2D(0, 0, maskDims.w, maskDims.h),
@@ -139,8 +143,10 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
            let enc = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc) {
             enc.setRenderPipelineState(rPipeline)
             enc.setFragmentTexture(mask, index: 0)
-            var col = color
-            enc.setFragmentBytes(&col, length: MemoryLayout<SIMD4<Float>>.size, index: 0)
+            var bgC = bg
+            var pxC = px
+            enc.setFragmentBytes(&bgC, length: MemoryLayout<SIMD4<Float>>.size, index: 0)
+            enc.setFragmentBytes(&pxC, length: MemoryLayout<SIMD4<Float>>.size, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             enc.endEncoding()
         }
@@ -153,7 +159,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     private func advanceStage() {
         stateLock.lock()
-        currentBgColor = fixedColor ?? Self.randomColor()
+        currentBg = fixedBg ?? Self.randomColor()
+        currentPixel = fixedPixel ?? Self.randomColor()
         let total = maskDims.w * maskDims.h
         maskBytes = [UInt8](repeating: 255, count: total)
         remainingIndices = (0..<total).shuffled()
@@ -224,4 +231,3 @@ struct WipeView: NSViewRepresentable {
     func makeNSView(context: Context)                        -> MTKView { renderer.metalView }
     func updateNSView(_ nsView: MTKView, context: Context)   {}
 }
-    

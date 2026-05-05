@@ -14,7 +14,12 @@ final class LockWindowManager {
     private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
     private var savedPresentationOptions: NSApplication.PresentationOptions = []
 
-    func show(controller: LockController, fixedColor: SIMD4<Float>? = nil, cellsPerAxis: Int) {
+    func show(
+        controller: LockController,
+        fixedBg: SIMD4<Float>? = nil,
+        fixedPixel: SIMD4<Float>? = nil,
+        cellsPerAxis: Int
+    ) {
         hide()
 
         savedPresentationOptions = NSApp.presentationOptions
@@ -28,7 +33,8 @@ final class LockWindowManager {
 
             let renderer = WipeRenderer(
                 screen: screen,
-                fixedColor: fixedColor,
+                fixedBg: fixedBg,
+                fixedPixel: fixedPixel,
                 cellsPerAxis: cellsPerAxis
             )
             if renderer == nil {
@@ -122,5 +128,10 @@ final class LockWindowManager {
         for renderer in renderers {
             renderer?.wipeRandomCell()
         }
+    }
+
+    /// Highest stage reached across all screens.
+    var maxStage: Int {
+        renderers.compactMap { $0?.stage }.max() ?? 1
     }
 }

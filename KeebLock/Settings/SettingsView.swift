@@ -5,26 +5,34 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var controller: LockController
+    @ObservedObject var history: CleaningHistory = .shared
 
     @State private var suggestions: [String] = Codewords.suggestions()
     @State private var showHeatmap = false
+    @State private var showHistory = false
     @State private var snapshotMessage: String?
 
     var body: some View {
         Form {
             codewordSection
-            durationSection
             pixelSection
-            sparksSection
+            colorsSection
+            effectSection
             soundSection
+            knowledgeSection
             heatmapSection
-            debugSection
+            historySection
+            autoUnlockSection
             aboutSection
+            debugSection
         }
         .formStyle(.grouped)
-        .frame(minWidth: 520, minHeight: 720)
+        .frame(minWidth: 540, minHeight: 640)
         .sheet(isPresented: $showHeatmap) {
             HeatmapView(controller: controller)
+        }
+        .sheet(isPresented: $showHistory) {
+            CleaningHistoryView(history: history)
         }
     }
 
@@ -57,20 +65,8 @@ struct SettingsView: View {
         }
     }
 
-    private var durationSection: some View {
-        Section("Auto-unlock") {
-            Picker("Duration", selection: $settings.durationMinutes) {
-                Text("3 minutes").tag(3)
-                Text("5 minutes").tag(5)
-                Text("10 minutes").tag(10)
-            }
-            .pickerStyle(.segmented)
-        }
-    }
-
     private var pixelSection: some View {
-        Section("Pixels") {
-            // Size slider
+        Section("Pixel size") {
             HStack(spacing: 12) {
                 Image(systemName: "square.fill")
                     .font(.system(size: 18))
@@ -91,70 +87,108 @@ struct SettingsView: View {
                     .frame(width: 22, alignment: .trailing)
             }
 
-            // Live preview
             PixelSizePreview(
                 cellsX: settings.cellsPerAxis,
-                color: previewColor
+                backgroundPreset: settings.backgroundColor,
+                pixelPreset: settings.pixelColor
             )
-            .frame(height: 80)
 
             Text("Lower = bigger pixel blocks, faster stages. Higher = smaller pixels, longer stages.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Divider().padding(.vertical, 4)
-
-            // Color picker
-            colorPickerRow
         }
     }
 
-    private var previewColor: Color {
-        if let c = settings.customSwiftUIColor as Color?,
-           settings.customScreenColorRGB != nil {
-            return c
+    private var colorsSection: some View {
+        Section("Colors") {
+            Text("Two layers: the **background** is what you see initially; the **pixel** layer is what's revealed when a cell gets wiped. Default is colored bg → transparent pixel (desktop shows through). Swap them for an invert / dirty mode.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            colorRow(label: "Background", binding: $settings.backgroundColor)
+            colorRow(label: "Pixel",      binding: $settings.pixelColor)
+
+            HStack {
+                Spacer()
+                Button {
+                    settings.swapColors()
+                } label: {
+                    Label("Swap (invert)", systemImage: "arrow.left.arrow.right")
+                }
+                .buttonStyle(.bordered)
+            }
         }
-        return Color(hue: 0.6, saturation: 0.65, brightness: 0.55)
     }
 
-    private var colorPickerRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: Binding(
-                get: { settings.customScreenColorRGB != nil },
-                set: { isOn in
-                    if isOn {
-                        settings.customScreenColorRGB = settings.customScreenColorRGB ?? [0.6, 0.7, 0.95]
-                    } else {
-                        settings.customScreenColorRGB = nil
+    private func colorRow(label: String, binding: Binding<ColorPreset>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.caption.weight(.semibold))
+            HStack(spacing: 6) {
+                ForEach(ColorPreset.allCases) { preset in
+                    presetSwatch(preset, isSelected: binding.wrappedValue == preset) {
+                        binding.wrappedValue = preset
                     }
                 }
-            )) {
-                Text("Use fixed color (off = random per stage)")
-            }
-
-            if settings.customScreenColorRGB != nil {
-                ColorPicker("Pixel color",
-                    selection: Binding(
-                        get: { settings.customSwiftUIColor },
-                        set: { color in
-                            let cg = NSColor(color).usingColorSpace(.sRGB) ?? .white
-                            settings.customScreenColorRGB = [
-                                Double(cg.redComponent),
-                                Double(cg.greenComponent),
-                                Double(cg.blueComponent),
-                            ]
-                        }
-                    ),
-                    supportsOpacity: false
-                )
             }
         }
     }
 
-    private var sparksSection: some View {
-        Section("Sparks") {
-            Toggle("Show sparks on keystroke", isOn: $settings.sparksEnabled)
-            if settings.sparksEnabled {
+    private func presetSwatch(_ preset: ColorPreset, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                presetSwatchFill(preset)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 1)
+                }
+            }
+            .frame(width: 28, height: 28)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(isSelected ? Color.accentColor : .secondary.opacity(0.25), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(preset.label)
+    }
+
+    @ViewBuilder
+    private func presetSwatchFill(_ preset: ColorPreset) -> some View {
+        switch preset {
+        case .random:
+            LinearGradient(
+                colors: [.pink, .yellow, .green, .blue, .purple],
+                startPoint: .leading, endPoint: .trailing
+            )
+        case .transparent:
+            ZStack {
+                Color.gray.opacity(0.25)
+                Path { p in
+                    p.move(to: .init(x: 0, y: 28))
+                    p.addLine(to: .init(x: 28, y: 0))
+                }
+                .stroke(Color.red, lineWidth: 2)
+            }
+        default:
+            preset.swiftUIColor
+        }
+    }
+
+    private var effectSection: some View {
+        Section("Effect") {
+            Toggle("Enable effect on keystroke", isOn: $settings.effectEnabled)
+            if settings.effectEnabled {
+                Picker("Type", selection: $settings.screenEffect) {
+                    ForEach(ScreenEffect.allCases) { effect in
+                        Label(effect.label, systemImage: effect.icon).tag(effect)
+                    }
+                }
+                .pickerStyle(.segmented)
+
                 HStack(spacing: 12) {
                     Image(systemName: "sparkle")
                         .font(.system(size: 12))
@@ -174,7 +208,7 @@ struct SettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .frame(width: 28, alignment: .trailing)
                 }
-                Text("Sparks per keystroke. 0 = silent, 30 = max splash.")
+                Text("Intensity per keystroke. 0 = off, 30 = max.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -217,6 +251,15 @@ struct SettingsView: View {
         }
     }
 
+    private var knowledgeSection: some View {
+        Section("Codeword knowledge") {
+            Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
+            Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher to reveal each fact, or read them rotating in the lock screen.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var heatmapSection: some View {
         Section("Heatmap") {
             HStack {
@@ -239,15 +282,76 @@ struct SettingsView: View {
         }
     }
 
+    private var historySection: some View {
+        Section("Cleaning history") {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Past sessions")
+                        .font(.body)
+                    if let last = history.lastWipe {
+                        Text("Last wipe: \(formatDate(last))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No sessions recorded yet")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Button {
+                    showHistory = true
+                } label: {
+                    Label("View", systemImage: "clock.arrow.circlepath")
+                }
+                .buttonStyle(.bordered)
+                .disabled(history.sessions.isEmpty)
+            }
+        }
+    }
+
+    private var autoUnlockSection: some View {
+        Section("Auto-unlock") {
+            Toggle("Enable automatic timeout", isOn: $settings.autoUnlockEnabled)
+            if settings.autoUnlockEnabled {
+                Picker("Duration", selection: $settings.durationMinutes) {
+                    Text("3 minutes").tag(3)
+                    Text("5 minutes").tag(5)
+                    Text("10 minutes").tag(10)
+                }
+                .pickerStyle(.segmented)
+            }
+            Text("Off by default. Without this, the lock stays active until you type the codeword or click \"Unlock now\". Force-quit (⌘⌥Esc) is always the safety net.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var aboutSection: some View {
+        Section("About") {
+            Text("KeebLock swallows keystrokes via macOS Accessibility while you wipe down your keys. Type your codeword (substring match) or click \"Unlock now\" to exit.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var debugSection: some View {
         Section("Debug") {
             Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
 
             HStack(spacing: 10) {
-                Button("Save diagnostic snapshot") {
+                Button("Save snapshot") {
                     let snap = DebugLog.snapshot()
                     DebugLog.writeForced(snap)
-                    snapshotMessage = "Snapshot appended."
+                    snapshotMessage = "Snapshot appended to log."
+                }
+                .buttonStyle(.bordered)
+
+                Button("Copy all debug info") {
+                    let snap = DebugLog.snapshot()
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(snap, forType: .string)
+                    snapshotMessage = "Copied to clipboard."
                 }
                 .buttonStyle(.bordered)
 
@@ -274,14 +378,6 @@ struct SettingsView: View {
         }
     }
 
-    private var aboutSection: some View {
-        Section("About") {
-            Text("KeebLock swallows keystrokes via macOS Accessibility while you wipe down your keys. Type your codeword (substring match) or click \"Unlock now\" to exit.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     // MARK: - Actions
 
     private func pickSoundFile() {
@@ -303,5 +399,11 @@ struct SettingsView: View {
         } catch {
             DebugLog.log("Sound file picker: bookmark failed: \(error.localizedDescription)")
         }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.string(from: date)
     }
 }

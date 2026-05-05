@@ -1,85 +1,262 @@
 import SwiftUI
 
+// MARK: - Particle types
+
 private struct SparkParticle: Identifiable {
     let id = UUID()
-    let x, y: Double
+    let x, y, size: Double
     let color: Color
-    let size: Double
     let born: Date = .now
-    static let lifetime: Double = 0.85
+    static let lifetime = 0.85
 }
 
-// Spawns a small popout of sparks at a random position on this screen each time
-// `triggerCount` changes. Mouse position is intentionally ignored — every screen
-// reacts to every keystroke independently.
+private struct RainDrop: Identifiable {
+    let id = UUID()
+    let x, y, length, speed: Double
+    let born: Date = .now
+    static let lifetime = 0.75
+}
+
+private struct MatrixChar: Identifiable {
+    let id = UUID()
+    let x, y, speed: Double
+    let char: String
+    let born: Date = .now
+    static let lifetime = 1.1
+}
+
+private struct BubbleParticle: Identifiable {
+    let id = UUID()
+    let x, y, size, speed: Double
+    let born: Date = .now
+    static let lifetime = 1.4
+}
+
+private struct SnowFlake: Identifiable {
+    let id = UUID()
+    let x, y, size, speed, drift, phase: Double
+    let born: Date = .now
+    static let lifetime = 2.0
+}
+
+// MARK: - Effect overlay (all 5 effects in one view)
+
 struct SparkOverlayView: View {
     let triggerCount: Int
 
-    @State private var sparks: [SparkParticle] = []
+    @State private var sparks:   [SparkParticle]  = []
+    @State private var drops:    [RainDrop]         = []
+    @State private var chars:    [MatrixChar]       = []
+    @State private var bubbles:  [BubbleParticle]   = []
+    @State private var flakes:   [SnowFlake]        = []
 
     private static let sparkColors: [Color] = [
-        Color(red: 1.0,  green: 0.72, blue: 0.82),  // rose
-        Color(red: 0.80, green: 0.69, blue: 0.98),  // lavender
-        Color(red: 0.68, green: 0.98, blue: 0.82),  // mint
-        Color(red: 1.0,  green: 0.95, blue: 0.55),  // lemon
-        Color(red: 0.68, green: 0.90, blue: 1.0),   // sky
-        Color(red: 1.0,  green: 0.84, blue: 0.60),  // peach
+        Color(red: 1.0, green: 0.72, blue: 0.82),
+        Color(red: 0.80, green: 0.69, blue: 0.98),
+        Color(red: 0.68, green: 0.98, blue: 0.82),
+        Color(red: 1.0, green: 0.95, blue: 0.55),
+        Color(red: 0.68, green: 0.90, blue: 1.0),
+        Color(red: 1.0, green: 0.84, blue: 0.60),
     ]
+    private static let matrixAlphabet = Array("アイウエカキクケサシスセタチツテ0123456789ABCDEF")
 
     var body: some View {
         GeometryReader { geo in
             TimelineView(.animation) { tl in
                 Canvas { ctx, _ in
                     let now = tl.date
-                    for spark in sparks {
-                        let age = now.timeIntervalSince(spark.born)
-                        guard age < SparkParticle.lifetime else { continue }
-                        let t = age / SparkParticle.lifetime
-                        let opacity = pow(1.0 - t, 1.5)
-                        let dy = t * 60.0
-                        let scale = 0.5 + t * 0.6
-
-                        var inner = ctx
-                        inner.opacity = opacity
-                        inner.translateBy(x: spark.x, y: spark.y - dy)
-                        inner.scaleBy(x: scale, y: scale)
-
-                        let r = spark.size / 2
-                        inner.fill(
-                            Path(ellipseIn: CGRect(x: -r, y: -r, width: spark.size, height: spark.size)),
-                            with: .color(spark.color)
-                        )
+                    switch AppSettings.shared.screenEffect {
+                    case .sparks:  drawSparks(ctx: ctx, now: now)
+                    case .rain:    drawRain(ctx: ctx, now: now, size: geo.size)
+                    case .matrix:  drawMatrix(ctx: ctx, now: now, size: geo.size)
+                    case .bubbles: drawBubbles(ctx: ctx, now: now, size: geo.size)
+                    case .snow:    drawSnow(ctx: ctx, now: now, size: geo.size)
                     }
                 }
             }
             .onChange(of: triggerCount) { _, _ in
-                spawnSparks(in: geo.size)
+                guard AppSettings.shared.effectEnabled else { return }
+                spawn(in: geo.size)
             }
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
     }
 
-    private func spawnSparks(in size: CGSize) {
-        let count = AppSettings.shared.sparkCount  // live: slider takes effect immediately
+    // MARK: - Spawn dispatcher
+
+    private func spawn(in size: CGSize) {
+        let count = AppSettings.shared.sparkCount
         guard count > 0 else { return }
+        switch AppSettings.shared.screenEffect {
+        case .sparks:  spawnSparks(in: size, count: count)
+        case .rain:    spawnRain(in: size, count: count)
+        case .matrix:  spawnMatrix(in: size, count: count)
+        case .bubbles: spawnBubbles(in: size, count: count)
+        case .snow:    spawnSnow(in: size, count: count)
+        }
+    }
 
-        let margin: Double = 80
-        let cx = Double.random(in: margin...max(margin + 1, size.width - margin))
-        let cy = Double.random(in: margin...max(margin + 1, size.height - margin))
+    // MARK: - Sparks
 
+    private func spawnSparks(in size: CGSize, count: Int) {
+        let m = 80.0
+        let cx = Double.random(in: m...max(m+1, size.width - m))
+        let cy = Double.random(in: m...max(m+1, size.height - m))
         for _ in 0..<count {
-            let angle = Double.random(in: 0..<(.pi * 2))
-            let dist  = Double.random(in: 15...70)
+            let a = Double.random(in: 0..<(.pi * 2))
+            let d = Double.random(in: 15...70)
             sparks.append(SparkParticle(
-                x: cx + cos(angle) * dist,
-                y: cy + sin(angle) * dist,
-                color: Self.sparkColors.randomElement()!,
-                size: Double.random(in: 5...13)
+                x: cx + cos(a) * d, y: cy + sin(a) * d,
+                size: Double.random(in: 5...13),
+                color: Self.sparkColors.randomElement()!
             ))
         }
-        // Keep the queue bounded — discard oldest when we exceed budget
-        let budget = max(300, count * 25)
-        if sparks.count > budget { sparks.removeFirst(sparks.count - budget) }
+        if sparks.count > max(300, count * 25) { sparks.removeFirst(sparks.count - max(300, count * 25)) }
+    }
+
+    private func drawSparks(ctx: GraphicsContext, now: Date) {
+        for p in sparks {
+            let age = now.timeIntervalSince(p.born)
+            guard age < SparkParticle.lifetime else { continue }
+            let t = age / SparkParticle.lifetime
+            var g = ctx
+            g.opacity = pow(1.0 - t, 1.5)
+            g.translateBy(x: p.x, y: p.y - t * 60)
+            g.scaleBy(x: 0.5 + t * 0.6, y: 0.5 + t * 0.6)
+            let r = p.size / 2
+            g.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: p.size, height: p.size)),
+                   with: .color(p.color))
+        }
+    }
+
+    // MARK: - Rain
+
+    private func spawnRain(in size: CGSize, count: Int) {
+        let n = max(2, count / 2)
+        for _ in 0..<n {
+            drops.append(RainDrop(
+                x: Double.random(in: 0...size.width),
+                y: Double.random(in: -20...size.height * 0.2),
+                length: Double.random(in: 22...55),
+                speed: Double.random(in: 200...420)
+            ))
+        }
+        if drops.count > 300 { drops.removeFirst(drops.count - 300) }
+    }
+
+    private func drawRain(ctx: GraphicsContext, now: Date, size: CGSize) {
+        for d in drops {
+            let age = now.timeIntervalSince(d.born)
+            guard age < RainDrop.lifetime else { continue }
+            let t = age / RainDrop.lifetime
+            let y0 = d.y + d.speed * age
+            guard y0 < size.height + d.length else { continue }
+            var path = Path()
+            path.move(to: CGPoint(x: d.x, y: y0))
+            path.addLine(to: CGPoint(x: d.x + 0.8, y: y0 + d.length))
+            ctx.stroke(path, with: .color(Color(red: 0.45, green: 0.78, blue: 1.0).opacity((1 - t) * 0.65)),
+                       lineWidth: 1.5)
+        }
+    }
+
+    // MARK: - Matrix
+
+    private func spawnMatrix(in size: CGSize, count: Int) {
+        let n = max(1, count / 3)
+        for _ in 0..<n {
+            chars.append(MatrixChar(
+                x: Double.random(in: 10...size.width - 10),
+                y: Double.random(in: -10...size.height * 0.3),
+                speed: Double.random(in: 100...260),
+                char: String(Self.matrixAlphabet.randomElement()!)
+            ))
+        }
+        if chars.count > 250 { chars.removeFirst(chars.count - 250) }
+    }
+
+    private func drawMatrix(ctx: GraphicsContext, now: Date, size: CGSize) {
+        for mc in chars {
+            let age = now.timeIntervalSince(mc.born)
+            guard age < MatrixChar.lifetime else { continue }
+            let t = age / MatrixChar.lifetime
+            let y = mc.y + mc.speed * age
+            guard y < size.height + 20 else { continue }
+            ctx.draw(
+                Text(mc.char)
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.0, green: 0.95, blue: 0.3).opacity(pow(1 - t, 1.2) * 0.9)),
+                at: CGPoint(x: mc.x, y: y)
+            )
+        }
+    }
+
+    // MARK: - Bubbles
+
+    private func spawnBubbles(in size: CGSize, count: Int) {
+        let n = max(1, count / 3)
+        for _ in 0..<n {
+            bubbles.append(BubbleParticle(
+                x: Double.random(in: 40...size.width - 40),
+                y: Double.random(in: size.height * 0.5...size.height),
+                size: Double.random(in: 10...38),
+                speed: Double.random(in: 55...130)
+            ))
+        }
+        if bubbles.count > 250 { bubbles.removeFirst(bubbles.count - 250) }
+    }
+
+    private func drawBubbles(ctx: GraphicsContext, now: Date, size: CGSize) {
+        for b in bubbles {
+            let age = now.timeIntervalSince(b.born)
+            guard age < BubbleParticle.lifetime else { continue }
+            let t = age / BubbleParticle.lifetime
+            let opacity = (1.0 - pow(t, 2.0)) * 0.75
+            let s = b.size * (1.0 + t * 0.35)
+            let cy = b.y - b.speed * age
+            guard cy > -s else { continue }
+            let r = s / 2
+            ctx.stroke(Path(ellipseIn: CGRect(x: b.x - r, y: cy - r, width: s, height: s)),
+                       with: .color(Color(red: 0.5, green: 0.88, blue: 1.0).opacity(opacity)),
+                       lineWidth: 1.5)
+            let hr = s * 0.2
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: b.x - r * 0.45 - hr / 2, y: cy - r * 0.55, width: hr, height: hr * 0.65)),
+                with: .color(Color.white.opacity(opacity * 0.5))
+            )
+        }
+    }
+
+    // MARK: - Snow
+
+    private func spawnSnow(in size: CGSize, count: Int) {
+        let n = max(2, count / 2)
+        for _ in 0..<n {
+            flakes.append(SnowFlake(
+                x: Double.random(in: 0...size.width),
+                y: Double.random(in: -20...size.height * 0.15),
+                size: Double.random(in: 4...14),
+                speed: Double.random(in: 45...110),
+                drift: Double.random(in: -25...25),
+                phase: Double.random(in: 0...(.pi * 2))
+            ))
+        }
+        if flakes.count > 350 { flakes.removeFirst(flakes.count - 350) }
+    }
+
+    private func drawSnow(ctx: GraphicsContext, now: Date, size: CGSize) {
+        for f in flakes {
+            let age = now.timeIntervalSince(f.born)
+            guard age < SnowFlake.lifetime else { continue }
+            let t = age / SnowFlake.lifetime
+            let cx = f.x + f.drift * sin(age * 1.8 + f.phase)
+            let cy = f.y + f.speed * age
+            guard cy < size.height + f.size else { continue }
+            let r = f.size / 2
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: f.size, height: f.size)),
+                with: .color(Color.white.opacity((1 - pow(t, 1.5)) * 0.9))
+            )
+        }
     }
 }

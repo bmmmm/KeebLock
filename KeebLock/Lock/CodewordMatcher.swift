@@ -22,4 +22,15 @@ struct CodewordMatcher {
         }
         return buffer == target
     }
+
+    /// How many leading characters of `target` match the trailing characters of
+    /// the current buffer. Ranges from 0 (no match) to target.count (full match).
+    var matchProgress: Int {
+        guard !target.isEmpty, !buffer.isEmpty else { return 0 }
+        let maxN = min(buffer.count, target.count)
+        for n in stride(from: maxN, through: 1, by: -1) {
+            if buffer.suffix(n) == target.prefix(n) { return n }
+        }
+        return 0
+    }
 }

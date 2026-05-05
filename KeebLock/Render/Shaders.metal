@@ -7,7 +7,6 @@ struct VertexOut {
 };
 
 // Fullscreen triangle — no vertex buffer, just 3 NDC positions.
-// texCoord [0,1] with (0,0) at top-left to match Metal texture convention.
 vertex VertexOut vertexPassthrough(uint vid [[vertex_id]]) {
     const float2 positions[3] = {
         float2(-1.0, -1.0),
@@ -25,14 +24,21 @@ vertex VertexOut vertexPassthrough(uint vid [[vertex_id]]) {
     return out;
 }
 
-// Fragment: sample mask (r = 1 unwiped, 0 wiped), output bgColor × mask as alpha.
-// Nearest filter so each mask cell looks like a sharp pixel block on screen.
+// Fragment: lerp(pixelColor, backgroundColor, mask) using nearest-neighbour
+// sampling so each mask cell renders as a sharp pixel block.
+//
+//   mask = 1  (intact)  → backgroundColor   (whatever the user picked / random)
+//   mask = 0  (wiped)   → pixelColor        (defaults to transparent → desktop visible)
+//
+// Setting bg=transparent + pixel=color flips the mode: starts transparent,
+// fills with color as the user "dirties" the screen.
 fragment float4 fragmentWipe(
-    VertexOut           in       [[stage_in]],
-    texture2d<float>    maskTex  [[texture(0)]],
-    constant float4&    bgColor  [[buffer(0)]]
+    VertexOut           in          [[stage_in]],
+    texture2d<float>    maskTex     [[texture(0)]],
+    constant float4&    bgColor     [[buffer(0)]],
+    constant float4&    pixelColor  [[buffer(1)]]
 ) {
     constexpr sampler s(filter::nearest, address::clamp_to_edge);
     float mask = maskTex.sample(s, in.texCoord).r;
-    return float4(bgColor.rgb, bgColor.a * mask);
+    return mix(pixelColor, bgColor, mask);
 }

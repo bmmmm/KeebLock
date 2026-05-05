@@ -23,18 +23,17 @@ struct ContentView: View {
     }
 
     private var launcherTab: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             Image(systemName: "keyboard")
-                .font(.system(size: 72))
+                .font(.system(size: 64))
                 .foregroundStyle(accessibilityGranted ? Color.accentColor : .orange)
 
             Text("KeebLock")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: 32, weight: .bold))
 
-            Text("Lock the keyboard. Clean it. Type the codeword to unlock.")
+            Text("Lock the keyboard. Clean it.\nType the codeword to unlock.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: 340)
 
             if !accessibilityGranted {
                 accessibilityBanner
@@ -44,40 +43,31 @@ struct ContentView: View {
                 Text("Current codeword")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(settings.codeword.uppercased())
-                    .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                    .tracking(2)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.tint.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Button {
+                    settings.codeword = Codewords.random()
+                } label: {
+                    Text(settings.codeword.uppercased())
+                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                        .tracking(2)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.tint.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .help("Click for next codeword")
+            }
+
+            if settings.showCodewordKnowledge {
+                CodewordCard(codeword: settings.codeword)
             }
 
             vibesPanel
 
-            Button {
-                start()
-            } label: {
-                Label("Start cleaning", systemImage: "lock.fill")
-                    .frame(minWidth: 200)
-            }
-            .controlSize(.extraLarge)
-            .buttonStyle(.borderedProminent)
-            .disabled(controller.isLocked || !accessibilityGranted)
-            .keyboardShortcut(.return, modifiers: [])
-
-            Text("Auto-unlock after \(settings.durationMinutes) minutes")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Spacer()
-                QuitButton()
-            }
-            .padding(.top, 4)
+            WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted)
+                .keyboardShortcut(.return, modifiers: [])
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(28)
     }
 
     private var vibesPanel: some View {
@@ -94,12 +84,7 @@ struct ContentView: View {
                     activeColor: Color(red: 1.0, green: 0.60, blue: 0.72),
                     isOn: $settings.soundEnabled
                 )
-                GameModeToggle(
-                    icon: "sparkles",
-                    label: "Sparks",
-                    activeColor: Color(red: 0.73, green: 0.60, blue: 0.98),
-                    isOn: $settings.sparksEnabled
-                )
+                EffectCycleToggle(settings: settings)
                 ColorModeToggle(settings: settings)
             }
             .frame(maxWidth: 360)
