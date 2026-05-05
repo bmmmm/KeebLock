@@ -1,0 +1,198 @@
+import Combine
+import Darwin
+import Foundation
+
+// Lightweight in-process telemetry for the lock loop. Counters are bumped from
+// hot paths (event-tap callback, wipe scheduler, JSON I/O) and surfaced via
+// the Settings → Debug panel and DebugLog snapshots. All public state is
+// MainActor-isolated to match the project default; hot-path bumps are cheap
+// integer mutations on the same actor that drives the event tap callback.
+//
+// Toggle: AppSettings.shared.verbosePerfEnabled gates the per-event work
+// (callback latency sampling + ring buffer). Aggregate counters always run
+// because each is a single Int += that costs less than reading the toggle.
+final class PerfMetrics: ObservableObject {
+    static let shared = PerfMetrics()
+
+    // MARK: - Event-tap callback latency (ns)
+    @Published private(set) var eventCallbackMaxNs: UInt64 = 0
+    @Published private(set) var eventCallbackAvgNs: UInt64 = 0
+    @Published private(set) var eventCallbackP99Ns: UInt64 = 0
+    @Published private(set) var eventCallbackSamples: Int = 0
+
+    // MARK: - Per-second rates (sliding 1 s bucket)
+    @Published private(set) var eventTapEventsPerSec: Int = 0
+    @Published private(set) var wipeCallsPerSec: Int = 0
+    @Published private(set) var mainHopsPerSec: Int = 0
+
+    // MARK: - Allocation / I/O counters (cumulative across session)
+    @Published private(set) var nsEventAllocations: Int = 0
+    @Published private(set) var jsonEncodeCount: Int = 0
+    @Published private(set) var jsonDecodeCount: Int = 0
+    @Published private(set) var userDefaultsWrites: Int = 0
+
+    // MARK: - Memory
+    @Published private(set) var memoryStartMB: Double = 0
+    @Published private(set) var memoryNowMB: Double = 0
+    var memoryDeltaMB: Double { memoryNowMB - memoryStartMB }
+
+    // MARK: - Internal sampling state
+
+    private var latencyRing: [UInt64] = []
+    private let latencyRingCapacity = 1024
+    private var latencyRingHead = 0
+
+    private var eventBucket = 0
+    private var wipeBucket = 0
+    private var mainHopBucket = 0
+
+    private var rateTimer: Timer?
+
+    // mach_absolute_time → ns conversion factor (1 on x86, 125/3 on Apple silicon).
+    private static let machTimebase: mach_timebase_info_data_t = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return info
+    }()
+
+    private init() {}
+
+    // MARK: - Lifecycle
+
+    /// Begin a measurement window for the current lock session.
+    func sessionStart() {
+        reset()
+        memoryStartMB = Self.currentResidentMB()
+        memoryNowMB = memoryStartMB
+        startRateTimer()
+    }
+
+    func sessionStop() {
+        stopRateTimer()
+        memoryNowMB = Self.currentResidentMB()
+    }
+
+    /// Discard all samples; called at session start so figures shown in
+    /// Settings always reflect the current run.
+    func reset() {
+        eventCallbackMaxNs = 0
+        eventCallbackAvgNs = 0
+        eventCallbackP99Ns = 0
+        eventCallbackSamples = 0
+        latencyRing.removeAll(keepingCapacity: true)
+        latencyRingHead = 0
+
+        eventTapEventsPerSec = 0
+        wipeCallsPerSec = 0
+        mainHopsPerSec = 0
+        eventBucket = 0
+        wipeBucket = 0
+        mainHopBucket = 0
+
+        nsEventAllocations = 0
+        jsonEncodeCount = 0
+        jsonDecodeCount = 0
+        userDefaultsWrites = 0
+    }
+
+    // MARK: - Recording (cheap, called from hot paths)
+
+    func recordCallback(machTicks: UInt64) {
+        eventBucket &+= 1
+        guard AppSettings.shared.verbosePerfEnabled else { return }
+        let ns = Self.ticksToNs(machTicks)
+        eventCallbackSamples &+= 1
+        if ns > eventCallbackMaxNs { eventCallbackMaxNs = ns }
+        let n = UInt64(eventCallbackSamples)
+        // Streaming average: avg += (sample - avg) / n
+        eventCallbackAvgNs = eventCallbackAvgNs &+ (ns &- eventCallbackAvgNs) / n
+        if latencyRing.count < latencyRingCapacity {
+            latencyRing.append(ns)
+        } else {
+            latencyRing[latencyRingHead] = ns
+            latencyRingHead = (latencyRingHead &+ 1) % latencyRingCapacity
+        }
+    }
+
+    func recordWipe()              { wipeBucket &+= 1 }
+    func recordMainHop()           { mainHopBucket &+= 1 }
+    func recordNSEventAlloc()      { nsEventAllocations &+= 1 }
+    func recordJSONEncode()        { jsonEncodeCount &+= 1 }
+    func recordJSONDecode()        { jsonDecodeCount &+= 1 }
+    func recordUserDefaultsWrite() { userDefaultsWrites &+= 1 }
+
+    // MARK: - Mach timing helpers
+
+    /// Snapshot the high-resolution monotonic clock; subtract two snapshots to
+    /// get a tick delta, then pass to `recordCallback(machTicks:)`.
+    static func now() -> UInt64 { mach_absolute_time() }
+
+    private static func ticksToNs(_ ticks: UInt64) -> UInt64 {
+        let tb = machTimebase
+        return ticks &* UInt64(tb.numer) / UInt64(tb.denom)
+    }
+
+    // MARK: - 1 Hz tick: snapshot rates + memory + p99
+
+    private func startRateTimer() {
+        let timer = Timer(timeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in PerfMetrics.shared.tickRates() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        rateTimer = timer
+    }
+
+    private func stopRateTimer() {
+        rateTimer?.invalidate()
+        rateTimer = nil
+    }
+
+    private func tickRates() {
+        eventTapEventsPerSec = eventBucket
+        wipeCallsPerSec = wipeBucket
+        mainHopsPerSec = mainHopBucket
+        eventBucket = 0
+        wipeBucket = 0
+        mainHopBucket = 0
+        memoryNowMB = Self.currentResidentMB()
+        if !latencyRing.isEmpty {
+            // 99th percentile from the rolling window. Sorting 1024 UInt64s is
+            // ~10 µs — fine at 1 Hz.
+            let sorted = latencyRing.sorted()
+            let idx = max(0, min(sorted.count - 1, Int(Double(sorted.count) * 0.99)))
+            eventCallbackP99Ns = sorted[idx]
+        }
+    }
+
+    // MARK: - Memory
+
+    private static func currentResidentMB() -> Double {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<integer_t>.size)
+        let kerr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        guard kerr == KERN_SUCCESS else { return 0 }
+        return Double(info.resident_size) / 1024 / 1024
+    }
+
+    // MARK: - Snapshot lines (consumed by DebugLog.snapshot)
+
+    func snapshotLines() -> [String] {
+        let avgUs = Double(eventCallbackAvgNs) / 1000
+        let maxUs = Double(eventCallbackMaxNs) / 1000
+        let p99Us = Double(eventCallbackP99Ns) / 1000
+        return [
+            "------ Performance ------",
+            "callback latency:  avg=\(fmt(avgUs))µs  max=\(fmt(maxUs))µs  p99=\(fmt(p99Us))µs  · \(eventCallbackSamples) samples",
+            "rates (last 1s):   events=\(eventTapEventsPerSec)/s  wipes=\(wipeCallsPerSec)/s  mainHops=\(mainHopsPerSec)/s",
+            "allocations:       NSEvent=\(nsEventAllocations)  JSONenc=\(jsonEncodeCount)  JSONdec=\(jsonDecodeCount)  UDwrites=\(userDefaultsWrites)",
+            "memory:            start=\(fmt(memoryStartMB))MB  now=\(fmt(memoryNowMB))MB  Δ=\(fmtSigned(memoryDeltaMB))MB",
+        ]
+    }
+
+    private func fmt(_ d: Double) -> String { String(format: "%.1f", d) }
+    private func fmtSigned(_ d: Double) -> String { String(format: "%+.1f", d) }
+}

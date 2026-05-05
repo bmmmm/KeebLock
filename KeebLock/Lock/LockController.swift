@@ -30,6 +30,14 @@ final class LockController: ObservableObject {
 
     @Published private(set) var codewordMatchProgress: Int = 0
 
+    /// Monotonically increasing counter; HUDView modulos by `currentEntry.facts.count`
+    /// to pick which fact to show. Lives here (not per-HUDView) so multi-monitor
+    /// users see the same fact on every screen instead of each window
+    /// independently rolling its own.
+    @Published private(set) var factRotationTick: Int = 0
+    private var lastFactRotationKeystroke: Int = 0
+    private static let factRotationStride = 30
+
     var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz" }
 
     var eventTapInstalled: Bool { eventTap != nil }
@@ -83,13 +91,21 @@ final class LockController: ObservableObject {
     private let windowManager = LockWindowManager()
     private let soundPlayer = SoundPlayer()
 
-    private static let keyCountsDefaultsKey = "heatmapKeyCounts"
+    /// Legacy UserDefaults key that used to hold persisted heatmap data. We no
+    /// longer write here — per-keycode counts are a biometric signature
+    /// (typing rhythm, modifier usage, language) and shouldn't outlive the
+    /// app's process. Keys retained as a constant only so the migration
+    /// remove-on-launch can reference it.
+    private static let legacyKeyCountsDefaultsKey = "heatmapKeyCounts"
 
     private var lockStartedAt: Date?
     private var bag = Set<AnyCancellable>()
 
     private init() {
-        loadKeyCounts()
+        // One-time PII migration: scrub previously-persisted heatmap data on
+        // app launch so existing installs lose the pattern leak too.
+        UserDefaults.standard.removeObject(forKey: Self.legacyKeyCountsDefaultsKey)
+
         // Pipe sound settings live to the player so volume/file changes apply
         // without restarting the lock.
         let s = AppSettings.shared
@@ -101,6 +117,18 @@ final class LockController: ObservableObject {
         s.$soundFileBookmark
             .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
             .store(in: &bag)
+    }
+
+    deinit {
+        // Singleton; should never run. If it does, the event-tap callback
+        // would dereference a dead pointer next time it fires — tear the tap
+        // down explicitly so a freed instance can't be invoked.
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
     }
 
     // MARK: - Public
@@ -128,16 +156,25 @@ final class LockController: ObservableObject {
         spaceSwitchCount = 0
         lastScrollAt = nil
         codewordMatchProgress = 0
+        // Random starting tick so the same codeword doesn't always reveal
+        // the same opening fact across sessions.
+        factRotationTick = Int.random(in: 0..<10_000)
+        lastFactRotationKeystroke = 0
         totalSeconds = max(60, durationMinutes * 60)
         remainingSeconds = totalSeconds
         lastKeystrokeAt = Date()
         isPaused = false
-        lockStartedAt = Date()
 
+        // Bring up the tap FIRST. Only when it sticks do we mark the session
+        // as live (lockStartedAt + PerfMetrics window) — otherwise a failed
+        // attempt would leave a stale start-time and a never-stopped rate
+        // timer behind, polluting the next successful session.
         guard installEventTap() else {
             DebugLog.log("startLock: installEventTap returned false — accessibility permission missing?")
             return
         }
+        lockStartedAt = Date()
+        PerfMetrics.shared.sessionStart()
         installSpaceObserver()
         DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
         windowManager.show(
@@ -161,8 +198,8 @@ final class LockController: ObservableObject {
         removeEventTap()
         removeSpaceObserver()
         soundPlayer.stop()
-        saveKeyCounts()
         recordSession()
+        PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
         // pools un-drained and causes EXC_BAD_ACCESS when SwiftUI starts updating.
@@ -178,7 +215,6 @@ final class LockController: ObservableObject {
             startedAt: started,
             durationSeconds: max(0, Int(Date().timeIntervalSince(started))),
             keystrokeCount: keystrokeCount,
-            codeword: currentCodeword,
             stageCount: windowManager.maxStage
         )
         CleaningHistory.shared.record(session)
@@ -187,7 +223,6 @@ final class LockController: ObservableObject {
 
     func resetKeyCounts() {
         keyCounts = [:]
-        UserDefaults.standard.removeObject(forKey: Self.keyCountsDefaultsKey)
     }
 
     // MARK: - Timer (pause-aware)
@@ -222,24 +257,6 @@ final class LockController: ObservableObject {
         }
     }
 
-    // MARK: - Persistence
-
-    private func loadKeyCounts() {
-        guard let data = UserDefaults.standard.data(forKey: Self.keyCountsDefaultsKey),
-              let dict = try? JSONDecoder().decode([String: Int].self, from: data) else { return }
-        keyCounts = Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
-            guard let code = UInt16(key) else { return nil }
-            return (code, val)
-        })
-    }
-
-    private func saveKeyCounts() {
-        let stringDict = Dictionary(uniqueKeysWithValues: keyCounts.map { (String($0.key), $0.value) })
-        if let data = try? JSONEncoder().encode(stringDict) {
-            UserDefaults.standard.set(data, forKey: Self.keyCountsDefaultsKey)
-        }
-    }
-
     // MARK: - Event tap
 
     private func installEventTap() -> Bool {
@@ -258,6 +275,10 @@ final class LockController: ObservableObject {
                               // user on the current Space without needing to swallow the
                               // gesture, and activeSpaceDidChangeNotification catches any
                               // edge case where a switch does slip through.
+        // passUnretained is safe here because LockController is a process-wide
+        // singleton (`shared`) — the userInfo pointer is valid for the entire
+        // app lifetime. If the singleton invariant ever changes, switch to
+        // passRetained + matching takeRetainedValue or risk UAF in the callback.
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
@@ -268,8 +289,11 @@ final class LockController: ObservableObject {
             callback: { _, type, event, refcon in
                 guard let refcon else { return Unmanaged.passUnretained(event) }
                 return MainActor.assumeIsolated {
+                    let t0 = PerfMetrics.now()
                     let controller = Unmanaged<LockController>.fromOpaque(refcon).takeUnretainedValue()
-                    return controller.handleEvent(type: type, event: event)
+                    let result = controller.handleEvent(type: type, event: event)
+                    PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0)
+                    return result
                 }
             },
             userInfo: userInfo
@@ -377,6 +401,7 @@ final class LockController: ObservableObject {
             // NX_SYSDEFINED: subtype 8 = aux control buttons (brightness, volume,
             // mission control, spotlight, media keys on Fn-layer). Other subtypes
             // (power button, mouse aux buttons) pass through untouched.
+            PerfMetrics.shared.recordNSEventAlloc()
             if let nsEvent = NSEvent(cgEvent: event), nsEvent.subtype.rawValue == 8 {
                 // data1 layout: high 16 = keycode, low 16 = flags.
                 // Within flags: bits 8..15 = key state (0x0A = down, 0x0B = up),
@@ -425,6 +450,10 @@ final class LockController: ObservableObject {
     private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
         lastKeystrokeAt = Date()
+        if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
+            lastFactRotationKeystroke = keystrokeCount
+            factRotationTick &+= 1
+        }
 
         // Classify into one bucket. Order matters: F-keys are checked first because
         // they have keycodes but produce no printable chars on most layouts.
@@ -441,6 +470,7 @@ final class LockController: ObservableObject {
         }
 
         keyCounts[keycode, default: 0] += 1
+        PerfMetrics.shared.recordWipe()
         windowManager.wipeOnAllScreens()
         triggerInputFeedback()
 

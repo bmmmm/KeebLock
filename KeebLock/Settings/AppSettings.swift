@@ -220,6 +220,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(debugLoggingEnabled, forKey: Keys.debug) }
     }
 
+    /// Gates per-event latency sampling in PerfMetrics. Aggregate counters
+    /// keep running regardless; this only enables the ring-buffer + p99 work.
+    @Published var verbosePerfEnabled: Bool {
+        didSet { defaults.set(verbosePerfEnabled, forKey: Keys.verbosePerf) }
+    }
+
     // MARK: - Storage
 
     private let defaults = UserDefaults.standard
@@ -241,6 +247,7 @@ final class AppSettings: ObservableObject {
         static let pixelColor         = "pixelColorPreset"
         static let knowledge          = "showCodewordKnowledge"
         static let debug              = "debugLoggingEnabled"
+        static let verbosePerf        = "verbosePerfEnabled"
     }
 
     private init() {
@@ -275,7 +282,8 @@ final class AppSettings: ObservableObject {
         let pxRaw = d.string(forKey: Keys.pixelColor) ?? ColorPreset.transparent.rawValue
         self.pixelColor = ColorPreset(rawValue: pxRaw) ?? .transparent
 
-        self.showCodewordKnowledge = d.object(forKey: Keys.knowledge) as? Bool ?? true
-        self.debugLoggingEnabled   = d.object(forKey: Keys.debug)     as? Bool ?? false
+        self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
+        self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false
+        self.verbosePerfEnabled    = d.object(forKey: Keys.verbosePerf)  as? Bool ?? false
     }
 }

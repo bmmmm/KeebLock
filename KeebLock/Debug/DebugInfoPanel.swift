@@ -7,10 +7,9 @@ import SwiftUI
 struct DebugInfoPanel: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var controller: LockController
+    @ObservedObject private var perf: PerfMetrics = .shared
 
     @State private var screens: [NSScreen] = NSScreen.screens
-    @State private var tick: Int = 0
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -18,13 +17,12 @@ struct DebugInfoPanel: View {
                 Image(systemName: "ladybug.fill")
                 Text("Live debug").font(.caption.weight(.semibold))
                 Spacer()
-                Text("refresh \(tick)").font(.caption2).foregroundStyle(.secondary)
             }
             .foregroundStyle(.orange)
 
             // App + system
             row("App",          appVersion())
-            row("macOS",        ProcessInfo.processInfo.operatingSystemVersionString + " · " + machineArch())
+            row("macOS",        ProcessInfo.processInfo.operatingSystemVersionString + " · " + DebugLog.machineArch())
             row("Frontmost",    NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")
 
             Divider().padding(.vertical, 2)
@@ -61,6 +59,14 @@ struct DebugInfoPanel: View {
             row("Mouse",        "L=\(controller.leftClickCount) R=\(controller.rightClickCount) M=\(controller.middleClickCount) back=\(controller.backClickCount) fwd=\(controller.forwardClickCount)")
             row("Scroll/Gest",  "scroll=\(controller.scrollCount) · spaces=\(controller.spaceSwitchCount)")
             row("Heatmap",      "\(controller.keyCounts.count) keys / \(controller.keyCounts.values.reduce(0, +)) presses")
+
+            Divider().padding(.vertical, 2)
+
+            // Performance
+            row("Cb latency",   latencyLine)
+            row("Rates /s",     "events=\(perf.eventTapEventsPerSec) wipes=\(perf.wipeCallsPerSec) mainHops=\(perf.mainHopsPerSec)")
+            row("Allocations",  "NSEvent=\(perf.nsEventAllocations) JSONenc=\(perf.jsonEncodeCount) JSONdec=\(perf.jsonDecodeCount) UDw=\(perf.userDefaultsWrites)")
+            row("Memory",       memoryLine)
         }
         .font(.system(.caption, design: .monospaced))
         .padding(12)
@@ -69,9 +75,11 @@ struct DebugInfoPanel: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(.orange.opacity(0.3), lineWidth: 1)
         )
-        .onReceive(timer) { _ in
+        // NSScreen list mutates via this notification (display added/removed,
+        // resolution change, mirror toggle). PerfMetrics @Published republish
+        // already drives the per-second figures; no separate timer needed.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
             screens = NSScreen.screens
-            tick &+= 1
         }
     }
 
@@ -86,17 +94,25 @@ struct DebugInfoPanel: View {
         }
     }
 
+    private var latencyLine: String {
+        if perf.eventCallbackSamples == 0 {
+            return settings.verbosePerfEnabled ? "—  (waiting for events)" : "off  (toggle 'verbose perf')"
+        }
+        let avg = Double(perf.eventCallbackAvgNs) / 1000
+        let max = Double(perf.eventCallbackMaxNs) / 1000
+        let p99 = Double(perf.eventCallbackP99Ns) / 1000
+        return String(format: "avg %.1fµs · max %.1fµs · p99 %.1fµs · n=%d",
+                      avg, max, p99, perf.eventCallbackSamples)
+    }
+
+    private var memoryLine: String {
+        String(format: "%.1fMB now · Δ %+.1fMB since lock-start",
+               perf.memoryNowMB, perf.memoryDeltaMB)
+    }
+
     private func appVersion() -> String {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         return "\(v) (\(b))"
-    }
-
-    private func machineArch() -> String {
-        var sys = utsname()
-        uname(&sys)
-        return withUnsafePointer(to: &sys.machine) {
-            $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(validatingUTF8: $0) ?? "?" }
-        }
     }
 }
