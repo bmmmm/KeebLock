@@ -87,9 +87,53 @@ echo "    file:  $ZIP"
 echo "    size:  ${SIZE_KB} KB"
 echo "    sha:   $SHA"
 
+# --- Code-signature identity -------------------------------------------------
+# The (Team ID, CDHash) pair pinned to this build is the actual fake-proof
+# anchor — `shasum` of the zip catches transit corruption, but only the OS-
+# verified codesign identity proves the binary was produced with bmmmm's
+# Apple cert. Both values get embedded in the release notes so users can
+# compare them with what `codesign -dv` reports against their installed copy.
+CS_OUT="$(codesign -dv --verbose=4 "$APP" 2>&1)"
+TEAM_ID="$(printf '%s\n' "$CS_OUT" | awk -F= '/^TeamIdentifier=/ {print $2}')"
+CD_HASH="$(printf '%s\n' "$CS_OUT" | awk -F= '/^CDHash=/ {print $2}')"
+if [ -z "$TEAM_ID" ] || [ -z "$CD_HASH" ]; then
+    echo "error: codesign did not yield TeamIdentifier and/or CDHash for $APP" >&2
+    echo "       output was:" >&2
+    printf '%s\n' "$CS_OUT" | sed 's/^/         /' >&2
+    exit 1
+fi
+echo "    team:  $TEAM_ID"
+echo "    cdh:   $CD_HASH"
+
+AUTHENTICITY_BLOCK="$(cat <<EOF
+### Authenticity
+
+This release is signed with bmmmm's Apple Personal Team. To confirm your copy
+is genuine (not a re-host), run:
+
+\`\`\`
+codesign -dv --verbose=4 /Applications/KeebLock.app 2>&1 | grep -E '^(TeamIdentifier|CDHash)='
+\`\`\`
+
+Expected output for **$TAG**:
+
+\`\`\`
+TeamIdentifier=$TEAM_ID
+CDHash=$CD_HASH
+\`\`\`
+
+\`TeamIdentifier\` is constant across every official KeebLock release —
+forging it requires bmmmm's Apple signing cert. \`CDHash\` is unique to this
+build. Both values are also surfaced in the launcher footer of the app itself
+for an in-GUI side-by-side check.
+EOF
+)"
+
 # --- Release notes -----------------------------------------------------------
 if [ -n "$CUSTOM_NOTES" ]; then
-    NOTES="$CUSTOM_NOTES"
+    NOTES="$CUSTOM_NOTES
+
+$AUTHENTICITY_BLOCK"
 else
     NOTES="$(cat <<EOF
 **KeebLock $VERSION** — locks the keyboard while you clean it.
@@ -109,12 +153,14 @@ else
 4. Grant Accessibility permission when KeebLock asks (System Settings →
    Privacy & Security → Accessibility).
 
-### Verify
+### Verify download
 
 \`\`\`
 shasum -a 256 $ZIP
 # $SHA  $ZIP
 \`\`\`
+
+$AUTHENTICITY_BLOCK
 
 ### Source
 
