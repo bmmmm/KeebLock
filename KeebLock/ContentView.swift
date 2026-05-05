@@ -11,7 +11,7 @@ struct ContentView: View {
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     @State private var selectedTab: Int = 0
-    private let permissionPoller = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var permissionPollTask: Task<Void, Never>?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -24,12 +24,29 @@ struct ContentView: View {
                 .tag(1)
         }
         .padding(8)
-        .onReceive(permissionPoller) { _ in
-            let granted = AccessibilityPermission.isGranted
-            if granted != accessibilityGranted { accessibilityGranted = granted }
-        }
+        .onAppear { startPermissionPolling() }
+        .onDisappear { permissionPollTask?.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: .keebLockOpenSettings)) { _ in
             selectedTab = 1
+        }
+    }
+
+    /// Polls the Accessibility permission once per second only while it is
+    /// still missing. Cancels itself the moment macOS reports granted, so the
+    /// happy-path runs zero background work for the remainder of the session.
+    /// Re-revoking from System Settings would also re-show the launcher in
+    /// the not-granted state — but that requires a relaunch by design.
+    private func startPermissionPolling() {
+        guard !accessibilityGranted else { return }
+        permissionPollTask?.cancel()
+        permissionPollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                if AccessibilityPermission.isGranted {
+                    accessibilityGranted = true
+                    return
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
         }
     }
 
@@ -148,5 +165,17 @@ struct ContentView: View {
     private func start() {
         guard accessibilityGranted else { return }
         controller.startLock(codeword: settings.codeword, durationMinutes: settings.durationMinutes)
+        // The permission may have been revoked in System Settings since our
+        // poller decided "granted" and stopped — installEventTap would have
+        // failed silently inside startLock. Re-check synchronously so the
+        // banner reappears and polling resumes instead of pretending we're
+        // ready when we aren't.
+        if !controller.isLocked {
+            let nowGranted = AccessibilityPermission.isGranted
+            if accessibilityGranted != nowGranted {
+                accessibilityGranted = nowGranted
+            }
+            if !nowGranted { startPermissionPolling() }
+        }
     }
 }
