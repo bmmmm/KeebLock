@@ -54,8 +54,8 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "error: tag $TAG already exists locally — pick a different version" >&2
     exit 1
 fi
-if ! command -v fj >/dev/null 2>&1; then
-    echo "error: fj (forgejo-cli) not found — install it first" >&2
+if ! command -v tea >/dev/null 2>&1; then
+    echo "error: tea (forgejo/gitea cli) not found — install it first" >&2
     exit 1
 fi
 
@@ -125,11 +125,19 @@ EOF
 fi
 
 # --- Publish via Forgejo CLI -------------------------------------------------
+# Use `tea` rather than `fj` because (a) tea's auth picks up the API URL
+# correctly while fj derives it from the SSH remote and lands on port 2222
+# for HTTPS, and (b) tea must run from outside the repo when the repo's
+# .git/config has the worktree extension enabled (Claude agent worktrees
+# trigger "core.repositoryformatversion does not support extension:
+# worktreeconfig"). We invoke tea from $HOME with --repo.
+ZIP_ABS="$(pwd)/$ZIP"
 echo "==> Publishing release on Forgejo"
-fj release create "KeebLock $VERSION" \
-    --tag "$TAG" \
-    --body "$NOTES" \
-    --attach "$ZIP"
+( cd "$HOME" && tea releases create "$TAG" \
+      --repo your-org/KeebLock \
+      --title "KeebLock $VERSION" \
+      --note "$NOTES" )
+( cd "$HOME" && tea releases assets create "$TAG" "$ZIP_ABS" --repo your-org/KeebLock )
 
 echo
 echo "==> Done."
