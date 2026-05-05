@@ -91,8 +91,10 @@ struct SparkOverlayView: View {
         .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
         .onChange(of: triggerCount) { _, _ in
             guard AppSettings.shared.effectEnabled else { return }
+            // Defer to next runloop so rapid bursts of triggers don't pile up
+            // multiple State mutations inside a single SwiftUI view update.
             let size = viewSize.width > 0 ? viewSize : CGSize(width: 1920, height: 1080)
-            spawn(in: size)
+            DispatchQueue.main.async { spawn(in: size) }
         }
     }
 

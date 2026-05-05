@@ -30,6 +30,7 @@ struct HUDView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
             statsRow
+            inputBreakdown
             colorIndicators
             knowledgeFooter
             unlockButton
@@ -54,9 +55,6 @@ struct HUDView: View {
                 label: "Stage \(rendererProxy.stage)",
                 value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"
             )
-            if controller.missClickCount > 0 {
-                stat(label: "Miss-clicks", value: "\(controller.missClickCount)")
-            }
             if settings.autoUnlockEnabled {
                 stat(
                     label: controller.isPaused ? "Paused" : "Auto-unlock in",
@@ -65,6 +63,86 @@ struct HUDView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    // MARK: - Input breakdown
+
+    private struct InputCategory: Identifiable {
+        let id = UUID()
+        let label: String
+        let count: Int
+    }
+
+    private var keyboardCategories: [InputCategory] {
+        [
+            .init(label: "Letters",  count: controller.letterCount),
+            .init(label: "Numbers",  count: controller.numberCount),
+            .init(label: "Function", count: controller.fnKeyCount),
+            .init(label: "System",   count: controller.mediaKeyCount),
+            .init(label: "Other",    count: controller.otherKeyCount),
+        ]
+    }
+
+    private var mouseCategories: [InputCategory] {
+        [
+            .init(label: "Left",    count: controller.leftClickCount),
+            .init(label: "Right",   count: controller.rightClickCount),
+            .init(label: "Middle",  count: controller.middleClickCount),
+            .init(label: "Back",    count: controller.backClickCount),
+            .init(label: "Forward", count: controller.forwardClickCount),
+            .init(label: "Scroll",  count: controller.scrollCount),
+        ]
+    }
+
+    @ViewBuilder
+    private var inputBreakdown: some View {
+        let kbTotal = keyboardCategories.reduce(0) { $0 + $1.count }
+        let msTotal = mouseCategories.reduce(0) { $0 + $1.count }
+        if kbTotal > 0 || msTotal > 0 {
+            HStack(alignment: .top, spacing: 18) {
+                if kbTotal > 0 {
+                    breakdownCard(title: "Keyboard", categories: keyboardCategories)
+                }
+                if msTotal > 0 {
+                    breakdownCard(title: "Mouse", categories: mouseCategories)
+                }
+            }
+            .frame(maxWidth: 720)
+        }
+    }
+
+    private func breakdownCard(title: String, categories: [InputCategory]) -> some View {
+        let visible = categories.filter { $0.count > 0 }
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(title.uppercased())
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .tracking(2.4)
+                .foregroundStyle(.white.opacity(0.7))
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading), count: 3),
+                alignment: .leading,
+                spacing: 14
+            ) {
+                ForEach(visible) { cat in
+                    breakdownTile(cat)
+                }
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+        .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func breakdownTile(_ cat: InputCategory) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(cat.count)")
+                .font(.system(size: 38, weight: .heavy, design: .monospaced))
+                .foregroundStyle(.white)
+            Text(cat.label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
+        }
     }
 
     private var colorIndicators: some View {
