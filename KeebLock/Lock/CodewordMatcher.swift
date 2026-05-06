@@ -15,9 +15,13 @@ struct CodewordMatcher {
     /// Append a character; returns true if the buffer's tail equals the target.
     mutating func feed(_ char: Character) -> Bool {
         guard !target.isEmpty else { return false }
-        let lower = Character(char.lowercased())
-        buffer.append(lower)
-        if buffer.count > target.count {
+        // Character.lowercased() returns a String — for some Unicode inputs
+        // (e.g. uppercase ẞ → "ss") that string spans multiple graphemes.
+        // Append the whole lowercased string and trim by character count
+        // afterwards; never construct Character(string) here, which traps
+        // when the string isn't exactly one extended grapheme cluster.
+        buffer.append(contentsOf: char.lowercased())
+        while buffer.count > target.count {
             buffer.removeFirst()
         }
         return buffer == target

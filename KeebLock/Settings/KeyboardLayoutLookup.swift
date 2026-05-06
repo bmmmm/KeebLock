@@ -44,9 +44,4 @@ enum KeyboardLayoutLookup {
         }
     }
 
-    /// Convenience: fetch the current input source and translate one keycode.
-    static func currentLabel(for keycode: UInt16) -> String? {
-        guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return nil }
-        return translate(keycode: keycode, source: src)
-    }
 }
