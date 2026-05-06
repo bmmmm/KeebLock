@@ -2,7 +2,7 @@
 # Cut a KeebLock release: tag, build Release, package .zip, publish on Forgejo.
 #
 # Forgejo's push-mirror takes care of pushing the tag + asset to GitHub.
-# Requires `fj` (forgejo-cli) configured for the current repo's remote.
+# Requires `tea` (Gitea/Forgejo CLI) configured for the current repo's remote.
 #
 # Usage:
 #   scripts/release.sh 0.1.0
