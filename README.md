@@ -23,12 +23,20 @@ codeword on a clean key (or when the timer runs out).
 - **Random codeword to unlock** — re-rollable; visible on screen so you can
   pick a sequence you can hit even with a cloth between your fingers.
 - **Time-boxed lock** — pick a duration; lock auto-releases when it expires.
-- **Fullscreen HUD on every monitor** — multi-display setups stay covered.
+- **Fullscreen HUD on every monitor** — multi-display setups stay covered,
+  including displays parked on a fullscreen app's Space.
 - **Heatmap** — see which keys you hit during the lock; per-session +
   cumulative. Useful for spotting which key is sticking.
 - **Keyboard layout aware** — DE and US verified, falls back to US for
   non-Latin layouts.
+- **Five accent themes + zoom** — tint the whole UI to match your desktop
+  mood, scale 0.8×–1.6× for accessibility (⌘+ / ⌘− / ⌘0).
+- **Five screen effects** — sparks, rain, matrix, bubbles, snow.
 - **Optional sound** — keystroke pops + unlock chime.
+- **Build authenticity** — the launcher embeds Team ID + CDHash so you can
+  verify the binary against the published release notes.
+- **Self-rotating diagnostic log** — bounded by a configurable size cap
+  (default 5 MB), so verbose tracing never balloons disk usage.
 - **No telemetry, no PII, no network** — everything stays on your Mac.
 
 ## Requirements
@@ -53,7 +61,17 @@ This puts `KeebLock.app` into `/Applications`.
 
 ### Pre-built binary
 
-Coming soon as a GitHub Release. Until then, build from source.
+Grab the latest `.zip` from the
+[Releases page](https://github.com/bmmmm/KeebLock/releases/latest), unpack
+it into `/Applications`, and clear the macOS quarantine flag (the binary is
+signed with a Personal Team but not notarised):
+
+```sh
+xattr -dr com.apple.quarantine /Applications/KeebLock.app
+```
+
+Each release lists Team ID + CDHash so you can verify your copy matches the
+intended build via `codesign -dv /Applications/KeebLock.app`.
 
 ## First run
 

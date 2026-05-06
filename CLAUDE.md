@@ -57,7 +57,7 @@ What it does:
 2. Tag `v0.1.0` and push to Forgejo.
 3. Run Release build with the version pinned.
 4. Package `KeebLock.app` into `KeebLock-0.1.0.zip` (preserves codesign).
-5. `fj release create` on Forgejo with the .zip as asset, default install
+5. `tea releases create` on Forgejo with the .zip as asset, default install
    notes (incl. `xattr` quarantine workaround for non-notarised binaries).
 6. Forgejo's push mirror syncs the tag + release to GitHub within minutes.
 
