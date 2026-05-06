@@ -127,6 +127,7 @@ final class LockNSWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
+@MainActor
 final class LockWindowManager {
     private var windows: [LockNSWindow] = []
     private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen

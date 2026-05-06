@@ -204,6 +204,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Codable {
     var color: Color { Color(accentColorName) }
 }
 
+@MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 

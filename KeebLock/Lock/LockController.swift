@@ -568,28 +568,36 @@ final class LockController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.isLocked else { return }
-            // Re-promote our windows on the (possibly newly created) space.
-            // canJoinAllSpaces should handle this automatically, but a manual
-            // orderFront covers edge cases like spaces created via Mission
-            // Control's "+" while we're already locked. This must run even
-            // during warmup — it's the recovery path, not user-attributed.
-            self.windowManager.refreshSpaceCoverage()
-            // The notification can fire from AppKit's own window-promotion
-            // path during lock startup; ignore those so the user doesn't see
-            // a phantom swipe on a clean start.
-            guard !self.isInWarmup else { return }
-            // Space changes are how 4-finger swipes manifest on macOS 26+
-            // (the OS dispatches the gesture above our event tap). Map
-            // them onto swipeCount with a debounce so a `.swipe` (31) and
-            // its follow-up activeSpaceDidChange don't double-count.
-            let now = Date()
-            if self.lastSwipeAt == nil || now.timeIntervalSince(self.lastSwipeAt!) > 0.4 {
-                self.swipeCount += 1
-                PerfMetrics.shared.recordEvent("swipe (space)")
-                self.triggerInputFeedback()
+            // queue: .main guarantees the closure runs on the main thread,
+            // but the Notification API surface is nonisolated so the
+            // compiler can't see that. assumeIsolated lets us call into
+            // @MainActor APIs (windowManager / PerfMetrics / mutations on
+            // self) without an async hop that would defer the recovery
+            // beyond the next frame.
+            MainActor.assumeIsolated {
+                guard let self, self.isLocked else { return }
+                // Re-promote our windows on the (possibly newly created) space.
+                // canJoinAllSpaces should handle this automatically, but a manual
+                // orderFront covers edge cases like spaces created via Mission
+                // Control's "+" while we're already locked. This must run even
+                // during warmup — it's the recovery path, not user-attributed.
+                self.windowManager.refreshSpaceCoverage()
+                // The notification can fire from AppKit's own window-promotion
+                // path during lock startup; ignore those so the user doesn't see
+                // a phantom swipe on a clean start.
+                guard !self.isInWarmup else { return }
+                // Space changes are how 4-finger swipes manifest on macOS 26+
+                // (the OS dispatches the gesture above our event tap). Map
+                // them onto swipeCount with a debounce so a `.swipe` (31) and
+                // its follow-up activeSpaceDidChange don't double-count.
+                let now = Date()
+                if self.lastSwipeAt == nil || now.timeIntervalSince(self.lastSwipeAt!) > 0.4 {
+                    self.swipeCount += 1
+                    PerfMetrics.shared.recordEvent("swipe (space)")
+                    self.triggerInputFeedback()
+                }
+                self.lastSwipeAt = now
             }
-            self.lastSwipeAt = now
         }
     }
 

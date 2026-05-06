@@ -11,6 +11,7 @@ import Foundation
 // Toggle: AppSettings.shared.verbosePerfEnabled gates the per-event work
 // (callback latency sampling + ring buffer). Aggregate counters always run
 // because each is a single Int += that costs less than reading the toggle.
+@MainActor
 final class PerfMetrics: ObservableObject {
     static let shared = PerfMetrics()
 
