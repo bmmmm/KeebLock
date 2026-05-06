@@ -9,6 +9,10 @@ struct CodewordKnowledge {
     let title: String           // canonical Wikipedia title (e.g. "Mount Vesuvius")
     let summary: String         // first-paragraph extract
     let facts: [String]         // ~10 substantive paragraphs
+    /// Short hand-curated "Did you know?" snippets — five per entry,
+    /// designed for rotating display on the lock HUD. Falls back to
+    /// `facts` when empty (older bundle versions or stub fallbacks).
+    let didYouKnow: [String]
     let theme: String           // "volcanoes" / "rocks" / "minerals" / "phenomena" / "ranges"
     let imageFilename: String?  // resource filename in CodewordImages/, nil if unavailable
     let wikipediaURL: URL
@@ -73,6 +77,7 @@ enum CodewordKnowledgeBase {
             title: key.capitalized,
             summary: "No Wikipedia data bundled for this word.",
             facts: [],
+            didYouKnow: [],
             theme: "unknown",
             imageFilename: nil,
             wikipediaURL: fallbackURL
@@ -89,6 +94,10 @@ enum CodewordKnowledgeBase {
             let title: String
             let summary: String
             let facts: [String]
+            // Optional in the schema so older bundles (without the DYK
+            // pipeline output) decode without errors. Newer bundles ship
+            // five short snippets per entry under "did_you_know".
+            let did_you_know: [String]?
             let theme: String
             let wikipedia_url: String
             let image_filename: String?
@@ -119,6 +128,7 @@ enum CodewordKnowledgeBase {
                 title: entry.title,
                 summary: entry.summary,
                 facts: entry.facts,
+                didYouKnow: entry.did_you_know ?? [],
                 theme: entry.theme,
                 imageFilename: entry.image_filename,
                 wikipediaURL: url
