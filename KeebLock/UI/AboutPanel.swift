@@ -105,11 +105,11 @@ enum AboutPanel {
         newline()
         newline()
 
-        // Project links
+        // Project links — only the public GitHub mirror in shipped builds.
+        // The Forgejo origin lives on a LAN-only host (git.home), which
+        // resolves for the maintainer but DNS-fails for everyone else.
         text("Project: ", color: secondary)
-        link("Forgejo", url: "https://git.home/your-org/KeebLock")
-        text("  ·  ", color: secondary)
-        link("GitHub", url: "https://github.com/bmmmm/KeebLock")
+        link("github.com/bmmmm/KeebLock", url: "https://github.com/bmmmm/KeebLock")
         newline()
 
         // Wikipedia data source

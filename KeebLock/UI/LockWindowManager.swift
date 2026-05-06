@@ -183,8 +183,9 @@ final class LockWindowManager {
                 screen: screen
             )
             // CRITICAL: with manual close() we must NOT also let AppKit auto-release
-            // the window — otherwise NSHostingView (still holding CADisplayLink callbacks
-            // from TimelineView and MTKView) gets freed too early → EXC_BAD_ACCESS.
+            // the window — otherwise NSHostingView (still holding the MTKView's
+            // CVDisplayLink callbacks plus TimelineView's animation hooks) gets
+            // freed too early → EXC_BAD_ACCESS.
             window.isReleasedWhenClosed = false
             // .screenSaver (1000) + .stationary + .canJoinAllSpaces is the
             // empirically-best combo: macOS swallows Mission Control and
@@ -263,8 +264,9 @@ final class LockWindowManager {
         for renderer in renderers { renderer?.stop() }
 
         // 2) Detach hosting views BEFORE close(). NSHostingView with TimelineView(.animation)
-        //    and MTKView both hold CADisplayLink callbacks; nilling contentView releases
-        //    them deterministically before close()'s teardown sequence runs.
+        //    holds animation hooks and MTKView holds a CVDisplayLink (CADisplayLink is
+        //    iOS-only — macOS MTKView ticks via CVDisplayLink). Nilling contentView drops
+        //    both deterministically before close()'s teardown sequence runs.
         for window in windows {
             if let layer = window.contentView?.layer {
                 layer.speed = 0

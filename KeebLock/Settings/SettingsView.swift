@@ -714,6 +714,11 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                Text("Snapshot includes screen layout, lock state, the name of your frontmost app, and recent keycodes (as numbers, not characters). Review before sharing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 HStack(spacing: 10) {
                     Button("Save snapshot") {
                         let snap = DebugLog.snapshot()
