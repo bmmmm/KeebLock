@@ -735,6 +735,21 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                HStack {
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(.secondary)
+                    Text("Max log file size")
+                    Spacer()
+                    Stepper(value: $settings.logFileMaxSizeMB, in: 1...100) {
+                        Text("\(settings.logFileMaxSizeMB) MB")
+                            .font(.system(.body, design: .monospaced))
+                    }
+                }
+                Text("When the log exceeds this, it rotates: current file becomes keeblock.log.old (replacing any previous backup) and a fresh keeblock.log starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 DebugInfoPanel(settings: settings, controller: controller)
                     .padding(.top, 8)
                     .id(Self.debugBottomID)

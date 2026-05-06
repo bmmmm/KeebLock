@@ -48,9 +48,22 @@ enum DebugLog {
         appendLine(block)
     }
 
+    /// Rolling counter — every Nth append checks the file size and
+    /// rotates if it's over the cap. Keeping the check off the hot path
+    /// (per-keystroke logging is allowed) matters more than catching
+    /// the overshoot to the byte.
+    private static var appendCount: Int = 0
+    private static let rotationCheckInterval = 64
+
     private static func appendLine(_ line: String) {
         let payload = line + "\n"
         guard let data = payload.data(using: .utf8) else { return }
+
+        appendCount &+= 1
+        if appendCount % rotationCheckInterval == 0 {
+            rotateIfNeeded()
+        }
+
         do {
             if FileManager.default.fileExists(atPath: logURL.path) {
                 let handle = try FileHandle(forWritingTo: logURL)
@@ -63,6 +76,32 @@ enum DebugLog {
         } catch {
             // Debug logging must never crash the app. Failures still show in
             // NSLog (the line above), so we lose nothing by swallowing here.
+        }
+    }
+
+    /// Rotate the log if it has grown past the user-configured cap.
+    /// Renames the current file to `keeblock.log.old` (replacing any
+    /// previous backup), so one full window of history is always
+    /// retained. Returns silently on any I/O failure — same fail-quiet
+    /// principle as `appendLine`.
+    private static func rotateIfNeeded() {
+        let maxBytes = AppSettings.shared.logFileMaxSizeMB * 1024 * 1024
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
+              let size = (attrs[.size] as? NSNumber)?.intValue,
+              size > maxBytes else { return }
+        let backup = logsDirectory.appendingPathComponent("keeblock.log.old")
+        try? FileManager.default.removeItem(at: backup)
+        do {
+            try FileManager.default.moveItem(at: logURL, to: backup)
+            // Marker line in the fresh file — handy when reading two
+            // halves of a long-running session.
+            let marker = "[\(isoFormatter.string(from: Date()))] DebugLog rotated — previous \(size / 1024 / 1024) MB archived to keeblock.log.old\n"
+            try? marker.data(using: .utf8)?.write(to: logURL)
+            NSLog("[KeebLock] DebugLog: rotated %dMB → keeblock.log.old", size / 1024 / 1024)
+        } catch {
+            // Couldn't rotate — keep writing to the existing file, the
+            // cap will just be exceeded for now. Better than losing
+            // log data on a transient FS error.
         }
     }
 
