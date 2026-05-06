@@ -50,56 +50,67 @@ struct WaterFillButton: View {
     private let borderColor = Color(red: 0.25, green: 0.62, blue: 1.0)
 
     var body: some View {
-        TimelineView(.animation) { tl in
-            let phase = tl.date.timeIntervalSinceReferenceDate * 2.6
-
-            Button {
-                guard !filling, !disabled else { return }
-                filling = true
-                withAnimation(.easeInOut(duration: 0.65)) {
-                    fillFraction = 1.0
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
-                    action()
-                    withAnimation(.none) { fillFraction = 0 }
-                    filling = false
-                }
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(borderColor.opacity(0.10))
-
-                    WaterShape(fillFraction: fillFraction, phase: phase)
-                        .fill(
-                            LinearGradient(
-                                colors: [waterBottom, waterTop],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                    Label("Start cleaning", systemImage: "hands.sparkles.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(fillFraction > 0.45 ? .white : borderColor)
-                        .animation(.easeInOut(duration: 0.15), value: fillFraction > 0.45)
-                }
-                .frame(minWidth: 240, minHeight: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(
-                            borderColor.opacity(disabled ? 0.2 : 0.65),
-                            lineWidth: 1.5
-                        )
-                )
-                .shadow(
-                    color: borderColor.opacity(fillFraction * 0.45),
-                    radius: 14, y: 5
-                )
+        // Only mount TimelineView while the wave is actually animating —
+        // when the button is idle (fillFraction == 0, not currently filling)
+        // the wave path is empty anyway, so a fixed phase produces the same
+        // visual at zero per-frame cost. The launcher button used to tick
+        // 60–120×/sec just to animate a meniscus that never rendered.
+        if filling || fillFraction > 0 {
+            TimelineView(.animation) { tl in
+                buttonContent(phase: tl.date.timeIntervalSinceReferenceDate * 2.6)
             }
-            .buttonStyle(.plain)
-            .opacity(disabled ? 0.45 : 1.0)
+        } else {
+            buttonContent(phase: 0)
         }
+    }
+
+    private func buttonContent(phase: Double) -> some View {
+        Button {
+            guard !filling, !disabled else { return }
+            filling = true
+            withAnimation(.easeInOut(duration: 0.65)) {
+                fillFraction = 1.0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                action()
+                withAnimation(.none) { fillFraction = 0 }
+                filling = false
+            }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(borderColor.opacity(0.10))
+
+                WaterShape(fillFraction: fillFraction, phase: phase)
+                    .fill(
+                        LinearGradient(
+                            colors: [waterBottom, waterTop],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                Label("Start cleaning", systemImage: "hands.sparkles.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(fillFraction > 0.45 ? .white : borderColor)
+                    .animation(.easeInOut(duration: 0.15), value: fillFraction > 0.45)
+            }
+            .frame(minWidth: 240, minHeight: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(
+                        borderColor.opacity(disabled ? 0.2 : 0.65),
+                        lineWidth: 1.5
+                    )
+            )
+            .shadow(
+                color: borderColor.opacity(fillFraction * 0.45),
+                radius: 14, y: 5
+            )
+        }
+        .buttonStyle(.plain)
+        .opacity(disabled ? 0.45 : 1.0)
     }
 }

@@ -74,16 +74,38 @@ struct SparkOverlayView: View {
     ]
     private static let matrixAlphabet = Array("アイウエカキクケサシスセタチツテ0123456789ABCDEF")
 
+    /// Any particle currently alive across all five effect kinds. Drives
+    /// whether the per-frame TimelineView mounts at all — when the user
+    /// stops typing for 1–2 s the arrays drain and the overlay falls back
+    /// to a plain transparent layout that costs zero ticks until the next
+    /// keystroke spawns more particles.
+    private var hasActiveParticles: Bool {
+        !sparks.isEmpty
+            || !drops.isEmpty
+            || !chars.isEmpty
+            || !bubbles.isEmpty
+            || !flakes.isEmpty
+    }
+
     var body: some View {
-        TimelineView(.animation) { tl in
-            Canvas { ctx, size in
-                let now = tl.date
-                switch settings.screenEffect {
-                case .sparks:  drawSparks(ctx: ctx, now: now)
-                case .rain:    drawRain(ctx: ctx, now: now, size: size)
-                case .matrix:  drawMatrix(ctx: ctx, now: now, size: size)
-                case .bubbles: drawBubbles(ctx: ctx, now: now, size: size)
-                case .snow:    drawSnow(ctx: ctx, now: now, size: size)
+        ZStack {
+            // Color.clear keeps the body's layout / preferences active even
+            // when the conditional below evaluates to nothing — without it
+            // the GeometryReader would briefly stop reporting size when
+            // particles drain to zero.
+            Color.clear
+            if hasActiveParticles {
+                TimelineView(.animation) { tl in
+                    Canvas { ctx, size in
+                        let now = tl.date
+                        switch settings.screenEffect {
+                        case .sparks:  drawSparks(ctx: ctx, now: now)
+                        case .rain:    drawRain(ctx: ctx, now: now, size: size)
+                        case .matrix:  drawMatrix(ctx: ctx, now: now, size: size)
+                        case .bubbles: drawBubbles(ctx: ctx, now: now, size: size)
+                        case .snow:    drawSnow(ctx: ctx, now: now, size: size)
+                        }
+                    }
                 }
             }
         }
