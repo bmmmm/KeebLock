@@ -319,23 +319,36 @@ final class LockController {
     static let inlineSnapshotButtonHeight: CGFloat = 28
     static let inlineSnapshotButtonMargin: CGFloat = 12
 
-    /// `point` is in CGEvent global coordinates (top-left origin).
+    /// `point` is in CGEvent global coordinates (top-left origin of the
+    /// PRIMARY display = `NSScreen.screens.first`, with Y growing down).
     /// Returns true when the user clicked inside the on-screen snapshot
     /// button — only when the overlay is on, otherwise the button isn't
     /// drawn and we don't want to silently swallow a click on empty
     /// space at the top-right.
+    ///
+    /// The button is rendered at the top-right of the MAIN display
+    /// (`NSScreen.main` = whichever screen owns the key lock window).
+    /// On single-display setups primary == main and the math collapses
+    /// trivially. On dual-display setups they diverge (e.g. laptop is
+    /// main / key, but the LG external is primary because that's where
+    /// the menu bar lives) and we have to translate from NSScreen
+    /// arrangement coords (Y up) into CGEvent coords (Y down, anchored
+    /// at primary's top-left). Earlier versions skipped this step and
+    /// the click region landed somewhere outside the visible button.
     private func isInsideInlineSnapshotRegion(_ point: CGPoint) -> Bool {
         guard AppSettings.shared.lockOverlayDebugLevel != .off else { return false }
-        guard let screen = NSScreen.main else { return false }
+        guard let main = NSScreen.main,
+              let primary = NSScreen.screens.first else { return false }
         let w = Self.inlineSnapshotButtonWidth
         let h = Self.inlineSnapshotButtonHeight
         let m = Self.inlineSnapshotButtonMargin
-        // CGEvent.location for the main display: (0, 0) is the top-left
-        // pixel; x grows right, y grows down. The button sits in the
-        // top-right corner with `m` margin from both edges.
+        // Translate the button's top-left (NSScreen, Y up) to CGEvent
+        // global (Y down, primary top-left = (0, 0)):
+        //   x_cg = ns.x - primary.minX
+        //   y_cg = primary.maxY - ns.y
         let region = CGRect(
-            x: screen.frame.maxX - w - m,
-            y: m,
+            x: main.frame.maxX - m - w - primary.frame.minX,
+            y: primary.frame.maxY - main.frame.maxY + m,
             width: w,
             height: h
         )

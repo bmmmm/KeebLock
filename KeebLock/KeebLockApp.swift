@@ -64,26 +64,24 @@ struct KeebLockApp: App {
             //   inner .frame(560 × 800): the "natural" layout container.
             //
             //   .scaleEffect(zoom, anchor: .center): visual zoom around
-            //   the centre — when zooming OUT the content shrinks toward
-            //   the middle so leftover space is distributed symmetrically
-            //   (padding on all four sides). With .topLeading the content
-            //   would jam into the upper-left corner and leave all empty
-            //   space at bottom-right, which is what you saw at 80 %.
+            //   the centre — content scales toward / from the midpoint.
+            //   .topLeading would jam content into the upper-left corner
+            //   when zoomed out; .center distributes any leftover space
+            //   symmetrically.
             //
-            //   outer .frame(max(560, 560*zoom) × max(800, 800*zoom),
-            //   alignment: .center): the visible window content region.
-            //   Below 100 % zoom the window keeps its natural 560×800
-            //   so symmetric padding stays visible around the shrunk
-            //   content; above 100 % the frame grows with the content so
-            //   nothing clips. alignment .center keeps the scaled content
-            //   centred inside the window when there's surplus room.
+            //   outer .frame(560*zoom × 800*zoom, alignment: .center):
+            //   visible window region tracks the scaled content exactly.
+            //   No "minimum natural size" floor — at <100 % the window
+            //   shrinks with the content, at >100 % it grows. Visual
+            //   breathing room comes from the content's own .padding,
+            //   which scales together with everything else.
             //
             //   .background(WindowSizer(...)): pushes the same target
             //   size into NSWindow.contentMin/MaxSize/setContentSize so
             //   the AppKit window matches exactly.
             let zoom = settings.appZoom
-            let windowW = max(560, 560 * zoom)
-            let windowH = max(800, 800 * zoom)
+            let windowW = 560 * zoom
+            let windowH = 800 * zoom
             ContentView()
                 .environmentObject(settings)
                 .environment(lockController)
