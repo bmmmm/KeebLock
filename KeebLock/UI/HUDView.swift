@@ -353,18 +353,18 @@ private struct CodewordDisplayView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    /// White until matched, then a green-Verlauf where the first matched
-    /// letter is light/bright lime and the last matched letter is deep
-    /// saturated forest-green — gradient stride scales with codeword
-    /// length so a 5-char and a 10-char codeword both reach full green
-    /// on the final letter.
+    /// White until matched, then fade into the active app theme so the
+    /// progress visual ties back to the same accent the user picked in
+    /// settings. Earlier letters lerp from white toward the theme color
+    /// so the leading typed character stays readable on the dark HUD
+    /// while the trailing one sits at full saturation.
     private func charTint(index i: Int, progress: Int, total: Int) -> Color {
         guard i < progress else { return .white }
         let t = total > 1 ? Double(i) / Double(total - 1) : 1.0
-        let hue = (105 + 25 * t) / 360                  // 105° → 130°
-        let saturation = 0.45 + 0.45 * t                 // 0.45 → 0.90
-        let brightness = 1.0 - 0.10 * t                  // 1.00 → 0.90
-        return Color(hue: hue, saturation: saturation, brightness: brightness)
+        // Mix .white → settings.appTheme.color across the codeword.
+        // 0.35 floor keeps even the first matched letter visibly tinted,
+        // not just "slightly off-white".
+        return Color.white.mix(with: settings.appTheme.color, by: 0.35 + 0.55 * t)
     }
 }
 

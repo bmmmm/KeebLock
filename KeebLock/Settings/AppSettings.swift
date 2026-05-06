@@ -418,7 +418,7 @@ final class AppSettings: ObservableObject {
         self.soundFileDisplayName = d.string(forKey: Keys.soundFileName)
         self.unlockChimeEnabled   = d.object(forKey: Keys.unlockChime) as? Bool ?? true
 
-        self.effectEnabled = d.object(forKey: Keys.sparks) as? Bool ?? true
+        self.effectEnabled = d.object(forKey: Keys.sparks) as? Bool ?? false
         let sc = d.object(forKey: Keys.sparkCount) as? Int
         self.sparkCount = (sc.map { (0...30).contains($0) ? $0 : 12 }) ?? 12
 
@@ -431,8 +431,8 @@ final class AppSettings: ObservableObject {
         let bgRaw = d.string(forKey: Keys.bgColor) ?? ColorPreset.random.rawValue
         self.backgroundColor = ColorPreset(rawValue: bgRaw) ?? .random
 
-        let pxRaw = d.string(forKey: Keys.pixelColor) ?? ColorPreset.transparent.rawValue
-        self.pixelColor = ColorPreset(rawValue: pxRaw) ?? .transparent
+        let pxRaw = d.string(forKey: Keys.pixelColor) ?? ColorPreset.random.rawValue
+        self.pixelColor = ColorPreset(rawValue: pxRaw) ?? .random
 
         self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
         self.showCodewordProgress  = d.object(forKey: Keys.codewordProgress) as? Bool ?? true
