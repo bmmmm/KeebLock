@@ -11,27 +11,39 @@ import SwiftUI
 // invisible from the active fullscreen space. Private CGS APIs let us
 // explicitly add a window to every space across every display, which
 // is the same approach yabai / Rectangle / Stay have used stably for
-// years. Risk: Apple may change the symbol layout in a future major
-// macOS — wrap calls so failure is silent and the user just sees the
-// pre-existing degraded behaviour, not a crash.
+// years. Resolution is deferred to runtime via dlsym: if Apple ever
+// renames or removes a symbol in a future macOS, the resolver returns
+// nil and we fall back to `.canJoinAllSpaces` only (degraded but
+// non-crashing). `@_silgen_name` would have terminated the process at
+// launch via dyld bind failure — exactly the mode this comment used to
+// claim wouldn't happen.
 
 private typealias CGSConnectionID = Int32
 
-@_silgen_name("CGSMainConnectionID")
-private func _CGSMainConnectionID() -> CGSConnectionID
+private enum CGS {
+    typealias MainConnectionIDFn = @convention(c) () -> CGSConnectionID
+    typealias CopyManagedDisplaySpacesFn = @convention(c) (CGSConnectionID) -> Unmanaged<CFArray>?
+    typealias AddWindowsToSpacesFn = @convention(c) (CGSConnectionID, CFArray, CFArray) -> Void
+    typealias ManagedDisplaySetCurrentSpaceFn = @convention(c) (CGSConnectionID, CFString, UInt64) -> Void
 
-@_silgen_name("CGSCopyManagedDisplaySpaces")
-private func _CGSCopyManagedDisplaySpaces(_ cid: CGSConnectionID) -> CFArray?
+    static let mainConnectionID: MainConnectionIDFn? = lookup("CGSMainConnectionID")
+    static let copyManagedDisplaySpaces: CopyManagedDisplaySpacesFn? = lookup("CGSCopyManagedDisplaySpaces")
+    static let addWindowsToSpaces: AddWindowsToSpacesFn? = lookup("CGSAddWindowsToSpaces")
+    static let managedDisplaySetCurrentSpace: ManagedDisplaySetCurrentSpaceFn? = lookup("CGSManagedDisplaySetCurrentSpace")
 
-@_silgen_name("CGSAddWindowsToSpaces")
-private func _CGSAddWindowsToSpaces(_ cid: CGSConnectionID, _ wids: CFArray, _ sids: CFArray)
+    /// RTLD_DEFAULT (-2) — search every loaded image in default order.
+    /// SkyLight.framework is loaded into every macOS graphical process,
+    /// so the four CGS symbols are reachable without an explicit dlopen.
+    private static let rtldDefault = UnsafeMutableRawPointer(bitPattern: -2)
 
-/// Switch a display to a specific Space — same effect as ⌃← / ⌃→ on
-/// that display. Used to drag a display out of an app's fullscreen
-/// space onto a regular Desktop so the lock surface is actually
-/// visible. macOS animates the transition itself.
-@_silgen_name("CGSManagedDisplaySetCurrentSpace")
-private func _CGSManagedDisplaySetCurrentSpace(_ cid: CGSConnectionID, _ display: CFString, _ sid: UInt64)
+    private static func lookup<T>(_ name: String) -> T? {
+        guard let sym = dlsym(rtldDefault, name) else {
+            NSLog("[KeebLock] CGS: dlsym(%@) failed — private API unavailable on this macOS", name)
+            return nil
+        }
+        return unsafeBitCast(sym, to: T.self)
+    }
+}
 
 /// Snapshot of the macOS Spaces topology at a point in time. Used both
 /// for the brute-force "add window to all spaces" and for the user-
@@ -59,10 +71,17 @@ struct SpacesSnapshot {
     let allSpaceIDs: [UInt64]
 
     static func capture() -> SpacesSnapshot {
-        let cid = _CGSMainConnectionID()
-        guard let array = _CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else {
+        guard let mainCid = CGS.mainConnectionID,
+              let copyFn = CGS.copyManagedDisplaySpaces else {
             return SpacesSnapshot(displays: [], allSpaceIDs: [])
         }
+        let cid = mainCid()
+        guard let unmanaged = copyFn(cid) else {
+            return SpacesSnapshot(displays: [], allSpaceIDs: [])
+        }
+        // takeRetainedValue() balances the +1 retain from the "Copy"-named
+        // API; without it every show() would leak the array of dictionaries.
+        let array = unmanaged.takeRetainedValue() as? [[String: Any]] ?? []
         var displays: [Display] = []
         var ids: [UInt64] = []
         for d in array {
@@ -72,8 +91,11 @@ struct SpacesSnapshot {
                   let currentSpaceID = (currentSpaceDict["id64"] as? NSNumber)?.uint64Value
             else { continue }
             let spaces: [Space] = spacesArray.compactMap { s in
+                // NSNumber.intValue is robust across Int32/Int64 boxing —
+                // `as? Int` can fail on macOS revisions that hand the number
+                // back as a typed-32-bit NSNumber on a 64-bit build.
                 guard let id = (s["id64"] as? NSNumber)?.uint64Value,
-                      let type = s["type"] as? Int else { return nil }
+                      let type = (s["type"] as? NSNumber)?.intValue else { return nil }
                 ids.append(id)
                 return Space(id: id, type: type)
             }
@@ -87,12 +109,15 @@ struct SpacesSnapshot {
 /// fullscreen spaces. Belt-and-braces companion to .canJoinAllSpaces
 /// for macOS 26+ where the public flag stops covering fullscreen.
 private func addWindowToAllSpaces(_ window: NSWindow, snapshot: SpacesSnapshot) {
-    guard !snapshot.allSpaceIDs.isEmpty else { return }
-    let cid = _CGSMainConnectionID()
+    guard !snapshot.allSpaceIDs.isEmpty,
+          let mainCid = CGS.mainConnectionID,
+          let addFn = CGS.addWindowsToSpaces,
+          window.windowNumber > 0 else { return }
+    let cid = mainCid()
     let wid = NSNumber(value: window.windowNumber)
     let wids = [wid] as CFArray
     let sids = snapshot.allSpaceIDs.map { NSNumber(value: $0) } as CFArray
-    _CGSAddWindowsToSpaces(cid, wids, sids)
+    addFn(cid, wids, sids)
 }
 
 // Borderless windows can't become key by default; override so the warning goes away
@@ -106,6 +131,10 @@ final class LockWindowManager {
     private var windows: [LockNSWindow] = []
     private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
     private var savedPresentationOptions: NSApplication.PresentationOptions = []
+    /// Displays we yanked off a fullscreen Space at lock start. On hide()
+    /// we switch them back to where the user was — without this they'd
+    /// be stranded on Desktop 1 of that display after unlock.
+    private var movedDisplays: [(displayUUID: String, originalSpaceID: UInt64)] = []
 
     var windowCount: Int { windows.count }
 
@@ -211,8 +240,9 @@ final class LockWindowManager {
         // the fullscreen space too (via the call above), but macOS
         // composites the fullscreen primary on top — user sees Xcode,
         // not the lock. Switching the display's active space animates
-        // the view change exactly like ⌃← would.
-        switchDisplaysOutOfFullscreen(snapshot)
+        // the view change exactly like ⌃← would. Capture the originals
+        // so `hide()` can restore the user back to where they were.
+        movedDisplays = switchDisplaysOutOfFullscreen(snapshot)
 
         DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver, key=screen[\(mainScreen.flatMap(NSScreen.screens.firstIndex(of:)) ?? -1)])")
         logSpacesDiagnostic(snapshot)
@@ -221,6 +251,13 @@ final class LockWindowManager {
 
     func hide() {
         DebugLog.log("hide: \(windows.count) window(s)")
+
+        // 0) Symmetric counterpart to switchDisplaysOutOfFullscreen — put
+        // each display we yanked off a fullscreen back on the original
+        // space. Done before window teardown so the macOS-driven Space
+        // animation slides the lock window off as the user returns,
+        // instead of flashing an empty Desktop after the lock vanishes.
+        restoreMovedDisplays()
 
         // 1) Stop Metal display links so draw() stops being scheduled.
         for renderer in renderers { renderer?.stop() }
@@ -252,9 +289,14 @@ final class LockWindowManager {
     /// Re-promote all lock windows to the foreground. Called after a Space
     /// (Desktop) switch — canJoinAllSpaces is best-effort and can miss spaces
     /// created via Mission Control while the lock is already active.
+    /// Re-captures the topology so newly-created spaces (post lock-start)
+    /// get pinned too — without this the show() snapshot would go stale
+    /// and a fresh Mission Control "+" Desktop would be uncovered.
     func refreshSpaceCoverage() {
+        let snapshot = SpacesSnapshot.capture()
         for window in windows {
             window.orderFrontRegardless()
+            addWindowToAllSpaces(window, snapshot: snapshot)
         }
     }
 
@@ -290,7 +332,11 @@ final class LockWindowManager {
             }.joined(separator: " ")
             DebugLog.log("spaces: display[\(idx)] uuid=\(display.displayUUID) currentSpace=\(display.currentSpaceID)  spaces=[\(spacesDesc)]")
         }
-        DebugLog.log("spaces: total=\(snapshot.allSpaceIDs.count) — lock windows added to all of them")
+        if snapshot.allSpaceIDs.isEmpty {
+            DebugLog.log("spaces: no space IDs enumerable — windows fall back to .canJoinAllSpaces")
+        } else {
+            DebugLog.log("spaces: total=\(snapshot.allSpaceIDs.count) — lock windows added to all of them")
+        }
     }
 
     /// For every display whose active space is a fullscreen space (an
@@ -298,8 +344,11 @@ final class LockWindowManager {
     /// Lock window is already pinned to that desktop via
     /// CGSAddWindowsToSpaces, so the user lands directly on the lock
     /// surface instead of the fullscreen app's masked-out backdrop.
-    private func switchDisplaysOutOfFullscreen(_ snapshot: SpacesSnapshot) {
-        let cid = _CGSMainConnectionID()
+    private func switchDisplaysOutOfFullscreen(_ snapshot: SpacesSnapshot) -> [(displayUUID: String, originalSpaceID: UInt64)] {
+        var moved: [(displayUUID: String, originalSpaceID: UInt64)] = []
+        guard let mainCid = CGS.mainConnectionID,
+              let switchFn = CGS.managedDisplaySetCurrentSpace else { return moved }
+        let cid = mainCid()
         for display in snapshot.displays {
             guard let current = display.spaces.first(where: { $0.id == display.currentSpaceID }),
                   current.type != 0 else { continue }  // already on Desktop, nothing to do
@@ -310,9 +359,29 @@ final class LockWindowManager {
                 DebugLog.log("spaces: display \(display.displayUUID) has no regular Desktop — leaving on space #\(display.currentSpaceID)")
                 continue
             }
-            _CGSManagedDisplaySetCurrentSpace(cid, display.displayUUID as CFString, target.id)
+            switchFn(cid, display.displayUUID as CFString, target.id)
+            moved.append((displayUUID: display.displayUUID, originalSpaceID: current.id))
             DebugLog.log("spaces: switched display \(display.displayUUID) from space #\(current.id)/\(current.label) → #\(target.id)/Desktop")
         }
+        return moved
+    }
+
+    /// Reverse of `switchDisplaysOutOfFullscreen` — switch each display we
+    /// yanked back to the space it was on at lock start. Called from the
+    /// top of `hide()` so the user lands where they left off.
+    private func restoreMovedDisplays() {
+        guard !movedDisplays.isEmpty else { return }
+        guard let mainCid = CGS.mainConnectionID,
+              let switchFn = CGS.managedDisplaySetCurrentSpace else {
+            movedDisplays.removeAll()
+            return
+        }
+        let cid = mainCid()
+        for moved in movedDisplays {
+            switchFn(cid, moved.displayUUID as CFString, moved.originalSpaceID)
+            DebugLog.log("spaces: restored display \(moved.displayUUID) → space #\(moved.originalSpaceID)")
+        }
+        movedDisplays.removeAll()
     }
 
     /// Log running apps that the user might be looking at full-screen,

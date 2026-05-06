@@ -49,10 +49,10 @@ final class LockController {
     /// paths so a swipe that triggers a Space change counts once, not twice.
     private(set) var swipeCount: Int = 0
     /// 2-finger pinch (NSEventType.magnify = 30) plus double-tap zoom
-    /// (NSEventType.smartMagnify = 35). Magnify streams during a pinch, so
+    /// (NSEventType.smartMagnify = 32). Magnify streams during a pinch, so
     /// debounced; smartMagnify is discrete and counted directly.
     private(set) var pinchCount: Int = 0
-    /// 2-finger rotation attempts. NSEventType 32, debounced.
+    /// 2-finger rotation attempts. NSEventType.rotate = 18, debounced.
     private(set) var rotateCount: Int = 0
 
     private(set) var codewordMatchProgress: Int = 0
@@ -169,6 +169,12 @@ final class LockController {
     private static let overallKeyCountsKey = "heatmapOverallKeyCounts"
 
     @ObservationIgnored private var lockStartedAt: Date?
+    /// Set synchronously at the top of `stopLock()` so a re-entry from a
+    /// different code path (e.g. timer auto-unlock firing between codeword
+    /// match and the deferred `isLocked = false`) doesn't run the teardown
+    /// sequence twice — which would otherwise double-play the unlock chime
+    /// and double-record the session.
+    @ObservationIgnored private var isStopping: Bool = false
     @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
@@ -264,7 +270,8 @@ final class LockController {
     }
 
     func stopLock() {
-        guard isLocked else { return }
+        guard isLocked, !isStopping else { return }
+        isStopping = true
         let secondsRun = max(0, totalSeconds - remainingSeconds)
         DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) sym=\(symbolCount) ctl=\(controlKeyCount) fn=\(functionKeyCount) med=\(mediaKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(swipeCount) pinch=\(pinchCount) rotate=\(rotateCount)")
         if AppSettings.shared.unlockChimeEnabled {
@@ -283,6 +290,7 @@ final class LockController {
         DispatchQueue.main.async {
             self.windowManager.hide()
             self.isLocked = false
+            self.isStopping = false
         }
     }
 
@@ -341,6 +349,9 @@ final class LockController {
         let w = Self.inlineSnapshotButtonWidth
         let h = Self.inlineSnapshotButtonHeight
         let m = Self.inlineSnapshotButtonMargin
+        // primary.frame.minX is 0 by Apple's convention (NSScreen.screens.first
+        // is anchored at the global origin), but keep the subtraction explicit
+        // so the math survives any future change in that contract.
         for screen in NSScreen.screens {
             let region = CGRect(
                 x: screen.frame.maxX - m - w - primary.frame.minX,
