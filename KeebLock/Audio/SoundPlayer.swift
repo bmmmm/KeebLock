@@ -165,7 +165,11 @@ final class SoundPlayer {
 
     func stop() {
         playerNode.stop()
-        engine.stop()
+        // Engine stays running across sessions — tearing it down here and
+        // lazy-restarting on the next keystroke costs 30–50 ms of warm-up
+        // latency, which is exactly what the eager init at line 58 was
+        // meant to avoid. The engine is dormant when no buffer is
+        // scheduled, so leaving it up only burns a small graph footprint.
         customPlayer?.stop()
         customScopedURL?.stopAccessingSecurityScopedResource()
         customScopedURL = nil

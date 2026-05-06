@@ -262,7 +262,7 @@ struct ContentView: View {
             if state == .invalid {
                 invalidWarningBanner
             } else {
-                Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. Compare the values below with the latest release notes, run the command in Terminal so the OS reads them directly from disk, then mark the build verified.")
+                Text("Authenticity is anchored to the Apple Team ID — only the original signing cert can produce a binary with this identity. Compare the values below with the release notes at github.com/bmmmm/KeebLock (check the URL in your browser before trusting the values — a re-host can publish matching numbers for its own re-signed copy). Then run the command in Terminal so the OS reads them directly from disk, and mark the build verified.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

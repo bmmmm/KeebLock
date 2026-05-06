@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 
@@ -20,11 +21,20 @@ struct HUDView: View {
     @State private var cachedEntry: CodewordKnowledge?
     @State private var cachedImage: NSImage?
 
+    /// Prefer the hand-curated "Did you know?" snippets — they are short
+    /// and pace well on the HUD card — and fall back to the long-form
+    /// `facts` paragraphs when the bundle entry doesn't carry DYK output
+    /// (older corpora, stub fallback).
+    private var displayFacts: [String] {
+        let dyk = currentEntry.didYouKnow
+        return !dyk.isEmpty ? dyk : currentEntry.facts
+    }
+
     /// Modulo the controller's session-wide rotation tick by the current
     /// fact count. Single source of truth lives in LockController so all
     /// monitors show the same fact in lock-step.
     private var factIndex: Int {
-        let count = currentEntry.facts.count
+        let count = displayFacts.count
         return count > 0 ? controller.factRotationTick % count : 0
     }
 
@@ -181,13 +191,13 @@ struct HUDView: View {
                         .font(.system(size: 24, weight: .heavy))
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    if !currentEntry.facts.isEmpty {
+                    if !displayFacts.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("DID YOU KNOW?")
                                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                                 .tracking(2.0)
                                 .foregroundStyle(.white.opacity(0.55))
-                            Text(currentEntry.facts[factIndex])
+                            Text(displayFacts[factIndex])
                                 .font(.body)
                                 .opacity(0.92)
                                 .multilineTextAlignment(.leading)
@@ -299,7 +309,24 @@ private struct CodewordDisplayView: View {
         // Mix .white → settings.appTheme.color across the codeword.
         // 0.35 floor keeps even the first matched letter visibly tinted,
         // not just "slightly off-white".
-        return Color.white.mix(with: settings.appTheme.color, by: 0.35 + 0.55 * t)
+        let mixed = Color.white.mix(with: settings.appTheme.color, by: 0.35 + 0.55 * t)
+        // The HUD background is .black.opacity(~0.4) — anything below
+        // ~0.65 HSB brightness reads as dark-on-dark. Coffee and Sleepy
+        // accents in light mode otherwise turn the trailing character
+        // into brown-on-black. Lift toward white only when needed; bright
+        // themes (Day, Sakura, Bath) pass through untouched.
+        return Self.liftToMinBrightness(mixed, floor: 0.65)
+    }
+
+    /// Lerp `color` toward white until its HSB brightness reaches `floor`.
+    /// No-op when the color is already bright enough.
+    private static func liftToMinBrightness(_ color: Color, floor: Double) -> Color {
+        let nsColor = NSColor(color).usingColorSpace(.sRGB) ?? .white
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        nsColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        guard Double(b) < floor else { return color }
+        let lift = (floor - Double(b)) / max(0.001, 1.0 - Double(b))
+        return color.mix(with: .white, by: lift)
     }
 }
 
