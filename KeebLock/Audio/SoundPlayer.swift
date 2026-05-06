@@ -18,6 +18,13 @@ final class SoundPlayer {
     private var clickBuffer: AVAudioPCMBuffer?
 
     private var customPlayer: AVAudioPlayer?
+    /// Security-scoped URL for the currently-loaded custom file. Held for
+    /// the lifetime of `customPlayer` — released on swap, stop, or deinit.
+    /// Releasing earlier (via `defer` inside `setCustomFile`) leaves
+    /// `AVAudioPlayer` accessing a path whose scope is closed; the file
+    /// descriptor is cached on the player but the scope contract is broken
+    /// and TCC re-evaluations can silence playback intermittently.
+    private var customScopedURL: URL?
 
     private var lastPlayTime: TimeInterval = -.infinity
     // 80 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
@@ -84,35 +91,50 @@ final class SoundPlayer {
     }
 
     func setCustomFile(bookmark: Data?) {
+        // Release scope from a previous custom file before swapping.
+        customScopedURL?.stopAccessingSecurityScopedResource()
+        customScopedURL = nil
         customPlayer = nil
+
         guard let bookmark else { return }
+
         var stale = false
+        let url: URL
         do {
-            let url = try URL(
+            url = try URL(
                 resolvingBookmarkData: bookmark,
                 options: [.withSecurityScope],
                 relativeTo: nil,
                 bookmarkDataIsStale: &stale
             )
-            // A stale bookmark may resolve to a moved or replaced file. Bail
-            // out — re-picking the file in Settings forces a fresh bookmark
-            // and is safer than silently playing whatever happens to live at
-            // the path the OS guessed.
-            if stale {
-                DebugLog.log("SoundPlayer: bookmark stale for \(url.lastPathComponent) — discarding; user must re-pick the file")
-                return
-            }
-            guard url.startAccessingSecurityScopedResource() else {
-                DebugLog.log("SoundPlayer: could not access security-scoped resource")
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
+        } catch {
+            DebugLog.log("SoundPlayer: bookmark resolution failed: \(error.localizedDescription)")
+            return
+        }
+
+        // A stale bookmark may resolve to a moved or replaced file. Bail —
+        // re-picking the file in Settings forces a fresh bookmark and is
+        // safer than silently playing whatever happens to live at the path
+        // the OS guessed.
+        if stale {
+            DebugLog.log("SoundPlayer: bookmark stale for \(url.lastPathComponent) — discarding; user must re-pick the file")
+            return
+        }
+        guard url.startAccessingSecurityScopedResource() else {
+            DebugLog.log("SoundPlayer: could not access security-scoped resource")
+            return
+        }
+        do {
             let p = try AVAudioPlayer(contentsOf: url)
             p.prepareToPlay()
             p.volume = playerNode.volume
             customPlayer = p
+            // Scope held until next setCustomFile() / stop() / deinit —
+            // matches the lifetime of the AVAudioPlayer's open file.
+            customScopedURL = url
             DebugLog.log("SoundPlayer: loaded custom file \(url.lastPathComponent) duration=\(p.duration)s")
         } catch {
+            url.stopAccessingSecurityScopedResource()
             DebugLog.log("SoundPlayer: failed to load custom file: \(error.localizedDescription)")
         }
     }
@@ -145,6 +167,12 @@ final class SoundPlayer {
         playerNode.stop()
         engine.stop()
         customPlayer?.stop()
+        customScopedURL?.stopAccessingSecurityScopedResource()
+        customScopedURL = nil
+    }
+
+    deinit {
+        customScopedURL?.stopAccessingSecurityScopedResource()
     }
 
     /// Brief celebratory chime, played when the lock unlocks. Bypasses the

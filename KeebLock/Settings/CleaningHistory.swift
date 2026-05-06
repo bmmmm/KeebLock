@@ -77,8 +77,17 @@ final class CleaningHistory: ObservableObject {
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
-        if let decoded = try? JSONDecoder().decode([CleaningSession].self, from: data) {
-            sessions = decoded
+        do {
+            sessions = try JSONDecoder().decode([CleaningSession].self, from: data)
+        } catch {
+            // Schema-incompatible blob. Silently overwriting on the next
+            // save() destroys any chance of recovery — archive the bad
+            // bytes under a timestamped key so a future migration (or a
+            // user-supplied script) can salvage them, then start fresh.
+            let archiveKey = "\(storageKey).corrupt-\(Int(Date().timeIntervalSince1970))"
+            UserDefaults.standard.set(data, forKey: archiveKey)
+            UserDefaults.standard.removeObject(forKey: storageKey)
+            DebugLog.log("CleaningHistory: decode failed (\(error.localizedDescription)) — archived bad blob to \(archiveKey), starting fresh")
         }
     }
 

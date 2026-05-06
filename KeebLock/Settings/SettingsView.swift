@@ -379,7 +379,7 @@ struct SettingsView: View {
     }
 
     private var themeSection: some View {
-        Section {
+        tintedSection("Theme") {
             HStack(spacing: 14) {
                 ForEach(AppTheme.allCases) { theme in
                     themeChip(theme)
@@ -417,8 +417,6 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        } header: {
-            Text("Theme")
         }
     }
 
@@ -499,7 +497,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Tint codeword green as you type it", isOn: $settings.showCodewordProgress)
+                Toggle("Tint codeword in theme color as you type it", isOn: $settings.showCodewordProgress)
                 Text("Off skips a per-keystroke HUD redraw — turn off if you hear sound stutter under sustained typing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -167,6 +167,12 @@ final class LockController {
     private static let legacyKeyCountsDefaultsKey = "heatmapKeyCounts"
     /// Key for the persistent overall-heatmap blob.
     private static let overallKeyCountsKey = "heatmapOverallKeyCounts"
+    /// One-shot flag set after the legacy → overall fold. Without it, a
+    /// downgrade-then-upgrade cycle (old build re-writes the legacy key,
+    /// new build re-folds on next launch) silently double-counts that
+    /// user's heatmap. Once true, the legacy blob is ignored on every
+    /// subsequent launch.
+    private static let legacyMigrationDoneKey = "heatmapMigratedFromLegacy"
 
     @ObservationIgnored private var lockStartedAt: Date?
     /// Set synchronously at the top of `stopLock()` so a re-entry from a
@@ -393,7 +399,10 @@ final class LockController {
         // before the privacy-pass dropped persistence. Now that overall-
         // heatmap persistence is back (per-user request), fold whatever's
         // still under the legacy key into overall and remove the legacy
-        // entry so we don't double-count on the next launch.
+        // entry so we don't double-count on the next launch. Gated on a
+        // one-shot defaults flag so a downgrade-then-upgrade cycle can't
+        // re-fold the legacy blob a second time.
+        guard !UserDefaults.standard.bool(forKey: Self.legacyMigrationDoneKey) else { return }
         if let legacyData = UserDefaults.standard.data(forKey: Self.legacyKeyCountsDefaultsKey),
            let legacyDict = try? JSONDecoder().decode([String: Int].self, from: legacyData) {
             PerfMetrics.shared.recordJSONDecode()
@@ -403,6 +412,7 @@ final class LockController {
             }
             UserDefaults.standard.removeObject(forKey: Self.legacyKeyCountsDefaultsKey)
         }
+        UserDefaults.standard.set(true, forKey: Self.legacyMigrationDoneKey)
     }
 
     private func saveOverallKeyCounts() {

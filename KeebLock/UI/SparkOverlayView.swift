@@ -50,6 +50,11 @@ private struct SparkViewSizeKey: PreferenceKey {
 
 struct SparkOverlayView: View {
     let triggerCount: Int
+    // Must be observed (not bare `AppSettings.shared`) so live changes to
+    // `screenEffect`, `effectEnabled`, and `effectiveSparkCount` from the
+    // Settings tab take effect mid-lock. A static read inside the Canvas
+    // closure or `onChange` does NOT subscribe to AppSettings.
+    @ObservedObject private var settings: AppSettings = .shared
 
     @State private var sparks:   [SparkParticle]  = []
     @State private var drops:    [RainDrop]         = []
@@ -73,7 +78,7 @@ struct SparkOverlayView: View {
         TimelineView(.animation) { tl in
             Canvas { ctx, size in
                 let now = tl.date
-                switch AppSettings.shared.screenEffect {
+                switch settings.screenEffect {
                 case .sparks:  drawSparks(ctx: ctx, now: now)
                 case .rain:    drawRain(ctx: ctx, now: now, size: size)
                 case .matrix:  drawMatrix(ctx: ctx, now: now, size: size)
@@ -91,7 +96,7 @@ struct SparkOverlayView: View {
         )
         .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
         .onChange(of: triggerCount) { _, _ in
-            guard AppSettings.shared.effectEnabled else { return }
+            guard settings.effectEnabled else { return }
             // Coalesce: if a spawn is already scheduled for this frame, skip.
             // Rapid trigger bursts (typing, scroll wheel) would otherwise
             // schedule several async blocks that all mutate State within the
@@ -111,9 +116,9 @@ struct SparkOverlayView: View {
     // MARK: - Spawn dispatcher
 
     private func spawn(in size: CGSize) {
-        let count = AppSettings.shared.effectiveSparkCount
+        let count = settings.effectiveSparkCount
         guard count > 0 else { return }
-        switch AppSettings.shared.screenEffect {
+        switch settings.screenEffect {
         case .sparks:  spawnSparks(in: size, count: count)
         case .rain:    spawnRain(in: size, count: count)
         case .matrix:  spawnMatrix(in: size, count: count)

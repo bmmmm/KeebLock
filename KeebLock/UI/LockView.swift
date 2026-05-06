@@ -3,6 +3,12 @@ import SwiftUI
 
 struct LockView: View {
     var controller: LockController
+    // Must be observed (not a bare `AppSettings.shared`) so toggling the
+    // debug overlay level live in Settings actually re-renders the lock
+    // window. A static read inside body() does NOT subscribe to the
+    // ObservableObject — the overlay would only update on the next
+    // unrelated invalidation.
+    @ObservedObject private var settings: AppSettings = .shared
     @StateObject private var rendererProxy: RendererProxy
     let renderer: WipeRenderer?
     let screenIndex: Int
@@ -37,10 +43,10 @@ struct LockView: View {
             // Border-strip live debug HUD. Layered on top of HUD so the
             // strips draw above the codeword card; non-interactive so it
             // can't swallow unlock-button clicks.
-            if AppSettings.shared.lockOverlayDebugLevel != .off {
+            if settings.lockOverlayDebugLevel != .off {
                 LockOverlayDebug(
                     controller: controller,
-                    level: AppSettings.shared.lockOverlayDebugLevel
+                    level: settings.lockOverlayDebugLevel
                 )
             }
         }
