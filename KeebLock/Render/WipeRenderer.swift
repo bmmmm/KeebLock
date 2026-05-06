@@ -103,6 +103,15 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true
+        // Drain any in-flight command buffer so the GPU isn't still
+        // pointing at our textures / drawables when LockWindowManager.hide()
+        // nils contentView and drops the renderer in the same runloop tick.
+        // Without this drain the previous frame's `presentDrawable` callback
+        // can fire against a torn-down layer chain on slow GPU schedules.
+        let drain = commandQueue.makeCommandBuffer()
+        drain?.commit()
+        drain?.waitUntilCompleted()
+        metalView.releaseDrawables()
     }
 
     // MARK: - MTKViewDelegate

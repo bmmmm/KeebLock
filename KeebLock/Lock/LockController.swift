@@ -181,6 +181,13 @@ final class LockController {
     /// sequence twice — which would otherwise double-play the unlock chime
     /// and double-record the session.
     @ObservationIgnored private var isStopping: Bool = false
+    /// Counter for the throttled overall-heatmap save during an active
+    /// session. Incremented per keystroke; flushed every Nth or on
+    /// `applicationWillTerminate`. Without periodic flush a crash mid-
+    /// session loses every keypress accumulated since the last
+    /// `stopLock()` save.
+    @ObservationIgnored private var keystrokesSinceLastHeatmapSave: Int = 0
+    @ObservationIgnored private static let heatmapSaveStride: Int = 50
     @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
@@ -197,6 +204,18 @@ final class LockController {
         s.$soundFileBookmark
             .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
             .store(in: &bag)
+
+        // Final flush of the cumulative heatmap on app termination so a
+        // user who quits mid-session keeps the keystrokes since the last
+        // throttled save. Token is intentionally not stored — singleton's
+        // observer lives for the process lifetime.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.saveOverallKeyCounts()
+        }
     }
 
     deinit {
@@ -289,6 +308,7 @@ final class LockController {
         soundPlayer.stop()
         recordSession()
         saveOverallKeyCounts()
+        keystrokesSinceLastHeatmapSave = 0
         PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
@@ -826,6 +846,16 @@ final class LockController {
 
         sessionKeyCounts[keycode, default: 0] += 1
         overallKeyCounts[keycode, default: 0] += 1
+        // Throttled save during an active session: if the app is killed
+        // (force-quit, panic, OOM) mid-lock the user still keeps every
+        // chunk of keystrokes that crossed a save boundary. Stride 50
+        // ≈ 4–5 s of brisk typing — small write fraction, small loss
+        // window.
+        keystrokesSinceLastHeatmapSave += 1
+        if keystrokesSinceLastHeatmapSave >= Self.heatmapSaveStride {
+            saveOverallKeyCounts()
+            keystrokesSinceLastHeatmapSave = 0
+        }
         PerfMetrics.shared.recordWipe()
         windowManager.wipeOnAllScreens()
         triggerInputFeedback()
