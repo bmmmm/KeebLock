@@ -328,6 +328,14 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Debug
 
+    /// Cap for `keeblock.log`. When the file exceeds this size the next
+    /// write rotates it to `keeblock.log.old` (replacing any previous
+    /// .old) and starts fresh. Range 1…100 MB; 5 MB covers weeks of
+    /// typical use including verbose-perf traces.
+    @Published var logFileMaxSizeMB: Int {
+        didSet { defaults.set(logFileMaxSizeMB, forKey: Keys.logMaxSize) }
+    }
+
     @Published var debugLoggingEnabled: Bool {
         didSet {
             defaults.set(debugLoggingEnabled, forKey: Keys.debug)
@@ -388,6 +396,7 @@ final class AppSettings: ObservableObject {
         static let codewordProgress   = "showCodewordProgress"
         static let appZoom            = "appZoom"
         static let debug              = "debugLoggingEnabled"
+        static let logMaxSize         = "logFileMaxSizeMB"
         static let verbosePerf        = "verbosePerfEnabled"
         static let lockOverlayLevel   = "lockOverlayDebugLevel"
         static let appTheme           = "appTheme"
@@ -429,6 +438,8 @@ final class AppSettings: ObservableObject {
         self.showCodewordProgress  = d.object(forKey: Keys.codewordProgress) as? Bool ?? true
         let zoom = d.object(forKey: Keys.appZoom) as? Double ?? 1.0
         self.appZoom = (0.80...1.60).contains(zoom) ? zoom : 1.0
+        let mb = d.object(forKey: Keys.logMaxSize) as? Int ?? 5
+        self.logFileMaxSizeMB = (1...100).contains(mb) ? mb : 5
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false
         self.verbosePerfEnabled    = d.object(forKey: Keys.verbosePerf)  as? Bool ?? false
 
