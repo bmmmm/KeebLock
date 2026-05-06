@@ -493,6 +493,10 @@ final class LockController {
                               | (1 << CGEventType.leftMouseDown.rawValue)
                               | (1 << CGEventType.rightMouseDown.rawValue)
                               | (1 << CGEventType.otherMouseDown.rawValue)
+                              | (1 << CGEventType.mouseMoved.rawValue)
+                              | (1 << CGEventType.leftMouseDragged.rawValue)
+                              | (1 << CGEventType.rightMouseDragged.rawValue)
+                              | (1 << CGEventType.otherMouseDragged.rawValue)
                               | (1 << CGEventType.scrollWheel.rawValue)
                               | (1 << 14) // NX_SYSDEFINED — media/brightness/etc. on Fn-layer
                               | (1 << 18) // NSEventType.rotate — 2-finger rotation
@@ -668,6 +672,20 @@ final class LockController {
             }
             PerfMetrics.shared.recordEvent("mouseAux btn=\(button)")
             triggerInputFeedback()
+            return nil
+        }
+        if type == .mouseMoved
+            || type == .leftMouseDragged
+            || type == .rightMouseDragged
+            || type == .otherMouseDragged {
+            // Silent swallow. These events fire 60–120×/s while the user
+            // moves the cursor; counting them would inflate metrics and
+            // sounding/sparking on every pixel of motion would be worse
+            // than the leak we're closing. Cursor rendering itself is
+            // WindowServer-level and unaffected; what changes is that
+            // app-level hover behaviours (button highlights, tooltips,
+            // NSToolbar tracking, URL previews) under the lock window
+            // stop responding, which is the intended freeze.
             return nil
         }
         if type == .scrollWheel {
