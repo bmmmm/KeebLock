@@ -12,36 +12,17 @@ struct HUDView: View {
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int
 
-    /// Cached on appear / on codeword change. Replaces a recomputing
-    /// `currentEntry` that used to do a manifest dict lookup AND an
-    /// NSCache image fetch on every body() invocation — i.e. on every
-    /// keystroke, since LockController's @Published cascade forces
-    /// HUDView to re-evaluate. Caching here cuts the per-keystroke body
-    /// cost by skipping both lookups.
-    @State private var cachedEntry: CodewordKnowledge?
-    @State private var cachedImage: NSImage?
-
-    /// Prefer the hand-curated "Did you know?" snippets — they are short
-    /// and pace well on the HUD card — and fall back to the long-form
-    /// `facts` paragraphs when the bundle entry doesn't carry DYK output
-    /// (older corpora, stub fallback).
-    private var displayFacts: [String] {
-        let dyk = currentEntry.didYouKnow
-        return !dyk.isEmpty ? dyk : currentEntry.facts
-    }
-
-    /// Modulo the controller's session-wide rotation tick by the current
-    /// fact count. Single source of truth lives in LockController so all
-    /// monitors show the same fact in lock-step.
-    private var factIndex: Int {
-        let count = displayFacts.count
-        return count > 0 ? controller.factRotationTick % count : 0
-    }
-
     var body: some View {
         // Spacing trimmed (22 → 16), title & codeword shrunk so the whole
         // column fits on a 13" MBP (982 pt usable) without clipping the
         // unlock button below the bottom margin.
+        //
+        // body() here only reads `controller.currentCodeword` (via the
+        // CodewordDisplayView parameter), which changes once per session
+        // start. Stats, breakdown cards, and the knowledge footer are
+        // separate subviews that hold their own observation scopes — so
+        // a typed character invalidates only the subview whose counter
+        // moved, not this whole VStack.
         VStack(spacing: 16) {
             Text("Cleaning Mode")
                 .font(.system(size: 42, weight: .bold))
@@ -59,45 +40,13 @@ struct HUDView: View {
                 CompactUnlockButton(controller: controller)
             }
 
-            statsRow
+            HUDStatsRow(controller: controller, rendererProxy: rendererProxy)
             inputBreakdown
             colorIndicators
-            knowledgeFooter
+            HUDKnowledgeFooter(controller: controller)
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 12)
-        .onAppear { refreshEntry(for: controller.currentCodeword) }
-        .onChange(of: controller.currentCodeword) { _, new in
-            refreshEntry(for: new)
-        }
-    }
-
-    private func refreshEntry(for codeword: String) {
-        let entry = CodewordKnowledgeBase.entry(for: codeword)
-        cachedEntry = entry
-        cachedImage = entry.loadImage()
-    }
-
-    private var currentEntry: CodewordKnowledge {
-        cachedEntry ?? CodewordKnowledgeBase.entry(for: controller.currentCodeword)
-    }
-
-    @ViewBuilder
-    private var statsRow: some View {
-        HStack(spacing: 40) {
-            stat(label: "Keys", value: "\(controller.keystrokeCount)")
-            stat(
-                label: "Stage \(rendererProxy.stage)",
-                value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"
-            )
-            if settings.autoUnlockEnabled {
-                stat(
-                    label: controller.isPaused ? "Paused" : "Auto-unlock in",
-                    value: formatTime(controller.remainingSeconds)
-                )
-            }
-        }
-        .padding(.top, 4)
     }
 
     // MARK: - Input breakdown
@@ -172,17 +121,99 @@ struct HUDView: View {
         .background(.black.opacity(0.25), in: Capsule())
     }
 
+}
+
+// MARK: - Stats row
+//
+// Lifted out of HUDView so the body() that reads keystrokeCount /
+// rendererProxy.stage / wipedFraction / isPaused / remainingSeconds
+// invalidates ONLY this strip — typing no longer re-evaluates the
+// breakdown cards or the knowledge footer just because a counter ticked.
+private struct HUDStatsRow: View {
+    var controller: LockController
+    @ObservedObject var rendererProxy: RendererProxy
+    @ObservedObject var settings: AppSettings = .shared
+
+    var body: some View {
+        HStack(spacing: 40) {
+            HUDStat(label: "Keys", value: "\(controller.keystrokeCount)")
+            HUDStat(
+                label: "Stage \(rendererProxy.stage)",
+                value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"
+            )
+            if settings.autoUnlockEnabled {
+                HUDStat(
+                    label: controller.isPaused ? "Paused" : "Auto-unlock in",
+                    value: formatTime(controller.remainingSeconds)
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+private struct HUDStat: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 28, weight: .semibold, design: .monospaced))
+            Text(label)
+                .font(.caption)
+                .opacity(0.75)
+        }
+    }
+}
+
+// MARK: - Knowledge footer
+//
+// Owns its own cachedEntry/cachedImage @State and the factRotationTick
+// read. Lifted out of HUDView so the rotation tick (every 30 keystrokes)
+// invalidates only this card, not the whole HUD column.
+private struct HUDKnowledgeFooter: View {
+    var controller: LockController
+    @ObservedObject var settings: AppSettings = .shared
+
+    @State private var cachedEntry: CodewordKnowledge?
+    @State private var cachedImage: NSImage?
+
     // Card width and the body text's reserved line count are intentionally
     // hard-coded so a fact rotating from a 2-line fact to a 5-line fact (or
     // a portrait-aspect bundled image vs. a landscape one) doesn't reflow
     // the entire HUD column under the unlock button. Pick numbers that hold
     // the longest bundled fact at 16-pt body without truncation.
-    private static let knowledgeCardWidth: CGFloat = 540
-    private static let knowledgeImageHeight: CGFloat = 160
-    private static let knowledgeFactLineCount = 4
+    private static let cardWidth: CGFloat = 540
+    private static let imageHeight: CGFloat = 160
+    private static let factLineCount = 4
 
-    @ViewBuilder
-    private var knowledgeFooter: some View {
+    private var currentEntry: CodewordKnowledge {
+        cachedEntry ?? CodewordKnowledgeBase.entry(for: controller.currentCodeword)
+    }
+
+    /// Prefer the hand-curated "Did you know?" snippets — they are short
+    /// and pace well on the HUD card — and fall back to the long-form
+    /// `facts` paragraphs when the bundle entry doesn't carry DYK output
+    /// (older corpora, stub fallback).
+    private var displayFacts: [String] {
+        let dyk = currentEntry.didYouKnow
+        return !dyk.isEmpty ? dyk : currentEntry.facts
+    }
+
+    /// Modulo the controller's session-wide rotation tick by the current
+    /// fact count. Single source of truth lives in LockController so all
+    /// monitors show the same fact in lock-step.
+    private var factIndex: Int {
+        let count = displayFacts.count
+        return count > 0 ? controller.factRotationTick % count : 0
+    }
+
+    var body: some View {
         if settings.showCodewordKnowledge {
             VStack(alignment: .leading, spacing: 0) {
                 knowledgeImage
@@ -205,7 +236,7 @@ struct HUDView: View {
                                 // size stable across fact rotations; without
                                 // it a 1-line fact next to a 5-line fact
                                 // would jolt the whole HUD column.
-                                .lineLimit(Self.knowledgeFactLineCount, reservesSpace: true)
+                                .lineLimit(Self.factLineCount, reservesSpace: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(factIndex)
                                 .transition(.opacity)
@@ -217,8 +248,12 @@ struct HUDView: View {
             // Fixed width — not maxWidth — so a smaller bundled image (or no
             // image at all) doesn't pull the card narrower than its sibling
             // sections.
-            .frame(width: Self.knowledgeCardWidth, alignment: .leading)
+            .frame(width: Self.cardWidth, alignment: .leading)
             .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 14))
+            .onAppear { refreshEntry(for: controller.currentCodeword) }
+            .onChange(of: controller.currentCodeword) { _, new in
+                refreshEntry(for: new)
+            }
         }
     }
 
@@ -235,7 +270,7 @@ struct HUDView: View {
                 // Fixed (not max-) frame so the image area is the same height
                 // for every codeword. With max-frames a portrait JPG would
                 // shrink the visible band and the title below would jump up.
-                .frame(width: Self.knowledgeCardWidth, height: Self.knowledgeImageHeight)
+                .frame(width: Self.cardWidth, height: Self.imageHeight)
                 .clipped()
                 .clipShape(topShape)
         } else {
@@ -243,25 +278,16 @@ struct HUDView: View {
             // make the whole card collapse upward.
             Rectangle()
                 .fill(Color.white.opacity(0.06))
-                .frame(width: Self.knowledgeCardWidth, height: Self.knowledgeImageHeight)
+                .frame(width: Self.cardWidth, height: Self.imageHeight)
                 .clipShape(topShape)
         }
     }
 
-    private func stat(label: String, value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 28, weight: .semibold, design: .monospaced))
-            Text(label)
-                .font(.caption)
-                .opacity(0.75)
-        }
+    private func refreshEntry(for codeword: String) {
+        let entry = CodewordKnowledgeBase.entry(for: codeword)
+        cachedEntry = entry
+        cachedImage = entry.loadImage()
     }
-
-    private func formatTime(_ seconds: Int) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
-    }
-
 }
 
 // MARK: - Codeword display
