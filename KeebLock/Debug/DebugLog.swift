@@ -72,11 +72,24 @@ enum DebugLog {
                 try handle.write(contentsOf: data)
             } else {
                 try data.write(to: logURL)
+                restrictPermissions(logURL)
             }
         } catch {
             // Debug logging must never crash the app. Failures still show in
             // NSLog (the line above), so we lose nothing by swallowing here.
         }
+    }
+
+    /// Tighten the file mode to 0600 — the default umask gives 0644
+    /// which is world-readable. The log can include frontmost-app names
+    /// and audio-file paths; on a multi-user Mac neighbours have no
+    /// business reading either. Failures are non-fatal: the file is
+    /// already on disk, restricting just hardens it.
+    private static func restrictPermissions(_ url: URL) {
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)],
+            ofItemAtPath: url.path
+        )
     }
 
     /// Rotate the log if it has grown past the user-configured cap.
@@ -93,10 +106,12 @@ enum DebugLog {
         try? FileManager.default.removeItem(at: backup)
         do {
             try FileManager.default.moveItem(at: logURL, to: backup)
+            restrictPermissions(backup)
             // Marker line in the fresh file — handy when reading two
             // halves of a long-running session.
             let marker = "[\(isoFormatter.string(from: Date()))] DebugLog rotated — previous \(size / 1024 / 1024) MB archived to keeblock.log.old\n"
             try? marker.data(using: .utf8)?.write(to: logURL)
+            restrictPermissions(logURL)
             NSLog("[KeebLock] DebugLog: rotated %dMB → keeblock.log.old", size / 1024 / 1024)
         } catch {
             // Couldn't rotate — keep writing to the existing file, the
