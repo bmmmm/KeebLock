@@ -2,6 +2,99 @@ import AppKit
 import simd
 import SwiftUI
 
+// MARK: - Private CGS API for cross-space window placement
+//
+// macOS' public `.canJoinAllSpaces` collection behavior covers classic
+// user spaces but stops working reliably on macOS 26 once a display is
+// in "Displays have separate Spaces" mode AND another app holds a
+// fullscreen space — our lock window sits on Desktop 1 of that display,
+// invisible from the active fullscreen space. Private CGS APIs let us
+// explicitly add a window to every space across every display, which
+// is the same approach yabai / Rectangle / Stay have used stably for
+// years. Risk: Apple may change the symbol layout in a future major
+// macOS — wrap calls so failure is silent and the user just sees the
+// pre-existing degraded behaviour, not a crash.
+
+private typealias CGSConnectionID = Int32
+
+@_silgen_name("CGSMainConnectionID")
+private func _CGSMainConnectionID() -> CGSConnectionID
+
+@_silgen_name("CGSCopyManagedDisplaySpaces")
+private func _CGSCopyManagedDisplaySpaces(_ cid: CGSConnectionID) -> CFArray?
+
+@_silgen_name("CGSAddWindowsToSpaces")
+private func _CGSAddWindowsToSpaces(_ cid: CGSConnectionID, _ wids: CFArray, _ sids: CFArray)
+
+/// Switch a display to a specific Space — same effect as ⌃← / ⌃→ on
+/// that display. Used to drag a display out of an app's fullscreen
+/// space onto a regular Desktop so the lock surface is actually
+/// visible. macOS animates the transition itself.
+@_silgen_name("CGSManagedDisplaySetCurrentSpace")
+private func _CGSManagedDisplaySetCurrentSpace(_ cid: CGSConnectionID, _ display: CFString, _ sid: UInt64)
+
+/// Snapshot of the macOS Spaces topology at a point in time. Used both
+/// for the brute-force "add window to all spaces" and for the user-
+/// facing debug log.
+struct SpacesSnapshot {
+    struct Space {
+        let id: UInt64
+        /// 0 = user (regular desktop), 4 = fullscreen app, others = system / tiled.
+        let type: Int
+        var label: String {
+            switch type {
+            case 0: return "Desktop"
+            case 4: return "Fullscreen"
+            default: return "Type\(type)"
+            }
+        }
+    }
+    struct Display {
+        /// macOS-internal display UUID string (matches CGSManagedDisplay).
+        let displayUUID: String
+        let spaces: [Space]
+        let currentSpaceID: UInt64
+    }
+    let displays: [Display]
+    let allSpaceIDs: [UInt64]
+
+    static func capture() -> SpacesSnapshot {
+        let cid = _CGSMainConnectionID()
+        guard let array = _CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else {
+            return SpacesSnapshot(displays: [], allSpaceIDs: [])
+        }
+        var displays: [Display] = []
+        var ids: [UInt64] = []
+        for d in array {
+            guard let uuid = d["Display Identifier"] as? String,
+                  let spacesArray = d["Spaces"] as? [[String: Any]],
+                  let currentSpaceDict = d["Current Space"] as? [String: Any],
+                  let currentSpaceID = (currentSpaceDict["id64"] as? NSNumber)?.uint64Value
+            else { continue }
+            let spaces: [Space] = spacesArray.compactMap { s in
+                guard let id = (s["id64"] as? NSNumber)?.uint64Value,
+                      let type = s["type"] as? Int else { return nil }
+                ids.append(id)
+                return Space(id: id, type: type)
+            }
+            displays.append(Display(displayUUID: uuid, spaces: spaces, currentSpaceID: currentSpaceID))
+        }
+        return SpacesSnapshot(displays: displays, allSpaceIDs: ids)
+    }
+}
+
+/// Pin the given window to every space on every display, including
+/// fullscreen spaces. Belt-and-braces companion to .canJoinAllSpaces
+/// for macOS 26+ where the public flag stops covering fullscreen.
+private func addWindowToAllSpaces(_ window: NSWindow, snapshot: SpacesSnapshot) {
+    guard !snapshot.allSpaceIDs.isEmpty else { return }
+    let cid = _CGSMainConnectionID()
+    let wid = NSNumber(value: window.windowNumber)
+    let wids = [wid] as CFArray
+    let sids = snapshot.allSpaceIDs.map { NSNumber(value: $0) } as CFArray
+    _CGSAddWindowsToSpaces(cid, wids, sids)
+}
+
 // Borderless windows can't become key by default; override so the warning goes away
 // and any embedded controls that need first-responder status work normally.
 final class LockNSWindow: NSWindow {
@@ -103,7 +196,27 @@ final class LockWindowManager {
             window.orderFrontRegardless()
         }
 
+        // Brute-force: pin every lock window to every space across every
+        // display via private CGS API. .canJoinAllSpaces alone misses
+        // fullscreen spaces on macOS 26 dual-display setups — this is
+        // how user-space tools like yabai compose lock-style behaviour.
+        let snapshot = SpacesSnapshot.capture()
+        for window in windows {
+            addWindowToAllSpaces(window, snapshot: snapshot)
+        }
+
+        // For any display currently showing an app's fullscreen space,
+        // drag it back to a regular Desktop so the lock window is
+        // actually visible. Without this, the lock IS technically on
+        // the fullscreen space too (via the call above), but macOS
+        // composites the fullscreen primary on top — user sees Xcode,
+        // not the lock. Switching the display's active space animates
+        // the view change exactly like ⌃← would.
+        switchDisplaysOutOfFullscreen(snapshot)
+
         DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver, key=screen[\(mainScreen.flatMap(NSScreen.screens.firstIndex(of:)) ?? -1)])")
+        logSpacesDiagnostic(snapshot)
+        logFullscreenApps()
     }
 
     func hide() {
@@ -155,5 +268,65 @@ final class LockWindowManager {
     /// Highest stage reached across all screens.
     var maxStage: Int {
         renderers.compactMap { $0?.stage }.max() ?? 1
+    }
+
+    // MARK: - Diagnostics
+
+    /// Log the Spaces topology at lock start so the user can correlate
+    /// "lock window not visible on display X" with which space is
+    /// currently active there. Particularly useful when an app holds a
+    /// fullscreen space on a secondary display — the lock surface
+    /// otherwise lands on Desktop 1 of that display, invisible from
+    /// the fullscreen space.
+    private func logSpacesDiagnostic(_ snapshot: SpacesSnapshot) {
+        guard !snapshot.displays.isEmpty else {
+            DebugLog.log("spaces: CGS query returned no displays (private API unavailable?)")
+            return
+        }
+        for (idx, display) in snapshot.displays.enumerated() {
+            let spacesDesc = display.spaces.map { space in
+                let marker = space.id == display.currentSpaceID ? "★" : " "
+                return "\(marker)#\(space.id)/\(space.label)"
+            }.joined(separator: " ")
+            DebugLog.log("spaces: display[\(idx)] uuid=\(display.displayUUID) currentSpace=\(display.currentSpaceID)  spaces=[\(spacesDesc)]")
+        }
+        DebugLog.log("spaces: total=\(snapshot.allSpaceIDs.count) — lock windows added to all of them")
+    }
+
+    /// For every display whose active space is a fullscreen space (an
+    /// app holds it), switch the display back to a regular Desktop.
+    /// Lock window is already pinned to that desktop via
+    /// CGSAddWindowsToSpaces, so the user lands directly on the lock
+    /// surface instead of the fullscreen app's masked-out backdrop.
+    private func switchDisplaysOutOfFullscreen(_ snapshot: SpacesSnapshot) {
+        let cid = _CGSMainConnectionID()
+        for display in snapshot.displays {
+            guard let current = display.spaces.first(where: { $0.id == display.currentSpaceID }),
+                  current.type != 0 else { continue }  // already on Desktop, nothing to do
+            guard let target = display.spaces.first(where: { $0.type == 0 }) else {
+                // Display has no regular Desktop at all — skip rather than
+                // pick another fullscreen space which would just keep the
+                // user in someone else's fullscreen view.
+                DebugLog.log("spaces: display \(display.displayUUID) has no regular Desktop — leaving on space #\(display.currentSpaceID)")
+                continue
+            }
+            _CGSManagedDisplaySetCurrentSpace(cid, display.displayUUID as CFString, target.id)
+            DebugLog.log("spaces: switched display \(display.displayUUID) from space #\(current.id)/\(current.label) → #\(target.id)/Desktop")
+        }
+    }
+
+    /// Log running apps that the user might be looking at full-screen,
+    /// so the snapshot in keeblock.log shows "Xcode is fullscreen,
+    /// that's where the lock seemed to disappear into." Public API
+    /// can't tell us per-display fullscreen ownership directly; we log
+    /// frontmost + every regular-policy app as best-effort context.
+    private func logFullscreenApps() {
+        let frontmost = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        DebugLog.log("apps:   frontmost=\(frontmost)")
+        let candidates = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isHidden
+        }
+        let names = candidates.compactMap { $0.localizedName }.sorted()
+        DebugLog.log("apps:   visible regular-policy apps = [\(names.joined(separator: ", "))]")
     }
 }

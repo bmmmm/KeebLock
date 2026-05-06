@@ -321,38 +321,36 @@ final class LockController {
 
     /// `point` is in CGEvent global coordinates (top-left origin of the
     /// PRIMARY display = `NSScreen.screens.first`, with Y growing down).
-    /// Returns true when the user clicked inside the on-screen snapshot
+    /// Returns true when the user clicked inside an on-screen snapshot
     /// button — only when the overlay is on, otherwise the button isn't
-    /// drawn and we don't want to silently swallow a click on empty
-    /// space at the top-right.
+    /// drawn and we don't want to silently swallow clicks at the
+    /// top-right corner of any display.
     ///
-    /// The button is rendered at the top-right of the MAIN display
-    /// (`NSScreen.main` = whichever screen owns the key lock window).
-    /// On single-display setups primary == main and the math collapses
-    /// trivially. On dual-display setups they diverge (e.g. laptop is
-    /// main / key, but the LG external is primary because that's where
-    /// the menu bar lives) and we have to translate from NSScreen
-    /// arrangement coords (Y up) into CGEvent coords (Y down, anchored
-    /// at primary's top-left). Earlier versions skipped this step and
-    /// the click region landed somewhere outside the visible button.
+    /// `LockOverlayDebug` paints a snapshot button at the top-right of
+    /// EVERY lock window — one per display. The user can click any of
+    /// them. We translate each screen's top-right rectangle from
+    /// NSScreen arrangement coords (Y up, anchored at the screen
+    /// arrangement origin) into CGEvent coords (Y down, anchored at
+    /// the primary display's top-left) and accept the click if it
+    /// lands in any of those rectangles. Single-display setups fall
+    /// out trivially because the loop has just one iteration with
+    /// primary == main.
     private func isInsideInlineSnapshotRegion(_ point: CGPoint) -> Bool {
         guard AppSettings.shared.lockOverlayDebugLevel != .off else { return false }
-        guard let main = NSScreen.main,
-              let primary = NSScreen.screens.first else { return false }
+        guard let primary = NSScreen.screens.first else { return false }
         let w = Self.inlineSnapshotButtonWidth
         let h = Self.inlineSnapshotButtonHeight
         let m = Self.inlineSnapshotButtonMargin
-        // Translate the button's top-left (NSScreen, Y up) to CGEvent
-        // global (Y down, primary top-left = (0, 0)):
-        //   x_cg = ns.x - primary.minX
-        //   y_cg = primary.maxY - ns.y
-        let region = CGRect(
-            x: main.frame.maxX - m - w - primary.frame.minX,
-            y: primary.frame.maxY - main.frame.maxY + m,
-            width: w,
-            height: h
-        )
-        return region.contains(point)
+        for screen in NSScreen.screens {
+            let region = CGRect(
+                x: screen.frame.maxX - m - w - primary.frame.minX,
+                y: primary.frame.maxY - screen.frame.maxY + m,
+                width: w,
+                height: h
+            )
+            if region.contains(point) { return true }
+        }
+        return false
     }
 
     /// Write a full DebugLog snapshot to disk and bump snapshotPulse so
