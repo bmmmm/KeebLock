@@ -7,6 +7,12 @@ import AppKit
 /// CFBundleVersion), so the auto-versioning build phase keeps these in sync.
 enum AboutPanel {
 
+    /// Local-event monitor installed once per show() so a click anywhere in
+    /// the about panel closes it. Stored at file scope so the close path
+    /// can detach itself without a separate state machine.
+    private static var clickMonitor: Any?
+    private static weak var trackedPanel: NSWindow?
+
     static func show() {
         NSApp.activate(ignoringOtherApps: true)
         // Copyright line comes from Info.plist's NSHumanReadableCopyright,
@@ -15,6 +21,41 @@ enum AboutPanel {
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: credits,
         ])
+        // The panel doesn't appear in NSApp.windows until after the current
+        // run-loop turn — defer the lookup so we can capture a reference.
+        DispatchQueue.main.async { installClickToClose() }
+    }
+
+    /// Find the just-shown about panel and arm a local monitor that
+    /// closes it on the next mouseDown. Returning the event from the
+    /// monitor (rather than nil) keeps clicks on credit-text links live —
+    /// the link opens its URL, then the panel dismisses on the next
+    /// run-loop tick. A click on the title bar's stoplight buttons closes
+    /// via AppKit's own handler before our monitor fires; either way the
+    /// monitor self-cleans.
+    private static func installClickToClose() {
+        // Stock about panel is a private NSPanel subclass — match by
+        // class name so we don't snag any other window the app has open.
+        guard let panel = NSApp.windows.first(where: { window in
+            String(describing: type(of: window)).lowercased().contains("about")
+        }) else { return }
+
+        if let m = clickMonitor {
+            NSEvent.removeMonitor(m)
+            clickMonitor = nil
+        }
+        trackedPanel = panel
+
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let target = trackedPanel, event.window === target else { return event }
+            DispatchQueue.main.async { target.close() }
+            if let m = clickMonitor {
+                NSEvent.removeMonitor(m)
+                clickMonitor = nil
+            }
+            trackedPanel = nil
+            return event
+        }
     }
 
     // MARK: - Credits

@@ -66,6 +66,7 @@ struct CodewordCard: View {
         HStack(spacing: 6) {
             Text(entry.title)
                 .font(.headline)
+                .foregroundStyle(.tint)
                 .lineLimit(2)
             Spacer(minLength: 4)
             Link(destination: entry.wikipediaURL) {

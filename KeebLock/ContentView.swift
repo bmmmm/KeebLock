@@ -79,7 +79,7 @@ struct ContentView: View {
             VStack(spacing: 6) {
                 Text("Current codeword")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tint)
                 Button {
                     settings.codeword = Codewords.random()
                 } label: {
@@ -102,10 +102,11 @@ struct ContentView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "keyboard.badge.eye")
                         .font(.caption2)
+                        .foregroundStyle(.tint)
                     Text(inputSource.localizedName)
                         .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
                 .help("Active keyboard layout — KeebLock follows your input source")
             }
 
@@ -132,28 +133,39 @@ struct ContentView: View {
         return cd == verifiedCDHash ? .verified : .needsVerification
     }
 
-    /// Discreet shortcut hint row beneath the start button. Mirrors the
-    /// menu-bar shortcuts so first-time users see the keyboard handles
-    /// without having to crack open the app menu. Symbols-first for a
-    /// macOS-native feel; labels stay caption-sized.
+    /// Shortcut hint row beneath the start button. Mirrors the menu-bar
+    /// shortcuts so first-time users see the keyboard handles without
+    /// having to crack open the app menu. Symbols-first for a macOS-
+    /// native feel; sized for at-a-glance reading from a normal viewing
+    /// distance, not whisper-discreet.
     private var shortcutHints: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 18) {
             shortcutBadge(keys: "⌘S",   label: "Start")
             shortcutBadge(keys: "⌘R",   label: "Roll codeword")
             shortcutBadge(keys: "⌘,",   label: "Settings")
+            shortcutBadge(keys: "⌘Q",   label: "Quit")
         }
-        .font(.caption2)
+        .font(.caption)
         .foregroundStyle(.secondary)
+        .padding(.top, 4)
     }
 
     private func shortcutBadge(keys: String, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 7) {
+            // Tracking widens the gap between ⌘ and the letter so the
+            // sequence reads as two symbols, not the word "cmdS". Apple's
+            // own UI uses uppercase letters (⌘S, not ⌘s) — Shift is
+            // signalled by an explicit ⇧, never by lowercasing the letter.
+            // `.tint` follows the global `.tint(settings.appTheme.color)`
+            // applied at the WindowGroup root, so the badge re-colours
+            // automatically when the user switches accent theme.
             Text(keys)
-                .font(.system(.caption2, design: .monospaced).weight(.semibold))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-                .foregroundStyle(.primary.opacity(0.7))
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .tracking(4)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(.tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(.tint)
             Text(label)
         }
     }
@@ -345,7 +357,7 @@ struct ContentView: View {
             Text("vibes")
                 .font(.caption2.weight(.semibold))
                 .tracking(2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tint)
 
             HStack(spacing: 10) {
                 GameModeToggle(

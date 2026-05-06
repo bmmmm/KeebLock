@@ -61,8 +61,21 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
+    /// Wraps SwiftUI's stock `Section(_:content:)` with a tinted header so
+    /// the group title picks up the active theme accent. The Section's
+    /// own grouped-form styling is otherwise untouched, so the row layout
+    /// inside stays identical to the default look.
+    @ViewBuilder
+    private func tintedSection<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        Section {
+            content()
+        } header: {
+            Text(title).foregroundStyle(.tint)
+        }
+    }
+
     private var codewordSection: some View {
-        Section("Codeword") {
+        tintedSection("Codeword") {
             // Animated display/edit card
             ZStack {
                 if codewordEditing {
@@ -167,7 +180,7 @@ struct SettingsView: View {
     }
 
     private var pixelSection: some View {
-        Section("Pixel size") {
+        tintedSection("Pixel size") {
             HStack(spacing: 12) {
                 Image(systemName: "square.fill")
                     .font(.system(size: 18))
@@ -201,7 +214,7 @@ struct SettingsView: View {
     }
 
     private var colorsSection: some View {
-        Section("Colors") {
+        tintedSection("Colors") {
             Text("Two layers: the **background** is what you see initially; the **pixel** layer is what's revealed when a cell gets wiped. Default is colored bg → transparent pixel (desktop shows through). Swap them for an invert / dirty mode.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -280,7 +293,7 @@ struct SettingsView: View {
     }
 
     private var effectSection: some View {
-        Section("Effect") {
+        tintedSection("Effect") {
             Toggle("Enable effect on keystroke", isOn: $settings.effectEnabled)
             if settings.effectEnabled {
                 Picker("Type", selection: $settings.screenEffect) {
@@ -318,7 +331,7 @@ struct SettingsView: View {
     }
 
     private var soundSection: some View {
-        Section("Sound") {
+        tintedSection("Sound") {
             Toggle("Play click on keystroke", isOn: $settings.soundEnabled)
             Toggle("Chime when unlocked", isOn: $settings.unlockChimeEnabled)
             if settings.soundEnabled {
@@ -477,7 +490,7 @@ struct SettingsView: View {
     }
 
     private var knowledgeSection: some View {
-        Section("Codeword knowledge") {
+        tintedSection("Codeword knowledge") {
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
                 Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher, or read them rotating in the lock screen.")
@@ -496,7 +509,7 @@ struct SettingsView: View {
     }
 
     private var heatmapSection: some View {
-        Section("Heatmap") {
+        tintedSection("Heatmap") {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accumulated keystroke data")
@@ -518,7 +531,7 @@ struct SettingsView: View {
     }
 
     private var historySection: some View {
-        Section("Cleaning history") {
+        tintedSection("Cleaning history") {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Past sessions")
@@ -546,7 +559,7 @@ struct SettingsView: View {
     }
 
     private var autoUnlockSection: some View {
-        Section("Auto-unlock") {
+        tintedSection("Auto-unlock") {
             Toggle("Enable automatic timeout", isOn: $settings.autoUnlockEnabled)
             if settings.autoUnlockEnabled {
                 Picker("Duration", selection: $settings.durationMinutes) {
@@ -563,7 +576,7 @@ struct SettingsView: View {
     }
 
     private var aboutSection: some View {
-        Section("About") {
+        tintedSection("About") {
             // Header line: icon + name/version + GitHub-link inline.
             HStack(spacing: 12) {
                 Image(systemName: "keyboard.fill")
@@ -681,7 +694,7 @@ struct SettingsView: View {
     }
 
     private var debugSection: some View {
-        Section("Debug") {
+        tintedSection("Debug") {
             Toggle("Enable debug logging", isOn: $settings.debugLoggingEnabled)
 
             if settings.debugLoggingEnabled {
