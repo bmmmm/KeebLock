@@ -92,42 +92,6 @@ struct HUDView: View {
 
     // MARK: - Input breakdown
 
-    private struct InputCategory: Identifiable {
-        let id = UUID()
-        let label: String
-        let count: Int
-    }
-
-    private var keyboardCategories: [InputCategory] {
-        [
-            .init(label: "Letters",  count: controller.letterCount),
-            .init(label: "Numbers",  count: controller.numberCount),
-            .init(label: "Symbols",  count: controller.symbolCount),
-            .init(label: "Control",  count: controller.controlKeyCount),
-            .init(label: "Function", count: controller.functionKeyCount),
-            .init(label: "Media",    count: controller.mediaKeyCount),
-        ]
-    }
-
-    private var mouseCategories: [InputCategory] {
-        [
-            .init(label: "Left",    count: controller.leftClickCount),
-            .init(label: "Right",   count: controller.rightClickCount),
-            .init(label: "Middle",  count: controller.middleClickCount),
-            .init(label: "Back",    count: controller.backClickCount),
-            .init(label: "Forward", count: controller.forwardClickCount),
-            .init(label: "Scroll",  count: controller.scrollCount),
-        ]
-    }
-
-    private var gestureCategories: [InputCategory] {
-        [
-            .init(label: "Swipes", count: controller.swipeCount),
-            .init(label: "Pinch",  count: controller.pinchCount),
-            .init(label: "Rotate", count: controller.rotateCount),
-        ]
-    }
-
     private var inputBreakdown: some View {
         // Render all three cards from the start, even when every counter is 0.
         // The previous "show only when count > 0" version made the entire HUD
@@ -135,47 +99,18 @@ struct HUDView: View {
         // new category appeared), which yanked the knowledge card out from
         // under the user's eye. Constant layout > slightly emptier first
         // second.
+        //
+        // Each card is its own View struct so SwiftUI Observation only
+        // invalidates the card whose counters actually changed: typing
+        // doesn't re-render the Mouse + Gesture cards, mousing doesn't
+        // re-render Keyboard + Gesture, etc. Cuts HUDView body re-render
+        // cost by ~3× on the typing hot path.
         HStack(alignment: .top, spacing: 18) {
-            breakdownCard(title: "Keyboard", categories: keyboardCategories)
-            breakdownCard(title: "Mouse",    categories: mouseCategories)
-            breakdownCard(title: "Gestures", categories: gestureCategories)
+            KeyboardBreakdownCard(controller: controller)
+            MouseBreakdownCard(controller: controller)
+            GestureBreakdownCard(controller: controller)
         }
         .frame(maxWidth: 980)
-    }
-
-    private func breakdownCard(title: String, categories: [InputCategory]) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title.uppercased())
-                .font(.system(size: 13, weight: .heavy, design: .rounded))
-                .tracking(2.4)
-                .foregroundStyle(.white.opacity(0.7))
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading), count: 3),
-                alignment: .leading,
-                spacing: 14
-            ) {
-                // No .filter — render every tile so the card height never
-                // changes when a new category gets its first hit.
-                ForEach(categories) { cat in
-                    breakdownTile(cat)
-                }
-            }
-        }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 18)
-        .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 16))
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func breakdownTile(_ cat: InputCategory) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(cat.count)")
-                .font(.system(size: 38, weight: .heavy, design: .monospaced))
-                .foregroundStyle(cat.count > 0 ? .white : .white.opacity(0.22))
-            Text(cat.label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(cat.count > 0 ? 0.7 : 0.4))
-        }
     }
 
     private var colorIndicators: some View {
@@ -406,6 +341,103 @@ private struct CompactUnlockButton: View {
         .allowsHitTesting(unlockClickable)
         .animation(.easeInOut(duration: 0.25), value: unlockClickable)
         .accessibilityLabel("Unlock now")
+    }
+}
+
+// MARK: - Per-bucket breakdown cards
+//
+// Each card reads only its own counters from the @Observable controller,
+// so SwiftUI Observation re-invalidates a card only when its bucket
+// actually changes. Layout matches the previous unified breakdown.
+
+private struct HUDInputCategory: Identifiable {
+    /// Stable id (label) so ForEach diffs structurally instead of treating
+    /// every recomputation as a fresh row — the previous `id = UUID()`
+    /// regenerated on every body() and defeated SwiftUI's structural
+    /// reuse for the tile views.
+    var id: String { label }
+    let label: String
+    let count: Int
+}
+
+private struct InputBreakdownCard: View {
+    let title: String
+    let categories: [HUDInputCategory]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title.uppercased())
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .tracking(2.4)
+                .foregroundStyle(.white.opacity(0.7))
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading), count: 3),
+                alignment: .leading,
+                spacing: 14
+            ) {
+                ForEach(categories) { cat in
+                    HUDBreakdownTile(category: cat)
+                }
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+        .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HUDBreakdownTile: View {
+    let category: HUDInputCategory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(category.count)")
+                .font(.system(size: 38, weight: .heavy, design: .monospaced))
+                .foregroundStyle(category.count > 0 ? .white : .white.opacity(0.22))
+            Text(category.label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(category.count > 0 ? 0.7 : 0.4))
+        }
+    }
+}
+
+private struct KeyboardBreakdownCard: View {
+    var controller: LockController
+    var body: some View {
+        InputBreakdownCard(title: "Keyboard", categories: [
+            .init(label: "Letters",  count: controller.letterCount),
+            .init(label: "Numbers",  count: controller.numberCount),
+            .init(label: "Symbols",  count: controller.symbolCount),
+            .init(label: "Control",  count: controller.controlKeyCount),
+            .init(label: "Function", count: controller.functionKeyCount),
+            .init(label: "Media",    count: controller.mediaKeyCount),
+        ])
+    }
+}
+
+private struct MouseBreakdownCard: View {
+    var controller: LockController
+    var body: some View {
+        InputBreakdownCard(title: "Mouse", categories: [
+            .init(label: "Left",    count: controller.leftClickCount),
+            .init(label: "Right",   count: controller.rightClickCount),
+            .init(label: "Middle",  count: controller.middleClickCount),
+            .init(label: "Back",    count: controller.backClickCount),
+            .init(label: "Forward", count: controller.forwardClickCount),
+            .init(label: "Scroll",  count: controller.scrollCount),
+        ])
+    }
+}
+
+private struct GestureBreakdownCard: View {
+    var controller: LockController
+    var body: some View {
+        InputBreakdownCard(title: "Gestures", categories: [
+            .init(label: "Swipes", count: controller.swipeCount),
+            .init(label: "Pinch",  count: controller.pinchCount),
+            .init(label: "Rotate", count: controller.rotateCount),
+        ])
     }
 }
 
