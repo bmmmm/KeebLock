@@ -297,7 +297,11 @@ final class LockController {
     func stopLock() {
         guard isLocked, !isStopping else { return }
         isStopping = true
-        let secondsRun = max(0, totalSeconds - remainingSeconds)
+        // Real elapsed time. The previous `totalSeconds - remainingSeconds`
+        // expression read 0 whenever auto-unlock was off, because the
+        // timer never decrements `remainingSeconds` in that mode — so
+        // every "ran=…" log line lied about the session length.
+        let secondsRun = lockStartedAt.map { max(0, Int(Date().timeIntervalSince($0))) } ?? 0
         DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) sym=\(symbolCount) ctl=\(controlKeyCount) fn=\(functionKeyCount) med=\(mediaKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(swipeCount) pinch=\(pinchCount) rotate=\(rotateCount)")
         if AppSettings.shared.unlockChimeEnabled {
             soundPlayer.playUnlockChime()

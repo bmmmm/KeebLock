@@ -62,7 +62,11 @@ struct SparkOverlayView: View {
     @State private var bubbles:  [BubbleParticle]   = []
     @State private var flakes:   [SnowFlake]        = []
     @State private var viewSize: CGSize = .zero
-    @State private var spawnPending: Bool = false
+    /// Wall-clock timestamp of the last spawn. Used to debounce
+    /// triggerCount-driven onChange invocations to ~60 Hz max — anything
+    /// faster than that is wasted because the canvas can only paint at
+    /// the display refresh rate anyway.
+    @State private var lastSpawnAt: TimeInterval = 0
 
     private static let sparkColors: [Color] = [
         Color(red: 1.0, green: 0.72, blue: 0.82),
@@ -119,19 +123,20 @@ struct SparkOverlayView: View {
         .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
         .onChange(of: triggerCount) { _, _ in
             guard settings.effectEnabled else { return }
-            // Coalesce: if a spawn is already scheduled for this frame, skip.
-            // Rapid trigger bursts (typing, scroll wheel) would otherwise
-            // schedule several async blocks that all mutate State within the
-            // same runloop tick — SwiftUI flags that as "onChange tried to
-            // update multiple times per frame". One spawn per frame is plenty
-            // for the visual effect.
-            guard !spawnPending else { return }
-            spawnPending = true
+            // Time-based debounce: cap spawn rate at ~60 Hz. The previous
+            // boolean-flag + DispatchQueue.main.async coalesce wrote
+            // `spawnPending` twice per cycle (true synchronously, false
+            // from the async block) — under typing bursts that lands two
+            // mutations on the same @State variable in one frame, which
+            // SwiftUI reports as "onChange tried to update multiple times
+            // per frame". A timestamp gate is one synchronous mutation
+            // per accepted spawn, batched cleanly with the array writes
+            // inside spawn() below.
+            let now = Date().timeIntervalSinceReferenceDate
+            guard now - lastSpawnAt >= 1.0 / 60.0 else { return }
+            lastSpawnAt = now
             let size = viewSize.width > 0 ? viewSize : CGSize(width: 1920, height: 1080)
-            DispatchQueue.main.async {
-                spawnPending = false
-                spawn(in: size)
-            }
+            spawn(in: size)
         }
     }
 

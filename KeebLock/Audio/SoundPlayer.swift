@@ -27,13 +27,13 @@ final class SoundPlayer {
     private var customScopedURL: URL?
 
     private var lastPlayTime: TimeInterval = -.infinity
-    // 80 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
-    // tolerance, so the original 50 ms cap was producing "skipping
-    // cycle due to overload" warnings under sustained typing + active
-    // gesture streams (pinch/swipe each fire at ~60 Hz before our
-    // debounce). 80 ms = 12 plays/s is still plenty dense for tactile
-    // click feedback and lets HAL stay in its budget.
-    private let throttleInterval: TimeInterval = 0.08
+    // 100 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
+    // tolerance: 50 ms produced overload warnings, 80 ms still hit
+    // them under autorepeat / typing-burst with the engine kept warm
+    // across sessions (no longer rebuilt every stopLock). 100 ms = 10
+    // plays/s is still tactile and gives HAL enough headroom to stay
+    // in its budget under sustained input.
+    private let throttleInterval: TimeInterval = 0.10
 
     // High-priority serial queue for AVAudioEngine/PlayerNode scheduling.
     // AVAudioPlayerNode.scheduleBuffer is thread-safe and can be called from here.
