@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="assets/banner.png" alt="KeebLock — lock the keyboard, clean it, type the codeword to unlock" />
+  <img src="assets/banner.png"
+       srcset="assets/banner.png 1x, assets/banner@2x.png 2x"
+       alt="KeebLock — lock the keyboard, clean it, type the codeword to unlock" />
 </p>
 
 <h1 align="center">KeebLock</h1>
