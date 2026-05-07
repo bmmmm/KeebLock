@@ -181,15 +181,27 @@ enum KeyboardPositionMap {
 
     static func mapping(for keycode: UInt16) -> KeyMapping? {
         if let direct = table[keycode] { return direct }
-        // ISO-keyboard alias: keycode 10 is the § / non-US-backslash
-        // key that sits between left shift and Y on QWERTZ Apple
-        // keyboards (or top-left on some ISO models). The canonical
-        // layout array models US-ANSI which has no such key, so we
-        // alias it to Z's bounds — the closest visual neighbour on
-        // most ISO keyboards. Better than dropping the wipe entirely.
-        if keycode == 10, let z = table[6] { return z }
+        // Alias table for keycodes outside the canonical US-ANSI
+        // layout. These cover ISO-only keys, the Globe key on
+        // M-series MacBooks (replaces fn), and the non-standard
+        // codes modern Magic Keyboards report for the F3-F5 system
+        // action keys (Stage Manager / Spotlight / Dictation). All
+        // best-effort observations — the Apple keyboard never
+        // documents these; revise as new hardware shows up.
+        if let aliased = aliasTable[keycode] { return table[aliased] }
         return nil
     }
+
+    /// Maps keycodes that aren't in the canonical layout array to
+    /// the keycode of their closest visual neighbour. The renderer
+    /// then wipes inside that neighbour's bounding box.
+    private static let aliasTable: [UInt16: UInt16] = [
+        10:  6,    // ISO § / non-US-backslash → Z (between shift and Y on QWERTZ)
+        160: 63,   // Globe / 🌐 → fn (M-series MacBooks)
+        176: 99,   // Stage Manager / F3 alternative → F3
+        177: 118,  // Search / Spotlight / F4 alternative → F4
+        178: 96,   // Dictation / Mic / F5 alternative → F5
+    ]
 
     static func normalizedPosition(for keycode: UInt16) -> CGPoint? {
         mapping(for: keycode)?.position
