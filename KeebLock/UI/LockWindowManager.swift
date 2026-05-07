@@ -303,10 +303,19 @@ final class LockWindowManager {
         }
     }
 
-    /// Clears exactly one random pixel on every screen.
-    func wipeOnAllScreens() {
+    /// Clears one or more pixels on every screen. If `position` is nil
+    /// the random-mode wipe runs (single random cell per screen). If
+    /// `position` is given (normalised x,y in [0,1] with origin top-
+    /// left), each screen wipes `count` cells centred on the same
+    /// relative position — the keystroke-to-key-position mapping is
+    /// the same on every monitor.
+    func wipeOnAllScreens(at position: CGPoint? = nil, count: Int = 1) {
         for renderer in renderers {
-            renderer?.wipeRandomCell()
+            if let position {
+                renderer?.wipeAtNormalizedPosition(position, count: count)
+            } else {
+                renderer?.wipeRandomCell()
+            }
         }
     }
 

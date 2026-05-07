@@ -136,7 +136,7 @@ private struct HUDStatsRow: View {
 
     var body: some View {
         HStack(spacing: 40) {
-            HUDStat(label: "Keys", value: "\(controller.keystrokeCount)")
+            HUDStat(label: "Wipes", value: "\(controller.keystrokeCount)")
             HUDStat(
                 label: "Stage \(rendererProxy.stage)",
                 value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"

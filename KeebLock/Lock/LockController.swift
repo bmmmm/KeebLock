@@ -17,7 +17,7 @@ final class LockController {
     private(set) var sessionKeyCounts: [UInt16: Int] = [:]
     /// Per-keycode counts accumulated across every lock session on this
     /// machine. Persisted to UserDefaults on each stopLock and re-loaded
-    /// on launch. The user can clear it via the Heatmap view's Reset
+    /// on launch. The user can clear it via the Cleanmap view's Reset
     /// button. Privacy-trade-off acknowledged: this is keystroke-pattern
     /// data and stays on-disk, scoped to this user's UserDefaults — never
     /// leaves the machine.
@@ -107,7 +107,7 @@ final class LockController {
     /// NX_KEYTYPE → F-key keycode. macOS fires media/brightness keys as
     /// system-defined events with NX_KEYTYPE codes (independent of regular
     /// keyboard keycodes). Mapping them to the F-key the user actually pressed
-    /// lets the heatmap show "F1 was hit 12 times" regardless of fnState.
+    /// lets the cleanmap show "F1 was hit 12 times" regardless of fnState.
     private static let nxToFnKeycode: [Int: UInt16] = [
         0:  111, // SOUND_UP        → F12
         1:  103, // SOUND_DOWN      → F11
@@ -160,19 +160,23 @@ final class LockController {
     @ObservationIgnored private let windowManager = LockWindowManager()
     @ObservationIgnored private let soundPlayer = SoundPlayer()
 
-    /// Legacy UserDefaults key — single combined dictionary blob. Replaced
-    /// by `overallKeyCountsKey` below; folded into overall on first launch
-    /// after the migration (so existing users don't lose their accumulated
-    /// counts), then removed.
+    /// Uralt UserDefaults key — single combined dictionary blob from the
+    /// very first heatmap implementation. Folded into the current blob on
+    /// first launch after that migration, then removed.
     private static let legacyKeyCountsDefaultsKey = "heatmapKeyCounts"
-    /// Key for the persistent overall-heatmap blob.
-    private static let overallKeyCountsKey = "heatmapOverallKeyCounts"
-    /// One-shot flag set after the legacy → overall fold. Without it, a
+    /// Previous current-blob key (pre-rename). Folded into
+    /// `cleanmapKeyCountsKey` once on the upgrade that introduced the
+    /// rename, then removed. Kept as a constant only for that migration.
+    private static let legacyHeatmapOverallKey = "heatmapOverallKeyCounts"
+    /// Key for the persistent overall-cleanmap blob (post-rename).
+    private static let cleanmapKeyCountsKey = "cleanmapOverallKeyCounts"
+    /// One-shot flag set after the uralt → overall fold. Without it, a
     /// downgrade-then-upgrade cycle (old build re-writes the legacy key,
-    /// new build re-folds on next launch) silently double-counts that
-    /// user's heatmap. Once true, the legacy blob is ignored on every
-    /// subsequent launch.
+    /// new build re-folds on next launch) silently double-counts.
     private static let legacyMigrationDoneKey = "heatmapMigratedFromLegacy"
+    /// One-shot flag set after the heatmap → cleanmap rename fold. Same
+    /// downgrade-protection rationale as above.
+    private static let renameToCleanmapDoneKey = "renamedFromHeatmapToCleanmap"
 
     @ObservationIgnored private var lockStartedAt: Date?
     /// Set synchronously at the top of `stopLock()` so a re-entry from a
@@ -181,13 +185,13 @@ final class LockController {
     /// sequence twice — which would otherwise double-play the unlock chime
     /// and double-record the session.
     @ObservationIgnored private var isStopping: Bool = false
-    /// Counter for the throttled overall-heatmap save during an active
-    /// session. Incremented per keystroke; flushed every Nth or on
+    /// Counter for the throttled overall-cleanmap save during an active
+    /// session. Incremented per wipe; flushed every Nth or on
     /// `applicationWillTerminate`. Without periodic flush a crash mid-
-    /// session loses every keypress accumulated since the last
+    /// session loses every wipe accumulated since the last
     /// `stopLock()` save.
-    @ObservationIgnored private var keystrokesSinceLastHeatmapSave: Int = 0
-    @ObservationIgnored private static let heatmapSaveStride: Int = 50
+    @ObservationIgnored private var wipesSinceLastCleanmapSave: Int = 0
+    @ObservationIgnored private static let cleanmapSaveStride: Int = 50
     @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
@@ -205,8 +209,8 @@ final class LockController {
             .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
             .store(in: &bag)
 
-        // Final flush of the cumulative heatmap on app termination so a
-        // user who quits mid-session keeps the keystrokes since the last
+        // Final flush of the cumulative cleanmap on app termination so a
+        // user who quits mid-session keeps the wipes since the last
         // throttled save. Token is intentionally not stored — singleton's
         // observer lives for the process lifetime.
         NotificationCenter.default.addObserver(
@@ -256,7 +260,7 @@ final class LockController {
         swipeCount = 0
         pinchCount = 0
         rotateCount = 0
-        // Per-session heatmap starts fresh; overall heatmap accumulates.
+        // Per-session cleanmap starts fresh; overall cleanmap accumulates.
         sessionKeyCounts = [:]
         lastScrollAt = nil
         lastSwipeAt = nil
@@ -312,7 +316,7 @@ final class LockController {
         soundPlayer.stop()
         recordSession()
         saveOverallKeyCounts()
-        keystrokesSinceLastHeatmapSave = 0
+        wipesSinceLastCleanmapSave = 0
         PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
@@ -336,15 +340,15 @@ final class LockController {
         lockStartedAt = nil
     }
 
-    /// Wipe the current-session heatmap. Doesn't touch overall.
-    func resetSessionHeatmap() {
+    /// Clear the current-session cleanmap. Doesn't touch overall.
+    func resetSessionCleanmap() {
         sessionKeyCounts = [:]
     }
 
-    /// Wipe the persistent overall heatmap and the on-disk blob.
-    func resetOverallHeatmap() {
+    /// Clear the persistent overall cleanmap and the on-disk blob.
+    func resetOverallCleanmap() {
         overallKeyCounts = [:]
-        UserDefaults.standard.removeObject(forKey: Self.overallKeyCountsKey)
+        UserDefaults.standard.removeObject(forKey: Self.cleanmapKeyCountsKey)
     }
 
     // MARK: - In-lock snapshot button (paired with LockOverlayDebug)
@@ -407,11 +411,11 @@ final class LockController {
         PerfMetrics.shared.recordEvent("snapshot")
     }
 
-    // MARK: - Heatmap persistence
+    // MARK: - Cleanmap persistence
 
     private func loadOverallKeyCounts() {
-        // Pick up the new blob first.
-        if let data = UserDefaults.standard.data(forKey: Self.overallKeyCountsKey),
+        // Pick up the current blob first.
+        if let data = UserDefaults.standard.data(forKey: Self.cleanmapKeyCountsKey),
            let dict = try? JSONDecoder().decode([String: Int].self, from: data) {
             PerfMetrics.shared.recordJSONDecode()
             overallKeyCounts = Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
@@ -419,13 +423,27 @@ final class LockController {
                 return (code, val)
             })
         }
-        // One-time migration: existing users had data under the legacy key
-        // before the privacy-pass dropped persistence. Now that overall-
-        // heatmap persistence is back (per-user request), fold whatever's
-        // still under the legacy key into overall and remove the legacy
-        // entry so we don't double-count on the next launch. Gated on a
-        // one-shot defaults flag so a downgrade-then-upgrade cycle can't
-        // re-fold the legacy blob a second time.
+        // One-shot rename migration: pre-rename data lived under
+        // `heatmapOverallKeyCounts`. Fold (additive) into the new key
+        // and remove the old blob so a downgrade can't double-count
+        // on a subsequent upgrade.
+        if !UserDefaults.standard.bool(forKey: Self.renameToCleanmapDoneKey) {
+            if let data = UserDefaults.standard.data(forKey: Self.legacyHeatmapOverallKey),
+               let dict = try? JSONDecoder().decode([String: Int].self, from: data) {
+                PerfMetrics.shared.recordJSONDecode()
+                for (key, val) in dict {
+                    guard let code = UInt16(key) else { continue }
+                    overallKeyCounts[code, default: 0] += val
+                }
+                UserDefaults.standard.removeObject(forKey: Self.legacyHeatmapOverallKey)
+            }
+            UserDefaults.standard.set(true, forKey: Self.renameToCleanmapDoneKey)
+        }
+        // Uralt one-shot migration: existing users had data under the
+        // legacy single-blob key before the privacy-pass dropped
+        // persistence. Now that overall persistence is back (per-user
+        // request), fold whatever's still under the legacy key in and
+        // remove it. Same one-shot flag protection.
         guard !UserDefaults.standard.bool(forKey: Self.legacyMigrationDoneKey) else { return }
         if let legacyData = UserDefaults.standard.data(forKey: Self.legacyKeyCountsDefaultsKey),
            let legacyDict = try? JSONDecoder().decode([String: Int].self, from: legacyData) {
@@ -445,7 +463,7 @@ final class LockController {
         )
         if let data = try? JSONEncoder().encode(stringDict) {
             PerfMetrics.shared.recordJSONEncode()
-            UserDefaults.standard.set(data, forKey: Self.overallKeyCountsKey)
+            UserDefaults.standard.set(data, forKey: Self.cleanmapKeyCountsKey)
             PerfMetrics.shared.recordUserDefaultsWrite()
         }
     }
@@ -640,7 +658,7 @@ final class LockController {
             // the matching coordinate region and write the snapshot
             // ourselves — no pass-through to SwiftUI required, no click
             // counter bump, no spark feedback (it's a debug action, not
-            // user input we'd report on the heatmap).
+            // user input we'd report on the cleanmap).
             if isInsideInlineSnapshotRegion(event.location) {
                 triggerInlineSnapshot()
                 return nil
@@ -804,7 +822,7 @@ final class LockController {
                 if keyState == 0x0A && !isRepeat {
                     mediaKeyCount += 1
                     PerfMetrics.shared.recordEvent("mediaKey")
-                    // Project onto the F-row so the visual heatmap shows
+                    // Project onto the F-row so the visual cleanmap shows
                     // these hits at the key the user physically pressed.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
                     if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
@@ -823,7 +841,7 @@ final class LockController {
             // already swallowed by the trailing `return nil`; we just
             // refrain from counting / matching / sounding them. Without
             // this filter, holding spacebar inflates `keystrokeCount`,
-            // machine-guns the audio click, fills the heatmap with bogus
+            // machine-guns the audio click, fills the cleanmap with bogus
             // data, and lets a held-letter run carry the codeword
             // suffix-matcher to a spurious unlock.
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
@@ -839,6 +857,30 @@ final class LockController {
             }
         }
         return nil
+    }
+
+    /// Routes the wipe call based on the configured WipeMode. Random
+    /// keeps the original behaviour. Positional looks up the on-screen
+    /// position for the pressed keycode and clears `count` cells there
+    /// on every screen — count scales with cells-per-axis so the wipe
+    /// stays roughly one keyboard-column wide regardless of pixel size
+    /// (1 cell at coarse settings, 2–3 cells at fine settings). Falls
+    /// back to random when the keycode isn't in the keyboard layout
+    /// (exotic hardware keys), so keystrokes never go without feedback.
+    private func dispatchWipe(for keycode: UInt16) {
+        let settings = AppSettings.shared
+        switch settings.wipeMode {
+        case .random:
+            windowManager.wipeOnAllScreens()
+        case .positional:
+            if let pos = KeyboardPositionMap.normalizedPosition(for: keycode) {
+                let cellsX = settings.cellsPerAxis
+                let count = max(1, cellsX / 14)
+                windowManager.wipeOnAllScreens(at: pos, count: count)
+            } else {
+                windowManager.wipeOnAllScreens()
+            }
+        }
     }
 
     /// Audio + visual feedback fired on every captured input (keystroke,
@@ -895,13 +937,13 @@ final class LockController {
         // chunk of keystrokes that crossed a save boundary. Stride 50
         // ≈ 4–5 s of brisk typing — small write fraction, small loss
         // window.
-        keystrokesSinceLastHeatmapSave += 1
-        if keystrokesSinceLastHeatmapSave >= Self.heatmapSaveStride {
+        wipesSinceLastCleanmapSave += 1
+        if wipesSinceLastCleanmapSave >= Self.cleanmapSaveStride {
             saveOverallKeyCounts()
-            keystrokesSinceLastHeatmapSave = 0
+            wipesSinceLastCleanmapSave = 0
         }
         PerfMetrics.shared.recordWipe()
-        windowManager.wipeOnAllScreens()
+        dispatchWipe(for: keycode)
         triggerInputFeedback()
 
         for ch in chars where ch.isLetter || ch.isNumber {

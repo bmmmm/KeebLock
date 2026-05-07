@@ -100,6 +100,79 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         if advance { advanceStage() }
     }
 
+    /// Clears one or more cells centred on the normalised position
+    /// `(x, y) ∈ [0,1] × [0,1]`, with x left→right and y top→bottom —
+    /// matching the keyboard-to-screen mapping in `KeyboardPositionMap`.
+    ///
+    /// `count` is how many cells the keystroke should clear; the
+    /// caller derives it from cells-per-axis so the visual wipe per
+    /// key stays roughly consistent across pixel-fineness settings
+    /// (more cells per stroke when the grid is finer).
+    ///
+    /// If the centre cell is already wiped, expansion proceeds in
+    /// Chebyshev rings (max(|dx|,|dy|) = r) until enough intact cells
+    /// are found or the grid is exhausted. Each ring is shuffled so
+    /// repeated presses on the same key don't always pick the same
+    /// neighbour, keeping the visual reveal organic.
+    func wipeAtNormalizedPosition(_ pos: CGPoint, count requestedCount: Int) {
+        let count = max(1, requestedCount)
+        stateLock.lock()
+        let w = maskDims.w
+        let h = maskDims.h
+        let cx = max(0, min(w - 1, Int(pos.x * Double(w))))
+        let cy = max(0, min(h - 1, Int(pos.y * Double(h))))
+
+        var wipedThisCall = 0
+        var radius = 0
+        let maxRadius = max(w, h)
+        while wipedThisCall < count, radius <= maxRadius {
+            let candidates = chebyshevRing(cx: cx, cy: cy, radius: radius).shuffled()
+            for (nx, ny) in candidates {
+                guard nx >= 0, nx < w, ny >= 0, ny < h else { continue }
+                let idx = ny * w + nx
+                if maskBytes[idx] == 0 { continue }
+                maskBytes[idx] = 0
+                if let removeAt = remainingIndices.firstIndex(of: idx) {
+                    remainingIndices.remove(at: removeAt)
+                }
+                wipedCellCount += 1
+                wipedThisCall += 1
+                if wipedThisCall >= count { break }
+            }
+            radius += 1
+        }
+
+        let madeProgress = wipedThisCall > 0
+        if madeProgress { maskDirty = true }
+        let total = maskBytes.count
+        let frac = Double(wipedCellCount) / Double(total)
+        let advance = wipedCellCount >= total
+        stateLock.unlock()
+
+        if madeProgress {
+            DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
+        }
+        if advance { advanceStage() }
+    }
+
+    private func chebyshevRing(cx: Int, cy: Int, radius: Int) -> [(Int, Int)] {
+        if radius == 0 { return [(cx, cy)] }
+        var cells: [(Int, Int)] = []
+        cells.reserveCapacity(8 * radius)
+        let r = radius
+        for dx in -r...r {
+            cells.append((cx + dx, cy - r))
+            cells.append((cx + dx, cy + r))
+        }
+        if r >= 2 {
+            for dy in (-r + 1)...(r - 1) {
+                cells.append((cx - r, cy + dy))
+                cells.append((cx + r, cy + dy))
+            }
+        }
+        return cells
+    }
+
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true

@@ -88,7 +88,7 @@ struct LockOverlayDebug: View {
 
     private var topStrip: some View {
         HStack(spacing: 18) {
-            field("KEYS",     "\(controller.keystrokeCount)")
+            field("WIPES",    "\(controller.keystrokeCount)")
             field("LET",      "\(controller.letterCount)",     dim: controller.letterCount == 0)
             field("NUM",      "\(controller.numberCount)",     dim: controller.numberCount == 0)
             field("SYM",      "\(controller.symbolCount)",     dim: controller.symbolCount == 0)

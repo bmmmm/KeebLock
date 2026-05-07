@@ -61,11 +61,48 @@ enum ScreenEffect: String, CaseIterable, Identifiable, Codable {
 
     var intensityDescription: String {
         switch self {
-        case .sparks:  return "Particles per burst"
-        case .rain:    return "Drops per keystroke"
-        case .matrix:  return "Characters per keystroke"
-        case .bubbles: return "Bubbles per keystroke"
-        case .snow:    return "Flakes per keystroke"
+        case .sparks:  return "Particles per wipe"
+        case .rain:    return "Drops per wipe"
+        case .matrix:  return "Characters per wipe"
+        case .bubbles: return "Bubbles per wipe"
+        case .snow:    return "Flakes per wipe"
+        }
+    }
+}
+
+// MARK: - Wipe mode
+
+/// How keystrokes choose which mask cell gets cleared.
+///
+/// `.random` keeps the original behaviour: every press wipes a random
+/// remaining cell, so the screen reveals uniformly. `.positional` maps
+/// the physical keycode to the equivalent on-screen position via
+/// `KeyboardPositionMap` — pressing Q clears the upper-left corner,
+/// pressing space clears the bottom centre. Lets the user "scrub" the
+/// screen clean by physically navigating their keyboard.
+enum WipeMode: String, CaseIterable, Identifiable, Codable {
+    case random, positional
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .random:     return "Random"
+        case .positional: return "Positional"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .random:     return "shuffle"
+        case .positional: return "keyboard"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .random:     return "Each wipe clears a random cell — the screen reveals uniformly."
+        case .positional: return "Each wipe clears the cell under the key you pressed — type to scrub specific areas."
         }
     }
 }
@@ -275,6 +312,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(screenEffect.rawValue, forKey: Keys.screenEffect) }
     }
 
+    @Published var wipeMode: WipeMode {
+        didSet { defaults.set(wipeMode.rawValue, forKey: Keys.wipeMode) }
+    }
+
     // MARK: - Sound
 
     @Published var soundEnabled: Bool {
@@ -390,6 +431,7 @@ final class AppSettings: ObservableObject {
         static let sparks             = "sparksEnabled"
         static let sparkCount         = "sparkCount"
         static let screenEffect       = "screenEffect"
+        static let wipeMode           = "wipeMode"
         static let pixelFineness      = "pixelFineness"
         static let bgColor            = "backgroundColorPreset"
         static let pixelColor         = "pixelColorPreset"
@@ -425,6 +467,9 @@ final class AppSettings: ObservableObject {
 
         let effectRaw = d.string(forKey: Keys.screenEffect) ?? ScreenEffect.sparks.rawValue
         self.screenEffect = ScreenEffect(rawValue: effectRaw) ?? .sparks
+
+        let wipeModeRaw = d.string(forKey: Keys.wipeMode) ?? WipeMode.random.rawValue
+        self.wipeMode = WipeMode(rawValue: wipeModeRaw) ?? .random
 
         let pf = d.integer(forKey: Keys.pixelFineness)
         self.pixelFineness = (1...10).contains(pf) ? pf : 9

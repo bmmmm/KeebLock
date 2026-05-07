@@ -8,7 +8,7 @@ struct SettingsView: View {
     @ObservedObject var history: CleaningHistory = .shared
 
     @State private var suggestions: [String] = Codewords.suggestions()
-    @State private var showHeatmap = false
+    @State private var showCleanmap = false
     @State private var showHistory = false
     @State private var snapshotMessage: String?
     @State private var copiedCommand: String?
@@ -21,11 +21,12 @@ struct SettingsView: View {
                 codewordSection
                 themeSection
                 pixelSection
+                wipeModeSection
                 colorsSection
                 effectSection
                 soundSection
                 knowledgeSection
-                heatmapSection
+                cleanmapSection
                 historySection
                 autoUnlockSection
                 aboutSection
@@ -43,8 +44,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showHeatmap) {
-                HeatmapView(controller: controller)
+            .sheet(isPresented: $showCleanmap) {
+                CleanmapView(controller: controller)
             }
             .sheet(isPresented: $showHistory) {
                 CleaningHistoryView(history: history)
@@ -213,6 +214,23 @@ struct SettingsView: View {
         }
     }
 
+    private var wipeModeSection: some View {
+        tintedSection("Wipe mode") {
+            Picker("Mode", selection: $settings.wipeMode) {
+                ForEach(WipeMode.allCases) { mode in
+                    Label(mode.label, systemImage: mode.icon).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(settings.wipeMode.helpText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeInOut(duration: 0.2), value: settings.wipeMode)
+        }
+    }
+
     private var colorsSection: some View {
         tintedSection("Colors") {
             Text("Two layers: the **background** is what you see initially; the **pixel** layer is what's revealed when a cell gets wiped. Default is colored bg → transparent pixel (desktop shows through). Swap them for an invert / dirty mode.")
@@ -294,7 +312,7 @@ struct SettingsView: View {
 
     private var effectSection: some View {
         tintedSection("Effect") {
-            Toggle("Enable effect on keystroke", isOn: $settings.effectEnabled)
+            Toggle("Enable effect on wipe", isOn: $settings.effectEnabled)
             if settings.effectEnabled {
                 Picker("Type", selection: $settings.screenEffect) {
                     ForEach(ScreenEffect.allCases) { effect in
@@ -332,7 +350,7 @@ struct SettingsView: View {
 
     private var soundSection: some View {
         tintedSection("Sound") {
-            Toggle("Play click on keystroke", isOn: $settings.soundEnabled)
+            Toggle("Play click on wipe", isOn: $settings.soundEnabled)
             Toggle("Chime when unlocked", isOn: $settings.unlockChimeEnabled)
             if settings.soundEnabled {
                 HStack(spacing: 12) {
@@ -498,7 +516,7 @@ struct SettingsView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Tint codeword in theme color as you type it", isOn: $settings.showCodewordProgress)
-                Text("Off skips a per-keystroke HUD redraw — turn off if you hear sound stutter under sustained typing.")
+                Text("Off skips a per-wipe HUD redraw — turn off if you hear sound stutter under sustained typing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -506,11 +524,11 @@ struct SettingsView: View {
         }
     }
 
-    private var heatmapSection: some View {
-        tintedSection("Heatmap") {
+    private var cleanmapSection: some View {
+        tintedSection("Cleanmap") {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Accumulated keystroke data")
+                    Text("Accumulated wipe data")
                         .font(.body)
                     Text("\(controller.overallKeyCounts.values.reduce(0, +)) overall · \(controller.sessionKeyCounts.values.reduce(0, +)) this session · \(controller.overallKeyCounts.count) keys")
                         .font(.caption)
@@ -518,7 +536,7 @@ struct SettingsView: View {
                 }
                 Spacer()
                 Button {
-                    showHeatmap = true
+                    showCleanmap = true
                 } label: {
                     Label("View", systemImage: "chart.bar.fill")
                 }
@@ -777,7 +795,7 @@ struct SettingsView: View {
 
     private func pickSoundFile() {
         let panel = NSOpenPanel()
-        panel.title = "Choose a sound for keystrokes"
+        panel.title = "Choose a sound for wipes"
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.audio, .wav, .mp3, .mpeg4Audio, .aiff]

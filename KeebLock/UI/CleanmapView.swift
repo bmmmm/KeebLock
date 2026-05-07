@@ -2,11 +2,11 @@ import Carbon
 import Combine
 import SwiftUI
 
-// Visual keyboard + mouse heatmap. Tile-grid keyboard at the top (each key
-// positioned at its real ANSI Mac coordinates, tinted by press count), mouse
+// Visual keyboard + mouse cleanmap. Tile-grid keyboard at the top (each key
+// positioned at its real ANSI Mac coordinates, tinted by wipe count), mouse
 // breakdown below, and the legacy sortable table at the bottom for users
 // who want exact numbers per key.
-struct HeatmapView: View {
+struct CleanmapView: View {
     var controller: LockController
     @ObservedObject private var inputSource = InputSourceObserver.shared
     @Environment(\.dismiss) private var dismiss
@@ -52,7 +52,7 @@ struct HeatmapView: View {
     }
 
     private var maxCount: Int { rows.first?.count ?? 1 }
-    private var totalPresses: Int { keyCounts.values.reduce(0, +) }
+    private var totalWipes: Int { keyCounts.values.reduce(0, +) }
     private var distinctKeys: Int { keyCounts.count }
 
     /// Highest single mouse counter — drives heat scaling for the mouse panel
@@ -91,14 +91,14 @@ struct HeatmapView: View {
 
     /// Per-tile label: dynamic translation when available, otherwise the
     /// hard-coded fallback (modifier glyphs, F-keys, special keys).
-    private func resolvedLabel(for key: KbKey) -> String {
+    private func resolvedLabel(for key: KeyboardKey) -> String {
         if let code = key.code, let dyn = dynamicLabels[code] { return dyn }
         return key.label
     }
 
     /// Walk all tile keycodes once, ask UCKeyTranslate for the layout-correct
     /// label, cache. Cheap (~50 calls) and only fires on view show / layout
-    /// switch — not on each keystroke.
+    /// switch — not on each wipe.
     private func rebuildDynamicLabels() {
         guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
         var map: [UInt16: String] = [:]
@@ -119,9 +119,9 @@ struct HeatmapView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Heatmap")
+                Text("Cleanmap")
                     .font(.title2).fontWeight(.semibold)
-                Text("\(distinctKeys) distinct keys · \(totalPresses) total presses")
+                Text("\(distinctKeys) distinct keys · \(totalWipes) total wipes")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -142,7 +142,7 @@ struct HeatmapView: View {
             Image(systemName: "keyboard")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text("No keystrokes recorded yet.")
+            Text("No wipes recorded yet.")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 80)
@@ -152,11 +152,11 @@ struct HeatmapView: View {
         HStack {
             Button(role: .destructive) {
                 switch scope {
-                case .session: controller.resetSessionHeatmap()
-                case .overall: controller.resetOverallHeatmap()
+                case .session: controller.resetSessionCleanmap()
+                case .overall: controller.resetOverallCleanmap()
                 }
             } label: {
-                Label("Reset \(scope.rawValue.lowercased())", systemImage: "arrow.counterclockwise")
+                Label("Reset \(scope.rawValue.lowercased()) cleanmap", systemImage: "arrow.counterclockwise")
                     .foregroundStyle(.red)
             }
             .buttonStyle(.bordered)
@@ -268,121 +268,10 @@ struct HeatmapView: View {
     }
 }
 
-// MARK: - Keyboard layout data
-
-private struct KbKey {
-    let code: UInt16?       // nil = decorative spacer (no count lookup)
-    let label: String
-    let width: CGFloat      // width units (1.0 = standard alphanumeric key)
-}
-
-private enum KeyboardLayout {
-    /// Compact ANSI Mac layout. Coordinates are eyeballed but produce a
-    /// recognisable keyboard at a glance — the goal is "where do my hits
-    /// cluster", not pixel-perfect Apple geometry.
-    static let rows: [[KbKey]] = [
-        // F-row
-        [
-            KbKey(code: 53,  label: "esc",  width: 1.25),
-            KbKey(code: 122, label: "F1",   width: 1),
-            KbKey(code: 120, label: "F2",   width: 1),
-            KbKey(code: 99,  label: "F3",   width: 1),
-            KbKey(code: 118, label: "F4",   width: 1),
-            KbKey(code: 96,  label: "F5",   width: 1),
-            KbKey(code: 97,  label: "F6",   width: 1),
-            KbKey(code: 98,  label: "F7",   width: 1),
-            KbKey(code: 100, label: "F8",   width: 1),
-            KbKey(code: 101, label: "F9",   width: 1),
-            KbKey(code: 109, label: "F10",  width: 1),
-            KbKey(code: 103, label: "F11",  width: 1),
-            KbKey(code: 111, label: "F12",  width: 1),
-        ],
-        // Number row
-        [
-            KbKey(code: 50,  label: "`",    width: 1),
-            KbKey(code: 18,  label: "1",    width: 1),
-            KbKey(code: 19,  label: "2",    width: 1),
-            KbKey(code: 20,  label: "3",    width: 1),
-            KbKey(code: 21,  label: "4",    width: 1),
-            KbKey(code: 23,  label: "5",    width: 1),
-            KbKey(code: 22,  label: "6",    width: 1),
-            KbKey(code: 26,  label: "7",    width: 1),
-            KbKey(code: 28,  label: "8",    width: 1),
-            KbKey(code: 25,  label: "9",    width: 1),
-            KbKey(code: 29,  label: "0",    width: 1),
-            KbKey(code: 27,  label: "-",    width: 1),
-            KbKey(code: 24,  label: "=",    width: 1),
-            KbKey(code: 51,  label: "⌫",   width: 1.25),
-        ],
-        // QWERTY row
-        [
-            KbKey(code: 48,  label: "⇥",   width: 1.5),
-            KbKey(code: 12,  label: "Q",    width: 1),
-            KbKey(code: 13,  label: "W",    width: 1),
-            KbKey(code: 14,  label: "E",    width: 1),
-            KbKey(code: 15,  label: "R",    width: 1),
-            KbKey(code: 17,  label: "T",    width: 1),
-            KbKey(code: 16,  label: "Y",    width: 1),
-            KbKey(code: 32,  label: "U",    width: 1),
-            KbKey(code: 34,  label: "I",    width: 1),
-            KbKey(code: 31,  label: "O",    width: 1),
-            KbKey(code: 35,  label: "P",    width: 1),
-            KbKey(code: 33,  label: "[",    width: 1),
-            KbKey(code: 30,  label: "]",    width: 1),
-            KbKey(code: 42,  label: "\\",   width: 1),
-        ],
-        // Home row
-        [
-            KbKey(code: 57,  label: "⇪",   width: 1.75),
-            KbKey(code: 0,   label: "A",    width: 1),
-            KbKey(code: 1,   label: "S",    width: 1),
-            KbKey(code: 2,   label: "D",    width: 1),
-            KbKey(code: 3,   label: "F",    width: 1),
-            KbKey(code: 5,   label: "G",    width: 1),
-            KbKey(code: 4,   label: "H",    width: 1),
-            KbKey(code: 38,  label: "J",    width: 1),
-            KbKey(code: 40,  label: "K",    width: 1),
-            KbKey(code: 37,  label: "L",    width: 1),
-            KbKey(code: 41,  label: ";",    width: 1),
-            KbKey(code: 39,  label: "'",    width: 1),
-            KbKey(code: 36,  label: "↩",   width: 1.75),
-        ],
-        // Shift row
-        [
-            KbKey(code: 56,  label: "⇧",   width: 2.25),
-            KbKey(code: 6,   label: "Z",    width: 1),
-            KbKey(code: 7,   label: "X",    width: 1),
-            KbKey(code: 8,   label: "C",    width: 1),
-            KbKey(code: 9,   label: "V",    width: 1),
-            KbKey(code: 11,  label: "B",    width: 1),
-            KbKey(code: 45,  label: "N",    width: 1),
-            KbKey(code: 46,  label: "M",    width: 1),
-            KbKey(code: 43,  label: ",",    width: 1),
-            KbKey(code: 47,  label: ".",    width: 1),
-            KbKey(code: 44,  label: "/",    width: 1),
-            KbKey(code: 60,  label: "⇧",   width: 2),
-        ],
-        // Modifier row
-        [
-            KbKey(code: 63,  label: "fn",   width: 1),
-            KbKey(code: 59,  label: "⌃",   width: 1),
-            KbKey(code: 58,  label: "⌥",   width: 1),
-            KbKey(code: 55,  label: "⌘",   width: 1.25),
-            KbKey(code: 49,  label: "space", width: 5),
-            KbKey(code: 54,  label: "⌘",   width: 1.25),
-            KbKey(code: 61,  label: "⌥",   width: 1),
-            KbKey(code: 123, label: "◀",   width: 1),
-            KbKey(code: 126, label: "▲",   width: 1),
-            KbKey(code: 125, label: "▼",   width: 1),
-            KbKey(code: 124, label: "▶",   width: 1),
-        ],
-    ]
-}
-
 // MARK: - Tile + supporting views
 
 private struct KeyTile: View {
-    let key: KbKey
+    let key: KeyboardKey
     let resolvedLabel: String
     let count: Int
     let maxCount: Int
