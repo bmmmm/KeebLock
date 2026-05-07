@@ -113,9 +113,22 @@ enum KeyboardLayout {
     ]
 }
 
-/// Maps a hardware keycode to a normalised on-screen point so the
-/// positional wipe mode can target the cell that visually corresponds
-/// to where the key sits on the keyboard.
+/// Layout-derived data about a single physical key, used by the
+/// positional wipe mode to place and scale the wipe.
+struct KeyMapping {
+    /// Centre of the key on the normalised keyboard. x ∈ [0,1]
+    /// left→right, y ∈ [0,1] top→bottom.
+    let position: CGPoint
+    /// Width relative to a standard alphanumeric key (1.0). Drives
+    /// the wipe-cell count: spacebar (5.0) clears five times the
+    /// area of Q (1.0) so big keys actually feel big.
+    let widthUnits: Double
+}
+
+/// Maps a hardware keycode to layout data so the positional wipe
+/// mode can target the cell that visually corresponds to where the
+/// key sits on the keyboard, and scale the cleared area to the
+/// key's physical size.
 ///
 /// Output coordinates: x ∈ [0,1] left→right, y ∈ [0,1] top→bottom.
 /// Each row is normalised by its own total width — rows have slightly
@@ -124,13 +137,13 @@ enum KeyboardLayout {
 /// to edge, so per-row normalisation produces the visually expected
 /// alignment between Q, A, Z within a column.
 ///
-/// Keycodes outside the layout (e.g. unknown function keys, exotic
-/// hardware keys) return nil — the caller should fall back to a
-/// random wipe in that case.
+/// Keycodes outside the layout (numpad-only keys, exotic hardware)
+/// return nil — the wipe is then skipped entirely (no random
+/// fallback) so unmapped strokes don't pollute the cleanup pattern.
 enum KeyboardPositionMap {
     /// Cached lookup table built once, keyed by hardware keycode.
-    private static let table: [UInt16: CGPoint] = {
-        var map: [UInt16: CGPoint] = [:]
+    private static let table: [UInt16: KeyMapping] = {
+        var map: [UInt16: KeyMapping] = [:]
         let rowCount = KeyboardLayout.rows.count
         for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
             let totalWidth = row.reduce(0.0) { $0 + Double($1.width) }
@@ -142,13 +155,20 @@ enum KeyboardPositionMap {
                 guard let code = key.code else { continue }
                 let x = centerX / totalWidth
                 let y = (Double(rowIdx) + 0.5) / Double(rowCount)
-                map[code] = CGPoint(x: x, y: y)
+                map[code] = KeyMapping(
+                    position: CGPoint(x: x, y: y),
+                    widthUnits: Double(key.width)
+                )
             }
         }
         return map
     }()
 
-    static func normalizedPosition(for keycode: UInt16) -> CGPoint? {
+    static func mapping(for keycode: UInt16) -> KeyMapping? {
         table[keycode]
+    }
+
+    static func normalizedPosition(for keycode: UInt16) -> CGPoint? {
+        table[keycode]?.position
     }
 }

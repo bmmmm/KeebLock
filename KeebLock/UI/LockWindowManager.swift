@@ -324,6 +324,12 @@ final class LockWindowManager {
         renderers.compactMap { $0?.stage }.max() ?? 1
     }
 
+    /// Per-renderer mask state for the diagnostic log. Empty when no
+    /// lock is active (renderers are torn down on `hide()`).
+    func screenStates() -> [WipeRenderer.State] {
+        renderers.compactMap { $0?.snapshotState() }
+    }
+
     // MARK: - Diagnostics
 
     /// Log the Spaces topology at lock start so the user can correlate

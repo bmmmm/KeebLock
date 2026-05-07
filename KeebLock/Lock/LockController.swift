@@ -90,6 +90,9 @@ final class LockController {
     var eventTapInstalled: Bool { eventTap != nil }
     var spaceObserverInstalled: Bool { spaceObserver != nil }
     var lockWindowCount: Int { windowManager.windowCount }
+    /// Per-screen wipe-renderer state for diagnostic snapshots; empty
+    /// when no lock is active.
+    var screenWipeStates: [WipeRenderer.State] { windowManager.screenStates() }
 
     private static let functionKeycodes: Set<UInt16> = [
         122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1–F12
@@ -887,25 +890,26 @@ final class LockController {
 
     /// Routes the wipe call based on the configured WipeMode. Random
     /// keeps the original behaviour. Positional looks up the on-screen
-    /// position for the pressed keycode and clears `count` cells there
-    /// on every screen — count scales with cells-per-axis so the wipe
-    /// stays roughly one keyboard-column wide regardless of pixel size
-    /// (1 cell at coarse settings, 2–3 cells at fine settings). Falls
-    /// back to random when the keycode isn't in the keyboard layout
-    /// (exotic hardware keys), so keystrokes never go without feedback.
+    /// position for the pressed keycode, scales the cell count by both
+    /// the user's pixel-fineness setting AND the physical width of the
+    /// key (a 5-unit spacebar clears five times the area of a 1-unit
+    /// alphanumeric key — big keys feel big, small keys feel small).
+    /// Unmapped keycodes (numpad-only keys, exotic hardware) skip the
+    /// wipe entirely rather than falling back to random — random hits
+    /// would pollute the visual feedback the user is reading to know
+    /// which areas still need cleaning.
     private func dispatchWipe(for keycode: UInt16) {
         let settings = AppSettings.shared
         switch settings.wipeMode {
         case .random:
             windowManager.wipeOnAllScreens()
         case .positional:
-            if let pos = KeyboardPositionMap.normalizedPosition(for: keycode) {
-                let cellsX = settings.cellsPerAxis
-                let count = max(1, cellsX / 14)
-                windowManager.wipeOnAllScreens(at: pos, count: count)
-            } else {
-                windowManager.wipeOnAllScreens()
+            guard let mapping = KeyboardPositionMap.mapping(for: keycode) else {
+                return
             }
+            let baseCount = Double(settings.cellsPerAxis) / 14.0
+            let count = max(1, Int((baseCount * mapping.widthUnits).rounded()))
+            windowManager.wipeOnAllScreens(at: mapping.position, count: count)
         }
     }
 
@@ -928,11 +932,23 @@ final class LockController {
     private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
         lastInputAt = Date()
-        // Tag-only — no keycode. The verbose-perf event ring is dumped
-        // into snapshots that users may share for support; including
-        // the physical keycode there leaks the codeword's key-position
-        // sequence to anyone who reads the file.
-        PerfMetrics.shared.recordEvent("key")
+        // Tag-only by default; expanded to include keycode + normalised
+        // keyboard position when verbose perf is on. The expanded form
+        // exists to debug positional-mode behaviour (which key fired
+        // which on-screen wipe). Verbose perf is opt-in and the user
+        // is expected to know their snapshot will carry the keycode
+        // sequence — they typed it on purpose to see it.
+        if AppSettings.shared.verbosePerfEnabled {
+            if let mapping = KeyboardPositionMap.mapping(for: keycode) {
+                PerfMetrics.shared.recordEvent(
+                    "key kc=\(keycode) pos=(\(String(format: "%.2f", mapping.position.x)),\(String(format: "%.2f", mapping.position.y))) w=\(String(format: "%.2f", mapping.widthUnits))"
+                )
+            } else {
+                PerfMetrics.shared.recordEvent("key kc=\(keycode) pos=unmapped")
+            }
+        } else {
+            PerfMetrics.shared.recordEvent("key")
+        }
         if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
             lastFactRotationKeystroke = keystrokeCount
             factRotationTick &+= 1

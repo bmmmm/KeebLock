@@ -187,6 +187,20 @@ enum DebugLog {
         lines.append("cleanmap session: \(c.sessionKeyCounts.count) keys / \(c.sessionKeyCounts.values.reduce(0, +)) wipes")
         lines.append("cleanmap overall: \(c.overallKeyCounts.count) keys / \(c.overallKeyCounts.values.reduce(0, +)) wipes (persisted)")
         lines.append("")
+
+        let states = c.screenWipeStates
+        if !states.isEmpty {
+            lines.append("------ Screen wipe state ------")
+            for (idx, st) in states.enumerated() {
+                let pct = st.totalCells > 0
+                    ? Double(st.wipedCells) / Double(st.totalCells) * 100.0
+                    : 0.0
+                lines.append(
+                    "  [\(idx)] \(Int(st.frame.width))×\(Int(st.frame.height))  stage \(st.stage)  \(st.cellsW)×\(st.cellsH) cells  wiped \(st.wipedCells)/\(st.totalCells) (\(String(format: "%.1f", pct))%)  remaining=\(st.remainingIndices)"
+                )
+            }
+            lines.append("")
+        }
         lines.append("------ Subsystems ------")
         lines.append("audio engine:    \(c.soundDiagnostic)")
         lines.append("accessibility:   \(AccessibilityPermission.isGranted ? "granted" : "denied")")

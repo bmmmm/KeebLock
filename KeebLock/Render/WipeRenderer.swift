@@ -173,6 +173,33 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         return cells
     }
 
+    /// Read-only snapshot of mask state for the diagnostic log.
+    /// Callable from any thread — locks the same mutex the wipe paths
+    /// use so reads are coherent with concurrent writes.
+    struct State {
+        let frame: CGRect
+        let stage: Int
+        let cellsW: Int
+        let cellsH: Int
+        let wipedCells: Int
+        let totalCells: Int
+        let remainingIndices: Int
+    }
+
+    func snapshotState() -> State {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return State(
+            frame: screenFrame,
+            stage: stage,
+            cellsW: maskDims.w,
+            cellsH: maskDims.h,
+            wipedCells: wipedCellCount,
+            totalCells: maskDims.w * maskDims.h,
+            remainingIndices: remainingIndices.count
+        )
+    }
+
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true
