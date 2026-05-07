@@ -909,7 +909,11 @@ final class LockController {
             }
             let baseCount = Double(settings.cellsPerAxis) / 14.0
             let count = max(1, Int((baseCount * mapping.widthUnits).rounded()))
-            windowManager.wipeOnAllScreens(at: mapping.position, count: count)
+            windowManager.wipeOnAllScreens(
+                at: mapping.position,
+                count: count,
+                bounds: mapping.bounds
+            )
         }
     }
 

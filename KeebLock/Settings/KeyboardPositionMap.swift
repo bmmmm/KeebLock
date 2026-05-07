@@ -123,6 +123,12 @@ struct KeyMapping {
     /// the wipe-cell count: spacebar (5.0) clears five times the
     /// area of Q (1.0) so big keys actually feel big.
     let widthUnits: Double
+    /// Normalised bounding rectangle of the key on the keyboard.
+    /// Wipes for this keycode only ever land inside this rect — once
+    /// every cell inside is wiped, repeating the same key has no
+    /// further effect. Prevents the spam-spreads-cleaning bug where
+    /// hammering one key would slowly clear the whole screen.
+    let bounds: CGRect
 }
 
 /// Maps a hardware keycode to layout data so the positional wipe
@@ -148,16 +154,25 @@ enum KeyboardPositionMap {
         for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
             let totalWidth = row.reduce(0.0) { $0 + Double($1.width) }
             guard totalWidth > 0 else { continue }
+            let yMin = Double(rowIdx) / Double(rowCount)
+            let yMax = Double(rowIdx + 1) / Double(rowCount)
             var cursor: Double = 0
             for key in row {
-                let centerX = cursor + Double(key.width) / 2.0
+                let keyStart = cursor
                 cursor += Double(key.width)
+                let keyEnd = cursor
                 guard let code = key.code else { continue }
-                let x = centerX / totalWidth
-                let y = (Double(rowIdx) + 0.5) / Double(rowCount)
+                let xMin = keyStart / totalWidth
+                let xMax = keyEnd / totalWidth
                 map[code] = KeyMapping(
-                    position: CGPoint(x: x, y: y),
-                    widthUnits: Double(key.width)
+                    position: CGPoint(x: (xMin + xMax) / 2.0, y: (yMin + yMax) / 2.0),
+                    widthUnits: Double(key.width),
+                    bounds: CGRect(
+                        x: xMin,
+                        y: yMin,
+                        width: xMax - xMin,
+                        height: yMax - yMin
+                    )
                 )
             }
         }
