@@ -866,18 +866,28 @@ final class LockController {
                     // Project onto the F-row so the visual cleanmap and
                     // the positional wipe both target the F-key the user
                     // actually pressed regardless of fnState. Unmapped
-                    // NX_KEYTYPE codes (e.g. obscure keyboard buttons we
-                    // don't model) get the lightweight count-only path.
+                    // NX_KEYTYPE codes (Mission Control, Launchpad,
+                    // Dictation, Do-Not-Disturb on modern Apple
+                    // keyboards) keep the bookkeeping consistent with
+                    // the regular keyDown path: keystrokeCount AND the
+                    // bucket counter both bump, only the wipe is
+                    // skipped because we have no F-key projection.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
                     if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
                         recordWipingKeystroke(
                             keycode: fKeycode,
                             bucket: .media,
-                            eventLabel: "mediaKey"
+                            eventLabel: "mediaKey nx=\(nxKeycode)"
                         )
                     } else {
+                        keystrokeCount += 1
                         mediaKeyCount += 1
-                        PerfMetrics.shared.recordEvent("mediaKey")
+                        lastInputAt = Date()
+                        if AppSettings.shared.verbosePerfEnabled {
+                            PerfMetrics.shared.recordEvent("mediaKey nx=\(nxKeycode) unmapped")
+                        } else {
+                            PerfMetrics.shared.recordEvent("mediaKey")
+                        }
                         triggerInputFeedback()
                     }
                 }
