@@ -180,10 +180,18 @@ enum KeyboardPositionMap {
     }()
 
     static func mapping(for keycode: UInt16) -> KeyMapping? {
-        table[keycode]
+        if let direct = table[keycode] { return direct }
+        // ISO-keyboard alias: keycode 10 is the § / non-US-backslash
+        // key that sits between left shift and Y on QWERTZ Apple
+        // keyboards (or top-left on some ISO models). The canonical
+        // layout array models US-ANSI which has no such key, so we
+        // alias it to Z's bounds — the closest visual neighbour on
+        // most ISO keyboards. Better than dropping the wipe entirely.
+        if keycode == 10, let z = table[6] { return z }
+        return nil
     }
 
     static func normalizedPosition(for keycode: UInt16) -> CGPoint? {
-        table[keycode]?.position
+        mapping(for: keycode)?.position
     }
 }

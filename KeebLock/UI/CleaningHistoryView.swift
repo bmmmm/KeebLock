@@ -335,6 +335,8 @@ struct CleaningHistoryView: View {
 
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut("w", modifiers: .command)
+                .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)

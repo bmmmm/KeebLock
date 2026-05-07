@@ -114,6 +114,8 @@ struct TrailmapView: View {
             Spacer()
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut("w", modifiers: .command)
+                .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

@@ -143,6 +143,12 @@ final class LockController {
         16: 100, // PLAY            → F8
         17: 101, // NEXT            → F9
         18: 98,  // PREVIOUS        → F7
+        // Modern Apple Magic Keyboards emit FAST/REWIND for the same
+        // physical F-keys older keyboards report as NEXT/PREVIOUS.
+        // Map them to the same F-keys so the wipe lands in the same
+        // place regardless of which hardware generation is in use.
+        19: 101, // FAST            → F9
+        20: 98,  // REWIND          → F7
     ]
 
     /// Hard-coded US-ANSI keycode → ASCII character map. Used as a fallback
@@ -996,7 +1002,8 @@ final class LockController {
     /// the renderers, and fires audio/spark feedback.
     private func recordWipingKeystroke(keycode: UInt16,
                                        bucket: KeyBucket,
-                                       eventLabel: String = "key") {
+                                       eventLabel: String = "key",
+                                       suppressFeedback: Bool = false) {
         keystrokeCount += 1
         lastInputAt = Date()
         // Tag-only by default; expanded to include keycode + normalised
@@ -1048,7 +1055,13 @@ final class LockController {
         }
         PerfMetrics.shared.recordWipe()
         dispatchWipe(for: keycode)
-        triggerInputFeedback()
+        if !suppressFeedback {
+            triggerInputFeedback()
+        } else {
+            // Pause-detector still wants to know we got input even
+            // when audio/sparks are skipped.
+            lastInputAt = Date()
+        }
     }
 
     private func processKeyDown(chars: String, keycode: UInt16) {
@@ -1070,18 +1083,30 @@ final class LockController {
             // number: , . ; : ' " ! @ # $ % & * ( ) - _ = + [ ] { } etc.
             bucket = .symbol
         }
-        recordWipingKeystroke(keycode: keycode, bucket: bucket)
 
+        // Run codeword detection BEFORE the wipe so we can suppress the
+        // click feedback when this stroke is the one that unlocks —
+        // otherwise the click and the unlock chime fire ~0 ms apart and
+        // the user hears a muddy doubled sound.
+        var willUnlock = false
         for ch in chars where ch.isLetter || ch.isNumber {
             // Non-Latin layouts (Greek/Cyrillic/etc.) produce isLetter chars
             // that never match ASCII codewords. Fall back to the US-layout
             // position so users can still type the codeword by key position.
             let normalized: Character = ch.isASCII ? ch : (Self.usLayoutMap[keycode] ?? ch)
             if matcher.feed(normalized) {
-                stopLock()
-                return
+                willUnlock = true
+                break
             }
         }
+
+        recordWipingKeystroke(keycode: keycode, bucket: bucket, suppressFeedback: willUnlock)
+
+        if willUnlock {
+            stopLock()
+            return
+        }
+
         let progress = matcher.matchProgress
         if progress != codewordMatchProgress { codewordMatchProgress = progress }
     }
