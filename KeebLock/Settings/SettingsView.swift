@@ -557,7 +557,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wipe trail visualisation")
                         .font(.body)
-                    Text("\(controller.overallTrail.count) overall · \(controller.sessionTrail.count) this session")
+                    Text("\(controller.sessionTrail.count) wipes this session")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -568,7 +568,7 @@ struct SettingsView: View {
                     Label("View", systemImage: "scribble.variable")
                 }
                 .buttonStyle(.bordered)
-                .disabled(controller.overallTrail.isEmpty && controller.sessionTrail.isEmpty)
+                .disabled(controller.sessionTrail.isEmpty)
             }
         }
     }

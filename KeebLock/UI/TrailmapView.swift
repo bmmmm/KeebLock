@@ -12,12 +12,6 @@ struct TrailmapView: View {
     @ObservedObject private var settings: AppSettings = .shared
     @Environment(\.dismiss) private var dismiss
 
-    enum Scope: String, CaseIterable, Identifiable {
-        case session = "Current session"
-        case overall = "Overall"
-        var id: String { rawValue }
-    }
-
     enum ColorMode: String, CaseIterable, Identifiable {
         case hueGradient = "Hue gradient"
         case themeAccent = "Theme accent"
@@ -25,17 +19,11 @@ struct TrailmapView: View {
         var id: String { rawValue }
     }
 
-    @State private var scope: Scope = .session
     @State private var colorMode: ColorMode = .hueGradient
     @State private var blurRadius: Double = 6
     @State private var lineWidth: Double = 2
 
-    private var trail: [TrailPoint] {
-        switch scope {
-        case .session: return controller.sessionTrail
-        case .overall: return controller.overallTrail
-        }
-    }
+    private var trail: [TrailPoint] { controller.sessionTrail }
 
     /// Trail filtered to keycodes the layout knows about, paired with
     /// their normalised position. Computed once per render so the two
@@ -80,13 +68,6 @@ struct TrailmapView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Picker("", selection: $scope) {
-                ForEach(Scope.allCases) { s in
-                    Text(s.rawValue).tag(s)
-                }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -122,13 +103,9 @@ struct TrailmapView: View {
     private var footer: some View {
         HStack {
             Button(role: .destructive) {
-                switch scope {
-                case .session: controller.resetSessionTrailmap()
-                case .overall: controller.resetOverallTrailmap()
-                }
+                controller.resetSessionTrailmap()
             } label: {
-                Label("Reset \(scope.rawValue.lowercased()) trailmap",
-                      systemImage: "arrow.counterclockwise")
+                Label("Reset trailmap", systemImage: "arrow.counterclockwise")
                     .foregroundStyle(.red)
             }
             .buttonStyle(.bordered)
@@ -204,6 +181,13 @@ struct TrailmapView: View {
         let points = plottable
         guard points.count > 1 else { return }
         let denominator = Double(max(1, points.count - 1))
+        let segmentCount = points.count - 1
+        // Cap arrows at ~30 across the whole trail so the screen never
+        // gets crowded; minimum every 5th segment so short trails still
+        // get a couple of direction hints.
+        let arrowEvery = max(5, segmentCount / 30)
+        let arrowSize = max(4.0, lineWidth * 2.5)
+
         var previous: CGPoint?
         for (idx, entry) in points.enumerated() {
             let screen = CGPoint(
@@ -215,12 +199,46 @@ struct TrailmapView: View {
                 path.move(to: prev)
                 path.addLine(to: screen)
                 let progress = Double(idx) / denominator
-                ctx.stroke(path,
-                           with: .color(lineColor(progress: progress)),
-                           lineWidth: lineWidth)
+                let color = lineColor(progress: progress)
+                ctx.stroke(path, with: .color(color), lineWidth: lineWidth)
+
+                let segIdx = idx - 1
+                if segIdx % arrowEvery == 0 {
+                    drawArrow(ctx: ctx, from: prev, to: screen,
+                              size: arrowSize, color: color)
+                }
             }
             previous = screen
         }
+    }
+
+    /// Draws a small V-shaped chevron at the segment's end, pointing in
+    /// the direction of travel. Skipped for segments shorter than the
+    /// arrow itself so it never folds back on a stay-in-place wipe
+    /// (same key pressed twice → zero-length segment).
+    private func drawArrow(ctx: GraphicsContext,
+                           from start: CGPoint,
+                           to end: CGPoint,
+                           size: Double,
+                           color: Color) {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > size else { return }
+        let nx = dx / length
+        let ny = dy / length
+        let px = -ny
+        let py = nx
+        let baseX = end.x - nx * size
+        let baseY = end.y - ny * size
+        let wing = size * 0.6
+        let left  = CGPoint(x: baseX + px * wing, y: baseY + py * wing)
+        let right = CGPoint(x: baseX - px * wing, y: baseY - py * wing)
+        var path = Path()
+        path.move(to: left)
+        path.addLine(to: end)
+        path.addLine(to: right)
+        ctx.stroke(path, with: .color(color), lineWidth: lineWidth)
     }
 
     private func lineColor(progress: Double) -> Color {
