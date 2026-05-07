@@ -327,6 +327,16 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(wipeMode.rawValue, forKey: Keys.wipeMode) }
     }
 
+    /// Fraction of cells that must be wiped before the stage advances
+    /// to a fresh blank canvas. 1.00 demands the whole grid; lower
+    /// values let the stage advance even when some cells stay
+    /// perpetually unreachable (positional mode + system-bound F-keys
+    /// the OS swallows before our event tap sees them). Range
+    /// 0.80…1.00, default 1.00.
+    @Published var stageAdvanceThreshold: Double {
+        didSet { defaults.set(stageAdvanceThreshold, forKey: Keys.stageAdvanceThreshold) }
+    }
+
     // MARK: - Sound
 
     @Published var soundEnabled: Bool {
@@ -443,6 +453,7 @@ final class AppSettings: ObservableObject {
         static let sparkCount         = "sparkCount"
         static let screenEffect       = "screenEffect"
         static let wipeMode           = "wipeMode"
+        static let stageAdvanceThreshold = "stageAdvanceThreshold"
         static let pixelFineness      = "pixelFineness"
         static let bgColor            = "backgroundColorPreset"
         static let pixelColor         = "pixelColorPreset"
@@ -481,6 +492,9 @@ final class AppSettings: ObservableObject {
 
         let wipeModeRaw = d.string(forKey: Keys.wipeMode) ?? WipeMode.random.rawValue
         self.wipeMode = WipeMode(rawValue: wipeModeRaw) ?? .random
+
+        let threshold = d.object(forKey: Keys.stageAdvanceThreshold) as? Double ?? 1.0
+        self.stageAdvanceThreshold = (0.80...1.00).contains(threshold) ? threshold : 1.0
 
         let pf = d.integer(forKey: Keys.pixelFineness)
         self.pixelFineness = (1...10).contains(pf) ? pf : 9

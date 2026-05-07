@@ -20,6 +20,12 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     private let fixedBg: SIMD4<Float>?
     private let fixedPixel: SIMD4<Float>?
+    /// Cells-wiped threshold (0…1) at which `advanceStage` fires. 1.0
+    /// requires the entire grid before a fresh stage starts; lower
+    /// values let perpetually-unreachable cells (system-bound F-keys
+    /// in positional mode) not block progress forever. Captured at
+    /// init — live setting changes apply on the next lock session.
+    private let stageThreshold: Double
 
     private let stateLock = NSLock()
     private var maskTexture: MTLTexture?
@@ -37,7 +43,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     init?(screen: NSScreen,
           fixedBg: SIMD4<Float>?,
           fixedPixel: SIMD4<Float>?,
-          cellsPerAxis: Int) {
+          cellsPerAxis: Int,
+          stageThreshold: Double) {
         guard let dev = MTLCreateSystemDefaultDevice(),
               let queue = dev.makeCommandQueue() else { return nil }
         device = dev
@@ -45,6 +52,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         screenFrame = screen.frame
         self.fixedBg = fixedBg
         self.fixedPixel = fixedPixel
+        self.stageThreshold = max(0.50, min(1.0, stageThreshold))
 
         let aspect = screen.frame.height / max(1, screen.frame.width)
         let cellsX = max(2, cellsPerAxis)
@@ -93,7 +101,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         wipedCellCount += 1
         let total = maskBytes.count
         let frac = Double(wipedCellCount) / Double(total)
-        let advance = wipedCellCount >= total
+        let advanceTarget = max(1, Int((Double(total) * stageThreshold).rounded()))
+        let advance = wipedCellCount >= advanceTarget
         stateLock.unlock()
 
         DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
@@ -156,7 +165,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         if madeProgress { maskDirty = true }
         let total = maskBytes.count
         let frac = Double(wipedCellCount) / Double(total)
-        let advance = wipedCellCount >= total
+        let advanceTarget = max(1, Int((Double(total) * stageThreshold).rounded()))
+        let advance = wipedCellCount >= advanceTarget
         stateLock.unlock()
 
         if madeProgress {

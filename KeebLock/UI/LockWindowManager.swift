@@ -143,7 +143,8 @@ final class LockWindowManager {
         controller: LockController,
         fixedBg: SIMD4<Float>? = nil,
         fixedPixel: SIMD4<Float>? = nil,
-        cellsPerAxis: Int
+        cellsPerAxis: Int,
+        stageThreshold: Double
     ) {
         hide()
 
@@ -154,14 +155,15 @@ final class LockWindowManager {
         let screenSummary = screens.enumerated().map { i, s in
             "[\(i)] \(Int(s.frame.width))×\(Int(s.frame.height))@\(s.backingScaleFactor)x"
         }.joined(separator: " ")
-        DebugLog.log("show: \(screens.count) screen(s) \(screenSummary), cellsPerAxis=\(cellsPerAxis)")
+        DebugLog.log("show: \(screens.count) screen(s) \(screenSummary), cellsPerAxis=\(cellsPerAxis), stageThreshold=\(String(format: "%.2f", stageThreshold))")
 
         for (index, screen) in screens.enumerated() {
             let renderer = WipeRenderer(
                 screen: screen,
                 fixedBg: fixedBg,
                 fixedPixel: fixedPixel,
-                cellsPerAxis: cellsPerAxis
+                cellsPerAxis: cellsPerAxis,
+                stageThreshold: stageThreshold
             )
             if renderer == nil {
                 DebugLog.log("show: screen \(index) WipeRenderer init failed (no Metal device)")

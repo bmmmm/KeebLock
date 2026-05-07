@@ -233,6 +233,29 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .animation(.easeInOut(duration: 0.2), value: settings.wipeMode)
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Slider(
+                    value: $settings.stageAdvanceThreshold,
+                    in: 0.80...1.00,
+                    step: 0.01
+                )
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                Text("\(Int(settings.stageAdvanceThreshold * 100))%")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 44, alignment: .trailing)
+            }
+            Text("Stage advances once this fraction of cells is wiped. Lower if certain keys (e.g. F3/F4 system actions the OS swallows) prevent reaching 100%.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

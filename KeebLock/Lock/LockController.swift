@@ -335,7 +335,8 @@ final class LockController {
             controller: self,
             fixedBg: AppSettings.shared.backgroundSIMD,
             fixedPixel: AppSettings.shared.pixelSIMD,
-            cellsPerAxis: AppSettings.shared.cellsPerAxis
+            cellsPerAxis: AppSettings.shared.cellsPerAxis,
+            stageThreshold: AppSettings.shared.stageAdvanceThreshold
         )
         isLocked = true
         startTimer()
