@@ -185,7 +185,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         let cellsH: Int
         let wipedCells: Int
         let totalCells: Int
-        let remainingIndices: Int
+
+        var intactCells: Int { totalCells - wipedCells }
     }
 
     func snapshotState() -> State {
@@ -197,8 +198,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
             cellsW: maskDims.w,
             cellsH: maskDims.h,
             wipedCells: wipedCellCount,
-            totalCells: maskDims.w * maskDims.h,
-            remainingIndices: remainingIndices.count
+            totalCells: maskDims.w * maskDims.h
         )
     }
 

@@ -1006,7 +1006,7 @@ final class LockController {
                                        eventLabel: String = "key",
                                        suppressFeedback: Bool = false) {
         keystrokeCount += 1
-        lastInputAt = Date()
+        let now = Date()
         // Tag-only by default; expanded to include keycode + normalised
         // keyboard position when verbose perf is on. The expanded form
         // exists to debug positional-mode behaviour (which key fired
@@ -1040,7 +1040,7 @@ final class LockController {
 
         sessionKeyCounts[keycode, default: 0] += 1
         overallKeyCounts[keycode, default: 0] += 1
-        sessionTrail.append(TrailPoint(keycode: keycode, timestamp: Date().timeIntervalSince1970))
+        sessionTrail.append(TrailPoint(keycode: keycode, timestamp: now.timeIntervalSince1970))
         if sessionTrail.count > Self.trailMaxPoints {
             sessionTrail.removeFirst(sessionTrail.count - Self.trailMaxPoints)
         }
@@ -1056,12 +1056,12 @@ final class LockController {
         }
         PerfMetrics.shared.recordWipe()
         dispatchWipe(for: keycode)
-        if !suppressFeedback {
-            triggerInputFeedback()
+        if suppressFeedback {
+            // Audio/sparks skipped (final unlock keystroke), but the
+            // pause detector still needs to see the input.
+            lastInputAt = now
         } else {
-            // Pause-detector still wants to know we got input even
-            // when audio/sparks are skipped.
-            lastInputAt = Date()
+            triggerInputFeedback()
         }
     }
 

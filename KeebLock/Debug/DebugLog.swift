@@ -196,7 +196,7 @@ enum DebugLog {
                     ? Double(st.wipedCells) / Double(st.totalCells) * 100.0
                     : 0.0
                 lines.append(
-                    "  [\(idx)] \(Int(st.frame.width))×\(Int(st.frame.height))  stage \(st.stage)  \(st.cellsW)×\(st.cellsH) cells  wiped \(st.wipedCells)/\(st.totalCells) (\(String(format: "%.1f", pct))%)  remaining=\(st.remainingIndices)"
+                    "  [\(idx)] \(Int(st.frame.width))×\(Int(st.frame.height))  stage \(st.stage)  \(st.cellsW)×\(st.cellsH) cells  wiped \(st.wipedCells)/\(st.totalCells) (\(String(format: "%.1f", pct))%)  intact=\(st.intactCells)"
                 )
             }
             lines.append("")
