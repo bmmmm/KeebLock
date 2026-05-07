@@ -121,6 +121,15 @@ final class LockController {
         126,  // Up Arrow
     ]
 
+    /// Modifier keycodes that fire as `flagsChanged` rather than
+    /// `keyDown`. Press AND release fire the same event type for a
+    /// given keycode, distinguished by tracking the held set in
+    /// `pressedModifiers`. Includes both left/right variants for
+    /// shift/cmd/opt/ctrl plus caps-lock and fn.
+    private static let modifierKeycodes: Set<UInt16> = [
+        54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
+    ]
+
     /// NX_KEYTYPE → F-key keycode. macOS fires media/brightness keys as
     /// system-defined events with NX_KEYTYPE codes (independent of regular
     /// keyboard keycodes). Mapping them to the F-key the user actually pressed
@@ -160,6 +169,10 @@ final class LockController {
     @ObservationIgnored private var matcher = CodewordMatcher(target: "")
     @ObservationIgnored private var unlockTimer: Timer?
     @ObservationIgnored private var lastInputAt: Date?
+    /// Modifier keycodes currently held. flagsChanged fires once on
+    /// press and once on release for the same keycode; tracking the
+    /// set lets us count press only.
+    @ObservationIgnored private var pressedModifiers: Set<UInt16> = []
     @ObservationIgnored private var lastScrollAt: Date?
     @ObservationIgnored private var lastSwipeAt: Date?
     @ObservationIgnored private var lastPinchAt: Date?
@@ -285,6 +298,7 @@ final class LockController {
         // Per-session cleanmap starts fresh; overall cleanmap accumulates.
         sessionKeyCounts = [:]
         sessionTrail = []
+        pressedModifiers = []
         lastScrollAt = nil
         lastSwipeAt = nil
         lastPinchAt = nil
@@ -849,20 +863,45 @@ final class LockController {
                 let keyState = (flags & 0xFF00) >> 8
                 let isRepeat = (flags & 0x1) != 0
                 if keyState == 0x0A && !isRepeat {
-                    mediaKeyCount += 1
-                    PerfMetrics.shared.recordEvent("mediaKey")
-                    // Project onto the F-row so the visual cleanmap shows
-                    // these hits at the key the user physically pressed.
+                    // Project onto the F-row so the visual cleanmap and
+                    // the positional wipe both target the F-key the user
+                    // actually pressed regardless of fnState. Unmapped
+                    // NX_KEYTYPE codes (e.g. obscure keyboard buttons we
+                    // don't model) get the lightweight count-only path.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
                     if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
-                        sessionKeyCounts[fKeycode, default: 0] += 1
-                        overallKeyCounts[fKeycode, default: 0] += 1
+                        recordWipingKeystroke(
+                            keycode: fKeycode,
+                            bucket: .media,
+                            eventLabel: "mediaKey"
+                        )
+                    } else {
+                        mediaKeyCount += 1
+                        PerfMetrics.shared.recordEvent("mediaKey")
+                        triggerInputFeedback()
                     }
-                    triggerInputFeedback()
                 }
                 return nil
             }
             return Unmanaged.passUnretained(event)
+        }
+
+        if type == .flagsChanged {
+            // Modifier press/release. Both fire the same flagsChanged
+            // event for a given keycode, so dedupe via `pressedModifiers`:
+            // first event for a keycode = press → wipe; second = release
+            // → ignore. Non-modifier keycodes that arrive here (rare —
+            // some special keys also trigger flagsChanged) are skipped.
+            if isInWarmup { return nil }
+            let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+            guard Self.modifierKeycodes.contains(keycode) else { return nil }
+            if pressedModifiers.contains(keycode) {
+                pressedModifiers.remove(keycode)
+                return nil
+            }
+            pressedModifiers.insert(keycode)
+            recordWipingKeystroke(keycode: keycode, bucket: .control)
+            return nil
         }
 
         if type == .keyDown {
@@ -933,7 +972,21 @@ final class LockController {
         if AppSettings.shared.effectEnabled { sparkTrigger += 1 }
     }
 
-    private func processKeyDown(chars: String, keycode: UInt16) {
+    /// Bucket the keystroke counts in the breakdown. Each event path
+    /// (regular keyDown, flagsChanged for modifiers, NX_SYSDEFINED
+    /// for media keys) classifies once and routes through
+    /// `recordWipingKeystroke` so the bookkeeping stays in sync.
+    private enum KeyBucket {
+        case function, control, letter, number, symbol, media
+    }
+
+    /// Single source of truth for "this physical key event counts as a
+    /// wipe": bumps the counters, records the perf event, appends to
+    /// the trail, throttle-saves the cleanmap, dispatches the wipe to
+    /// the renderers, and fires audio/spark feedback.
+    private func recordWipingKeystroke(keycode: UInt16,
+                                       bucket: KeyBucket,
+                                       eventLabel: String = "key") {
         keystrokeCount += 1
         lastInputAt = Date()
         // Tag-only by default; expanded to include keycode + normalised
@@ -945,35 +998,26 @@ final class LockController {
         if AppSettings.shared.verbosePerfEnabled {
             if let mapping = KeyboardPositionMap.mapping(for: keycode) {
                 PerfMetrics.shared.recordEvent(
-                    "key kc=\(keycode) pos=(\(String(format: "%.2f", mapping.position.x)),\(String(format: "%.2f", mapping.position.y))) w=\(String(format: "%.2f", mapping.widthUnits))"
+                    "\(eventLabel) kc=\(keycode) pos=(\(String(format: "%.2f", mapping.position.x)),\(String(format: "%.2f", mapping.position.y))) w=\(String(format: "%.2f", mapping.widthUnits))"
                 )
             } else {
-                PerfMetrics.shared.recordEvent("key kc=\(keycode) pos=unmapped")
+                PerfMetrics.shared.recordEvent("\(eventLabel) kc=\(keycode) pos=unmapped")
             }
         } else {
-            PerfMetrics.shared.recordEvent("key")
+            PerfMetrics.shared.recordEvent(eventLabel)
         }
         if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
             lastFactRotationKeystroke = keystrokeCount
             factRotationTick &+= 1
         }
 
-        // Classify into one bucket. Order matters: F-keys and control keys
-        // are checked first because they have keycodes but their printable
-        // chars can be misleading (e.g. arrow keys produce private-use
-        // codepoints that pass `isLetter` on some layouts).
-        if Self.functionKeycodes.contains(keycode) {
-            functionKeyCount += 1
-        } else if Self.controlKeycodes.contains(keycode) {
-            controlKeyCount += 1
-        } else if let first = chars.first, first.isLetter {
-            letterCount += 1
-        } else if let first = chars.first, first.isNumber {
-            numberCount += 1
-        } else {
-            // Punctuation and printable symbols that are neither letter nor
-            // number: , . ; : ' " ! @ # $ % & * ( ) - _ = + [ ] { } etc.
-            symbolCount += 1
+        switch bucket {
+        case .function: functionKeyCount += 1
+        case .control:  controlKeyCount += 1
+        case .letter:   letterCount += 1
+        case .number:   numberCount += 1
+        case .symbol:   symbolCount += 1
+        case .media:    mediaKeyCount += 1
         }
 
         sessionKeyCounts[keycode, default: 0] += 1
@@ -995,6 +1039,28 @@ final class LockController {
         PerfMetrics.shared.recordWipe()
         dispatchWipe(for: keycode)
         triggerInputFeedback()
+    }
+
+    private func processKeyDown(chars: String, keycode: UInt16) {
+        // Classify into one bucket. Order matters: F-keys and control keys
+        // are checked first because they have keycodes but their printable
+        // chars can be misleading (e.g. arrow keys produce private-use
+        // codepoints that pass `isLetter` on some layouts).
+        let bucket: KeyBucket
+        if Self.functionKeycodes.contains(keycode) {
+            bucket = .function
+        } else if Self.controlKeycodes.contains(keycode) {
+            bucket = .control
+        } else if let first = chars.first, first.isLetter {
+            bucket = .letter
+        } else if let first = chars.first, first.isNumber {
+            bucket = .number
+        } else {
+            // Punctuation and printable symbols that are neither letter nor
+            // number: , . ; : ' " ! @ # $ % & * ( ) - _ = + [ ] { } etc.
+            bucket = .symbol
+        }
+        recordWipingKeystroke(keycode: keycode, bucket: bucket)
 
         for ch in chars where ch.isLetter || ch.isNumber {
             // Non-Latin layouts (Greek/Cyrillic/etc.) produce isLetter chars
