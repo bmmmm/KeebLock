@@ -2,6 +2,14 @@ import AppKit
 import Combine
 import Observation
 
+/// One wipe in the temporal trail rendered by `TrailmapView`. Stored
+/// as keycode + Unix timestamp so the view can both place the point
+/// (via `KeyboardPositionMap`) and colour it by age.
+struct TrailPoint: Codable {
+    let keycode: UInt16
+    let timestamp: TimeInterval
+}
+
 @Observable
 final class LockController {
     @MainActor static let shared = LockController()
@@ -22,6 +30,14 @@ final class LockController {
     /// data and stays on-disk, scoped to this user's UserDefaults — never
     /// leaves the machine.
     private(set) var overallKeyCounts: [UInt16: Int] = [:]
+    /// Ordered sequence of (keycode, timestamp) pairs for the *current*
+    /// lock session — drives the Trailmap view's polyline rendering.
+    /// Reset on each startLock(). Lives in memory only.
+    private(set) var sessionTrail: [TrailPoint] = []
+    /// Same data accumulated across every lock session, FIFO-capped at
+    /// `trailMaxPoints`. Persisted to UserDefaults like
+    /// `overallKeyCounts`. Used by Trailmap "Overall" scope.
+    private(set) var overallTrail: [TrailPoint] = []
     private(set) var sparkTrigger: Int = 0
     // Keyboard breakdown
     private(set) var letterCount: Int = 0
@@ -177,6 +193,14 @@ final class LockController {
     /// One-shot flag set after the heatmap → cleanmap rename fold. Same
     /// downgrade-protection rationale as above.
     private static let renameToCleanmapDoneKey = "renamedFromHeatmapToCleanmap"
+    /// Persistent overall trailmap blob.
+    private static let trailmapKey = "trailmapOverallTrail"
+    /// FIFO cap for both session and overall trail. 5 000 wipes is
+    /// roughly 15-20 minutes of brisk typing, well past the visual
+    /// density at which the polyline becomes unreadable. Memory cost
+    /// is `count * (UInt16 + Double)` plus JSON-encoding overhead at
+    /// save time.
+    private static let trailMaxPoints = 5000
 
     @ObservationIgnored private var lockStartedAt: Date?
     /// Set synchronously at the top of `stopLock()` so a re-entry from a
@@ -196,6 +220,7 @@ final class LockController {
 
     private init() {
         loadOverallKeyCounts()
+        loadOverallTrail()
 
         // Pipe sound settings live to the player so volume/file changes apply
         // without restarting the lock.
@@ -219,6 +244,7 @@ final class LockController {
             queue: .main
         ) { [weak self] _ in
             self?.saveOverallKeyCounts()
+            self?.saveOverallTrail()
         }
     }
 
@@ -262,6 +288,7 @@ final class LockController {
         rotateCount = 0
         // Per-session cleanmap starts fresh; overall cleanmap accumulates.
         sessionKeyCounts = [:]
+        sessionTrail = []
         lastScrollAt = nil
         lastSwipeAt = nil
         lastPinchAt = nil
@@ -316,6 +343,7 @@ final class LockController {
         soundPlayer.stop()
         recordSession()
         saveOverallKeyCounts()
+        saveOverallTrail()
         wipesSinceLastCleanmapSave = 0
         PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
@@ -349,6 +377,17 @@ final class LockController {
     func resetOverallCleanmap() {
         overallKeyCounts = [:]
         UserDefaults.standard.removeObject(forKey: Self.cleanmapKeyCountsKey)
+    }
+
+    /// Clear the current-session trailmap. Doesn't touch overall.
+    func resetSessionTrailmap() {
+        sessionTrail = []
+    }
+
+    /// Clear the persistent overall trailmap and the on-disk blob.
+    func resetOverallTrailmap() {
+        overallTrail = []
+        UserDefaults.standard.removeObject(forKey: Self.trailmapKey)
     }
 
     // MARK: - In-lock snapshot button (paired with LockOverlayDebug)
@@ -464,6 +503,28 @@ final class LockController {
         if let data = try? JSONEncoder().encode(stringDict) {
             PerfMetrics.shared.recordJSONEncode()
             UserDefaults.standard.set(data, forKey: Self.cleanmapKeyCountsKey)
+            PerfMetrics.shared.recordUserDefaultsWrite()
+        }
+    }
+
+    private func loadOverallTrail() {
+        guard let data = UserDefaults.standard.data(forKey: Self.trailmapKey),
+              let points = try? JSONDecoder().decode([TrailPoint].self, from: data) else {
+            return
+        }
+        PerfMetrics.shared.recordJSONDecode()
+        overallTrail = points
+        // Defensive cap: a corrupt blob with > trailMaxPoints would otherwise
+        // exceed the budget on every later append until the trim caught up.
+        if overallTrail.count > Self.trailMaxPoints {
+            overallTrail.removeFirst(overallTrail.count - Self.trailMaxPoints)
+        }
+    }
+
+    private func saveOverallTrail() {
+        if let data = try? JSONEncoder().encode(overallTrail) {
+            PerfMetrics.shared.recordJSONEncode()
+            UserDefaults.standard.set(data, forKey: Self.trailmapKey)
             PerfMetrics.shared.recordUserDefaultsWrite()
         }
     }
@@ -932,6 +993,15 @@ final class LockController {
 
         sessionKeyCounts[keycode, default: 0] += 1
         overallKeyCounts[keycode, default: 0] += 1
+        let trailPoint = TrailPoint(keycode: keycode, timestamp: Date().timeIntervalSince1970)
+        sessionTrail.append(trailPoint)
+        if sessionTrail.count > Self.trailMaxPoints {
+            sessionTrail.removeFirst(sessionTrail.count - Self.trailMaxPoints)
+        }
+        overallTrail.append(trailPoint)
+        if overallTrail.count > Self.trailMaxPoints {
+            overallTrail.removeFirst(overallTrail.count - Self.trailMaxPoints)
+        }
         // Throttled save during an active session: if the app is killed
         // (force-quit, panic, OOM) mid-lock the user still keeps every
         // chunk of keystrokes that crossed a save boundary. Stride 50
@@ -940,6 +1010,7 @@ final class LockController {
         wipesSinceLastCleanmapSave += 1
         if wipesSinceLastCleanmapSave >= Self.cleanmapSaveStride {
             saveOverallKeyCounts()
+            saveOverallTrail()
             wipesSinceLastCleanmapSave = 0
         }
         PerfMetrics.shared.recordWipe()

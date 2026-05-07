@@ -368,8 +368,9 @@ struct ContentView: View {
                 )
                 EffectCycleToggle(settings: settings)
                 ColorModeToggle(settings: settings)
+                WipeModeToggle(settings: settings)
             }
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 460)
         }
     }
 

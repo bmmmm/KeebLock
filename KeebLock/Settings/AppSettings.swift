@@ -99,6 +99,17 @@ enum WipeMode: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// Tint used by the launcher's WipeModeToggle card. Both modes are
+    /// always-on (there is no "off" wipe mode), so we just pick two
+    /// distinct hues so the active card colour changes when the user
+    /// flips between them.
+    var activeColor: Color {
+        switch self {
+        case .random:     return Color(red: 0.55, green: 0.65, blue: 0.98)
+        case .positional: return Color(red: 0.45, green: 0.82, blue: 0.62)
+        }
+    }
+
     var helpText: String {
         switch self {
         case .random:     return "Each wipe clears a random cell — the screen reveals uniformly."

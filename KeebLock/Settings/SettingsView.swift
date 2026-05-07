@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @State private var suggestions: [String] = Codewords.suggestions()
     @State private var showCleanmap = false
+    @State private var showTrailmap = false
     @State private var showHistory = false
     @State private var snapshotMessage: String?
     @State private var copiedCommand: String?
@@ -27,6 +28,7 @@ struct SettingsView: View {
                 soundSection
                 knowledgeSection
                 cleanmapSection
+                trailmapSection
                 historySection
                 autoUnlockSection
                 aboutSection
@@ -46,6 +48,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showCleanmap) {
                 CleanmapView(controller: controller)
+            }
+            .sheet(isPresented: $showTrailmap) {
+                TrailmapView(controller: controller)
             }
             .sheet(isPresented: $showHistory) {
                 CleaningHistoryView(history: history)
@@ -542,6 +547,28 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(controller.overallKeyCounts.isEmpty && controller.sessionKeyCounts.isEmpty)
+            }
+        }
+    }
+
+    private var trailmapSection: some View {
+        tintedSection("Trailmap") {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wipe trail visualisation")
+                        .font(.body)
+                    Text("\(controller.overallTrail.count) overall · \(controller.sessionTrail.count) this session")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    showTrailmap = true
+                } label: {
+                    Label("View", systemImage: "scribble.variable")
+                }
+                .buttonStyle(.bordered)
+                .disabled(controller.overallTrail.isEmpty && controller.sessionTrail.isEmpty)
             }
         }
     }
