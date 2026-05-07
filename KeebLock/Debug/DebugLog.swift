@@ -35,11 +35,11 @@ enum DebugLog {
         AppSettings.shared.debugLoggingEnabled
     }
 
-    /// Always writes to NSLog; only writes to the log file when toggle is on.
+    /// Writes to NSLog and the log file when the toggle is on. Silent when off.
     static func log(_ message: String, file: String = #fileID, line: Int = #line) {
+        guard isEnabled else { return }
         let tag = (file as NSString).lastPathComponent
         NSLog("[KeebLock] %@:%d %@", tag, line, message)
-        guard isEnabled else { return }
         appendLine("[\(isoFormatter.string(from: Date()))] \(tag):\(line) \(message)")
     }
 
@@ -54,6 +54,13 @@ enum DebugLog {
     /// the overshoot to the byte.
     private static var appendCount: Int = 0
     private static let rotationCheckInterval = 64
+    /// Set on the first append after launch. Without it, a log file that
+    /// pre-existed with a wider mode (e.g. created by a build that
+    /// pre-dates `restrictPermissions`, or whatever umask was in force)
+    /// would never be tightened — `restrictPermissions` was only called
+    /// at creation and rotation. One chmod per process is cheap; the
+    /// alternative of chmod-per-line on the hot path is wasteful.
+    private static var permissionsTightenedThisLaunch: Bool = false
 
     private static func appendLine(_ line: String) {
         let payload = line + "\n"
@@ -70,9 +77,14 @@ enum DebugLog {
                 defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: data)
+                if !permissionsTightenedThisLaunch {
+                    restrictPermissions(logURL)
+                    permissionsTightenedThisLaunch = true
+                }
             } else {
                 try data.write(to: logURL)
                 restrictPermissions(logURL)
+                permissionsTightenedThisLaunch = true
             }
         } catch {
             // Debug logging must never crash the app. Failures still show in

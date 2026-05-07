@@ -819,14 +819,24 @@ final class LockController {
         }
 
         if type == .keyDown {
-            let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-            var length = 0
-            var unicode = [UniChar](repeating: 0, count: 4)
-            event.keyboardGetUnicodeString(maxStringLength: 4,
-                                           actualStringLength: &length,
-                                           unicodeString: &unicode)
-            let chars = String(utf16CodeUnits: unicode, count: length)
-            processKeyDown(chars: chars, keycode: keycode)
+            // Skip OS-generated key repeats (held-down key). Repeats are
+            // already swallowed by the trailing `return nil`; we just
+            // refrain from counting / matching / sounding them. Without
+            // this filter, holding spacebar inflates `keystrokeCount`,
+            // machine-guns the audio click, fills the heatmap with bogus
+            // data, and lets a held-letter run carry the codeword
+            // suffix-matcher to a spurious unlock.
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            if !isRepeat {
+                let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                var length = 0
+                var unicode = [UniChar](repeating: 0, count: 4)
+                event.keyboardGetUnicodeString(maxStringLength: 4,
+                                               actualStringLength: &length,
+                                               unicodeString: &unicode)
+                let chars = String(utf16CodeUnits: unicode, count: length)
+                processKeyDown(chars: chars, keycode: keycode)
+            }
         }
         return nil
     }
@@ -850,7 +860,11 @@ final class LockController {
     private func processKeyDown(chars: String, keycode: UInt16) {
         keystrokeCount += 1
         lastInputAt = Date()
-        PerfMetrics.shared.recordEvent("key kc=\(keycode)")
+        // Tag-only — no keycode. The verbose-perf event ring is dumped
+        // into snapshots that users may share for support; including
+        // the physical keycode there leaks the codeword's key-position
+        // sequence to anyone who reads the file.
+        PerfMetrics.shared.recordEvent("key")
         if keystrokeCount - lastFactRotationKeystroke >= Self.factRotationStride {
             lastFactRotationKeystroke = keystrokeCount
             factRotationTick &+= 1
