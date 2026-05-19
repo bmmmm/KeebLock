@@ -276,6 +276,11 @@ final class PerfMetrics: ObservableObject {
             "callback latency:  avg=\(fmt(avgUs))µs  max=\(fmt(maxUs))µs  p99=\(fmt(p99Us))µs  · \(eventCallbackSamples) samples",
             "rates (last 1s):   events=\(eventTapEventsPerSec)/s  wipes=\(wipeCallsPerSec)/s  mainHops=\(mainHopsPerSec)/s",
             "allocations:       NSEvent=\(nsEventAllocations)  JSONenc=\(jsonEncodeCount)  JSONdec=\(jsonDecodeCount)  UDwrites=\(userDefaultsWrites)",
+            // tapTimeouts is the smoking-gun for the cursor-flicker / typing-lag
+            // symptom: every increment is one moment where macOS disabled our
+            // event tap because the callback blew its time budget. Non-zero
+            // here under typical use confirms the diagnosis.
+            "tap-health:        tapTimeouts=\(tapTimeoutCount)  wipesTotal=\(wipesTotal)",
             "memory:            start=\(fmt(memoryStartMB))MB  now=\(fmt(memoryNowMB))MB  Δ=\(fmtSigned(memoryDeltaMB))MB",
         ]
     }

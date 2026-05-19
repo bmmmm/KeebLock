@@ -184,6 +184,34 @@ final class LockController {
     @ObservationIgnored private var lastPinchAt: Date?
     @ObservationIgnored private var lastRotateAt: Date?
     @ObservationIgnored private var spaceObserver: NSObjectProtocol?
+    /// Cursor location at the most recent keyDown, captured from
+    /// `CGEvent.location`. Used purely by the verbose-perf event-ring
+    /// log so we can see if the cursor jumps between two consecutive
+    /// keystrokes during a burst — the "Mauszeiger springt nach
+    /// schnellem Tippen" symptom we're chasing.
+    @ObservationIgnored private var lastKeyDownCursor: CGPoint = .zero
+    /// Counter to sample 1-in-N mouseMoved events into the verbose-perf
+    /// event ring. Without sampling, mouseMoved at 60-120 Hz would push
+    /// every keyDown out of the 80-entry ring within a second.
+    @ObservationIgnored private var mouseMovedSampleCount: Int = 0
+    /// Cursor position from the most recent mouseMoved/dragged event,
+    /// used by the auto-snapshot jump detector. Different from
+    /// `lastKeyDownCursor` because we want to track every mouse update,
+    /// not just keystroke samples.
+    @ObservationIgnored private var lastMouseMoveCursor: CGPoint = .zero
+    @ObservationIgnored private var lastMouseMoveAt: TimeInterval = 0
+    /// Throttle for the auto-snapshot trigger. Without it a single jump
+    /// can fire dozens of snapshots as the cursor settles into its new
+    /// position — we only want one per discrete jump event.
+    @ObservationIgnored private var lastAutoSnapshotAt: TimeInterval = 0
+    /// Unified cursor tracker across ALL events (keyDown, mouseMoved,
+    /// clicks). The original mouseMoved-only tracker missed jumps that
+    /// happen between consecutive keystrokes without an intervening
+    /// mouseMoved — which is exactly the live symptom we're chasing.
+    /// `event.location` is set on every CGEvent regardless of type, so
+    /// this fires on whichever event-type arrives next.
+    @ObservationIgnored private var lastAnyEventCursor: CGPoint = .zero
+    @ObservationIgnored private var lastAnyEventAt: TimeInterval = 0
 
     @ObservationIgnored private let pauseDetectThreshold: TimeInterval = 30
     /// Window after lockStartedAt during which non-keyboard events are still
@@ -309,6 +337,15 @@ final class LockController {
         lastSwipeAt = nil
         lastPinchAt = nil
         lastRotateAt = nil
+        // Reset cursor-jump detector state so the first mouseMoved of
+        // the new session doesn't fire a false-positive jump relative
+        // to wherever the cursor sat at the end of the last session.
+        lastMouseMoveCursor = .zero
+        lastMouseMoveAt = 0
+        lastAutoSnapshotAt = 0
+        mouseMovedSampleCount = 0
+        lastAnyEventCursor = .zero
+        lastAnyEventAt = 0
         codewordMatchProgress = 0
         // Random starting tick so the same codeword doesn't always reveal
         // the same opening fact across sessions.
@@ -762,6 +799,18 @@ final class LockController {
             // app-level hover behaviours (button highlights, tooltips,
             // NSToolbar tracking, URL previews) under the lock window
             // stop responding, which is the intended freeze.
+            if AppSettings.shared.verbosePerfEnabled {
+                let loc = event.location
+                checkAnyEventCursorJump(loc, eventLabel: "mouseMoved")
+                // 1-in-30 sampling so the cursor trajectory still lands
+                // in the event ring without drowning out keyDown events.
+                mouseMovedSampleCount &+= 1
+                if mouseMovedSampleCount % 30 == 0 {
+                    PerfMetrics.shared.recordEvent(
+                        "mouseMoved cursor=(\(Int(loc.x)),\(Int(loc.y)))"
+                    )
+                }
+            }
             return nil
         }
         if type == .scrollWheel {
@@ -935,6 +984,14 @@ final class LockController {
             // suffix-matcher to a spurious unlock.
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             if !isRepeat {
+                // Capture cursor location BEFORE processing — the verbose-perf
+                // tag in recordWipingKeystroke will append it. This is what
+                // makes the "cursor jumps during typing burst" symptom
+                // visible in the snapshot.
+                lastKeyDownCursor = event.location
+                if AppSettings.shared.verbosePerfEnabled {
+                    checkAnyEventCursorJump(event.location, eventLabel: "keyDown")
+                }
                 let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
                 var length = 0
                 var unicode = [UniChar](repeating: 0, count: 4)
@@ -975,6 +1032,42 @@ final class LockController {
                 bounds: mapping.bounds
             )
         }
+    }
+
+    /// Unified cursor-jump detector. Called from every event path that
+    /// carries a meaningful `event.location` (mouseMoved, keyDown, …),
+    /// so a jump that lands BETWEEN keystrokes without an intervening
+    /// mouseMoved (the live symptom we're chasing) is still caught.
+    /// Auto-snapshots the surrounding event ring on detection, throttled
+    /// to ~1/s so a settled-in jump can't fire dozens of redundant ones.
+    ///
+    /// Threshold: 300 px is well above any single-frame mouseMoved delta
+    /// at 60-120 Hz under realistic hand-speeds (~25-100 px/frame max).
+    /// Auto-snapshot is gated on verbosePerfEnabled at the call site, so
+    /// no overhead in normal use.
+    private func checkAnyEventCursorJump(_ loc: CGPoint, eventLabel: String) {
+        let now = Date().timeIntervalSinceReferenceDate
+        defer {
+            lastAnyEventCursor = loc
+            lastAnyEventAt = now
+        }
+        guard lastAnyEventAt > 0 else { return }
+        let dx = loc.x - lastAnyEventCursor.x
+        let dy = loc.y - lastAnyEventCursor.y
+        let dist = (dx * dx + dy * dy).squareRoot()
+        guard dist > 300 else { return }
+        guard now - lastAutoSnapshotAt > 0.5 else { return }
+        let dt = now - lastAnyEventAt
+        let fromX = Int(lastAnyEventCursor.x)
+        let fromY = Int(lastAnyEventCursor.y)
+        let toX = Int(loc.x)
+        let toY = Int(loc.y)
+        PerfMetrics.shared.recordEvent(
+            "*** CURSOR JUMP via=\(eventLabel) from=(\(fromX),\(fromY)) to=(\(toX),\(toY)) Δ=\(Int(dist))px in \(Int(dt*1000))ms"
+        )
+        DebugLog.log("cursor jump: via \(eventLabel) from=(\(fromX),\(fromY)) to=(\(toX),\(toY)) Δ=\(Int(dist))px in \(Int(dt*1000))ms — auto snapshot")
+        triggerInlineSnapshot()
+        lastAutoSnapshotAt = now
     }
 
     /// Audio + visual feedback fired on every captured input (keystroke,
@@ -1018,12 +1111,18 @@ final class LockController {
         // is expected to know their snapshot will carry the keycode
         // sequence — they typed it on purpose to see it.
         if AppSettings.shared.verbosePerfEnabled {
+            // Cursor position is included for every key event so a jump
+            // between two consecutive keystrokes is immediately visible
+            // in the snapshot's recentEvents ring. Truncated to ints —
+            // sub-pixel precision adds noise without diagnostic value.
+            let cx = Int(lastKeyDownCursor.x)
+            let cy = Int(lastKeyDownCursor.y)
             if let mapping = KeyboardPositionMap.mapping(for: keycode) {
                 PerfMetrics.shared.recordEvent(
-                    "\(eventLabel) kc=\(keycode) pos=(\(String(format: "%.2f", mapping.position.x)),\(String(format: "%.2f", mapping.position.y))) w=\(String(format: "%.2f", mapping.widthUnits))"
+                    "\(eventLabel) kc=\(keycode) cursor=(\(cx),\(cy)) pos=(\(String(format: "%.2f", mapping.position.x)),\(String(format: "%.2f", mapping.position.y))) w=\(String(format: "%.2f", mapping.widthUnits))"
                 )
             } else {
-                PerfMetrics.shared.recordEvent("\(eventLabel) kc=\(keycode) pos=unmapped")
+                PerfMetrics.shared.recordEvent("\(eventLabel) kc=\(keycode) cursor=(\(cx),\(cy)) pos=unmapped")
             }
         } else {
             PerfMetrics.shared.recordEvent(eventLabel)
