@@ -811,6 +811,15 @@ final class LockController {
                     )
                 }
             }
+            // Hypothesis-B probe: when the debug flag is on, pass mouseMoved
+            // through instead of swallowing it. If the cursor-flicker /
+            // wait-cursor symptom disappears, the swallow itself was the
+            // upstream cause (likely WindowServer throttling its cursor
+            // refresh because our nil-returns make the tap look unresponsive
+            // to mouse events under load).
+            if AppSettings.shared.passMouseMoveThroughDebug {
+                return Unmanaged.passUnretained(event)
+            }
             return nil
         }
         if type == .scrollWheel {

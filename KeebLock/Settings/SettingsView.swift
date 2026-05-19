@@ -766,6 +766,15 @@ struct SettingsView: View {
             if settings.debugLoggingEnabled {
                 Toggle("Verbose perf sampling (callback latency, p99)", isOn: $settings.verbosePerfEnabled)
 
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Pass mouse-move through (cursor-flicker probe B)",
+                           isOn: $settings.passMouseMoveThroughDebug)
+                    Text("During lock, stop swallowing mouseMoved/dragged events and let WindowServer handle the cursor as if no lock were active. Hover behaviours under the lock wake up. Turn ON, lock, move the mouse, then type — if the flicker / wait-cursor flash disappears, the swallow is the cause.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Lock-screen overlay")
                         .font(.callout)

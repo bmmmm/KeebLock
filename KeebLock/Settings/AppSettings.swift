@@ -407,6 +407,7 @@ final class AppSettings: ObservableObject {
             if !debugLoggingEnabled {
                 if verbosePerfEnabled { verbosePerfEnabled = false }
                 if lockOverlayDebugLevel != .off { lockOverlayDebugLevel = .off }
+                if passMouseMoveThroughDebug { passMouseMoveThroughDebug = false }
             }
         }
     }
@@ -415,6 +416,18 @@ final class AppSettings: ObservableObject {
     /// keep running regardless; this only enables the ring-buffer + p99 work.
     @Published var verbosePerfEnabled: Bool {
         didSet { defaults.set(verbosePerfEnabled, forKey: Keys.verbosePerf) }
+    }
+
+    /// Cursor-flicker hypothesis-B probe. When true, the lock's session tap
+    /// returns mouseMoved/dragged events as pass-through instead of swallowing
+    /// them. If the flicker (or wait-cursor flash) disappears with this on,
+    /// the swallow was upstream of the symptom — likely WindowServer's
+    /// cursor refresh being throttled by our `nil` returns under load.
+    /// Side effect while on: hover behaviours under the lock window (button
+    /// highlights, tooltips, NSToolbar tracking) wake up, so the app
+    /// underneath is no longer fully frozen for the mouse.
+    @Published var passMouseMoveThroughDebug: Bool {
+        didSet { defaults.set(passMouseMoveThroughDebug, forKey: Keys.passMouseMove) }
     }
 
     /// Lock-screen border-strip live-debug HUD. Anything above .off also
@@ -464,6 +477,7 @@ final class AppSettings: ObservableObject {
         static let logMaxSize         = "logFileMaxSizeMB"
         static let verbosePerf        = "verbosePerfEnabled"
         static let lockOverlayLevel   = "lockOverlayDebugLevel"
+        static let passMouseMove      = "passMouseMoveThroughDebug"
         static let appTheme           = "appTheme"
     }
 
@@ -513,6 +527,7 @@ final class AppSettings: ObservableObject {
         self.logFileMaxSizeMB = (1...100).contains(mb) ? mb : 5
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false
         self.verbosePerfEnabled    = d.object(forKey: Keys.verbosePerf)  as? Bool ?? false
+        self.passMouseMoveThroughDebug = d.object(forKey: Keys.passMouseMove) as? Bool ?? false
 
         let overlayRaw = d.string(forKey: Keys.lockOverlayLevel) ?? LockOverlayDebugLevel.off.rawValue
         self.lockOverlayDebugLevel = LockOverlayDebugLevel(rawValue: overlayRaw) ?? .off
