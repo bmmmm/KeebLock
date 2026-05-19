@@ -198,8 +198,6 @@ final class LockController {
     /// used by the auto-snapshot jump detector. Different from
     /// `lastKeyDownCursor` because we want to track every mouse update,
     /// not just keystroke samples.
-    @ObservationIgnored private var lastMouseMoveCursor: CGPoint = .zero
-    @ObservationIgnored private var lastMouseMoveAt: TimeInterval = 0
     /// Throttle for the auto-snapshot trigger. Without it a single jump
     /// can fire dozens of snapshots as the cursor settles into its new
     /// position — we only want one per discrete jump event.
@@ -340,8 +338,6 @@ final class LockController {
         // Reset cursor-jump detector state so the first mouseMoved of
         // the new session doesn't fire a false-positive jump relative
         // to wherever the cursor sat at the end of the last session.
-        lastMouseMoveCursor = .zero
-        lastMouseMoveAt = 0
         lastAutoSnapshotAt = 0
         mouseMovedSampleCount = 0
         lastAnyEventCursor = .zero
@@ -1049,8 +1045,12 @@ final class LockController {
     /// Auto-snapshots the surrounding event ring on detection, throttled
     /// to ~1/s so a settled-in jump can't fire dozens of redundant ones.
     ///
-    /// Threshold: 300 px is well above any single-frame mouseMoved delta
-    /// at 60-120 Hz under realistic hand-speeds (~25-100 px/frame max).
+    /// Threshold: 500 px. The earlier 300 px tripped on legitimate user
+    /// motion now that mouseMoved is passed through — bursts of motion
+    /// arriving in the same callback tick can accumulate a 400+ px delta
+    /// even at normal hand-speeds. 500 px is still well below any
+    /// plausible OS-driven cursor warp (e.g. multi-monitor jump) but
+    /// outside the envelope of single-frame mouseMoved batching.
     /// Auto-snapshot is gated on verbosePerfEnabled at the call site, so
     /// no overhead in normal use.
     private func checkAnyEventCursorJump(_ loc: CGPoint, eventLabel: String) {
@@ -1063,7 +1063,7 @@ final class LockController {
         let dx = loc.x - lastAnyEventCursor.x
         let dy = loc.y - lastAnyEventCursor.y
         let dist = (dx * dx + dy * dy).squareRoot()
-        guard dist > 300 else { return }
+        guard dist > 500 else { return }
         guard now - lastAutoSnapshotAt > 0.5 else { return }
         let dt = now - lastAnyEventAt
         let fromX = Int(lastAnyEventCursor.x)
