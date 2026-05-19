@@ -46,6 +46,18 @@ final class PerfMetrics: ObservableObject {
     private(set) var jsonEncodeCount: Int = 0
     private(set) var jsonDecodeCount: Int = 0
     private(set) var userDefaultsWrites: Int = 0
+    /// Number of times macOS posted `tapDisabledByTimeout` against our
+    /// event tap during this session. This is the smoking gun for the
+    /// cursor-flicker symptom: when the callback misses its budget,
+    /// macOS briefly disables the tap, so the cursor (which we normally
+    /// swallow via mouseMoved) becomes reactive for a frame or two.
+    /// Non-zero values here mean the lock loop blew its time budget.
+    private(set) var tapTimeoutCount: Int = 0
+    /// Cumulative wipe count across the session, distinct from
+    /// `wipeBucket` (which is a sliding 1-second bucket reset on each
+    /// rate-timer tick). Bumped from `recordWipe()` so it survives the
+    /// tick reset and gives the perf-test snapshot a stable total.
+    private(set) var wipesTotal: Int = 0
 
     // MARK: - Memory
     private(set) var memoryStartMB: Double = 0
@@ -131,6 +143,8 @@ final class PerfMetrics: ObservableObject {
         jsonEncodeCount = 0
         jsonDecodeCount = 0
         userDefaultsWrites = 0
+        tapTimeoutCount = 0
+        wipesTotal = 0
 
         eventRing.removeAll(keepingCapacity: true)
         eventRingHead = 0
@@ -182,12 +196,13 @@ final class PerfMetrics: ObservableObject {
         }
     }
 
-    func recordWipe()              { wipeBucket &+= 1 }
+    func recordWipe()              { wipeBucket &+= 1; wipesTotal &+= 1 }
     func recordMainHop()           { mainHopBucket &+= 1 }
     func recordNSEventAlloc()      { nsEventAllocations &+= 1 }
     func recordJSONEncode()        { jsonEncodeCount &+= 1 }
     func recordJSONDecode()        { jsonDecodeCount &+= 1 }
     func recordUserDefaultsWrite() { userDefaultsWrites &+= 1 }
+    func recordTapTimeout()        { tapTimeoutCount &+= 1 }
 
     // MARK: - Mach timing helpers
 
@@ -267,4 +282,126 @@ final class PerfMetrics: ObservableObject {
 
     private func fmt(_ d: Double) -> String { String(format: "%.1f", d) }
     private func fmtSigned(_ d: Double) -> String { String(format: "%+.1f", d) }
+
+    // MARK: - Perf-test snapshot
+
+    #if DEBUG
+    /// Structured snapshot for the perf-test harness. Reads the rolling
+    /// latency ring (fills only when verbosePerfEnabled is on, which the
+    /// runner toggles for the test duration) and produces a JSON-ready
+    /// payload with percentiles + a coarse histogram.
+    struct PerfTestSnapshot: Encodable {
+        let suite: String
+        let mode: String
+        let timestamp: String
+        let durationMs: Int
+        let config: Config
+        let latencyUs: LatencyStats
+        let counters: Counters
+        let memory: Memory
+        let histogramUs: [HistogramBin]
+        let recentEvents: [String]
+
+        struct Config: Encodable {
+            let cellsPerAxis: Int
+            let screenCount: Int
+            let wipeMode: String
+            let totalEventsRequested: Int
+        }
+        struct LatencyStats: Encodable {
+            let avg: Int, p50: Int, p95: Int, p99: Int, p999: Int, max: Int, samples: Int
+        }
+        struct Counters: Encodable {
+            let eventsTotal: Int
+            let wipesTotal: Int
+            let tapTimeouts: Int
+            let nsEventAllocs: Int
+            let userDefaultsWrites: Int
+            let jsonEncodes: Int
+            let jsonDecodes: Int
+        }
+        struct Memory: Encodable {
+            let startMB: Double
+            let endMB: Double
+            let deltaMB: Double
+        }
+        struct HistogramBin: Encodable {
+            let upperBoundUs: Int  // -1 = "no upper bound" for the last bin
+            let count: Int
+        }
+    }
+
+    func perfTestSnapshot(suite: String,
+                          mode: String,
+                          durationMs: Int,
+                          totalEventsRequested: Int,
+                          cellsPerAxis: Int,
+                          screenCount: Int,
+                          wipeMode: String) -> PerfTestSnapshot {
+        let sorted = latencyRing.sorted()
+        let percentileUs = { (frac: Double) -> Int in
+            guard !sorted.isEmpty else { return 0 }
+            let idx = Swift.max(0, Swift.min(sorted.count - 1, Int(Double(sorted.count) * frac)))
+            return Int(sorted[idx] / 1000)
+        }
+        let avgUs = Int(eventCallbackAvgNs / 1000)
+        let maxUs = Int(eventCallbackMaxNs / 1000)
+        // Bin edges in µs — chosen to expose the regime transitions:
+        // sub-100µs = healthy, 100-500µs = busy, 500-1000µs = strained,
+        // 1-5ms = budget risk, 5-50ms = the tap WILL get disabled.
+        let bins: [Int] = [100, 500, 1_000, 5_000, 50_000]
+        var hist: [PerfTestSnapshot.HistogramBin] = []
+        var idx = 0
+        for upper in bins {
+            var count = 0
+            while idx < sorted.count && Int(sorted[idx] / 1000) < upper {
+                count += 1
+                idx += 1
+            }
+            hist.append(.init(upperBoundUs: upper, count: count))
+        }
+        hist.append(.init(upperBoundUs: -1, count: sorted.count - idx))
+
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+
+        return PerfTestSnapshot(
+            suite: suite,
+            mode: mode,
+            timestamp: iso.string(from: Date()),
+            durationMs: durationMs,
+            config: .init(
+                cellsPerAxis: cellsPerAxis,
+                screenCount: screenCount,
+                wipeMode: wipeMode,
+                totalEventsRequested: totalEventsRequested
+            ),
+            latencyUs: .init(
+                avg: avgUs,
+                p50: percentileUs(0.50),
+                p95: percentileUs(0.95),
+                p99: percentileUs(0.99),
+                p999: percentileUs(0.999),
+                max: maxUs,
+                samples: eventCallbackSamples
+            ),
+            counters: .init(
+                eventsTotal: eventCallbackSamples,
+                wipesTotal: wipesTotal,
+                tapTimeouts: tapTimeoutCount,
+                nsEventAllocs: nsEventAllocations,
+                userDefaultsWrites: userDefaultsWrites,
+                jsonEncodes: jsonEncodeCount,
+                jsonDecodes: jsonDecodeCount
+            ),
+            memory: .init(
+                startMB: memoryStartMB,
+                endMB: memoryNowMB,
+                deltaMB: memoryDeltaMB
+            ),
+            histogramUs: hist,
+            recentEvents: eventLines()
+        )
+    }
+    #endif
 }

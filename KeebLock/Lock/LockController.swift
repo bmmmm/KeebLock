@@ -698,6 +698,10 @@ final class LockController {
 
     fileprivate func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if type == .tapDisabledByTimeout {
+                PerfMetrics.shared.recordTapTimeout()
+                DebugLog.log("tap: disabled by timeout — re-enabling")
+            }
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
             return nil
         }
@@ -1112,3 +1116,19 @@ final class LockController {
         if progress != codewordMatchProgress { codewordMatchProgress = progress }
     }
 }
+
+#if DEBUG
+extension LockController {
+    /// Direct-injection test path used by PerfTestHarness mode A. Calls
+    /// handleEvent on the same MainActor a real tap callback would, so
+    /// the result is identical apart from skipping the OS tap roundtrip.
+    /// fileprivate-scoped handleEvent is reachable from this extension
+    /// because it sits in the same source file.
+    @MainActor
+    func _testInjectEvent(_ event: CGEvent, type: CGEventType) {
+        let t0 = PerfMetrics.now()
+        _ = handleEvent(type: type, event: event)
+        PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0)
+    }
+}
+#endif

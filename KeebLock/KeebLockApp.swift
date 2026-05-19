@@ -5,7 +5,30 @@ import SwiftUI
 /// instead of the macOS default where the app keeps running invisibly.
 final class KeebLockAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        // In perf-test mode the WindowGroup spawns and is immediately
+        // closed by applicationDidFinishLaunching below. We DO NOT want
+        // that close to terminate the app — the runner needs to keep the
+        // process alive long enough to install the lock and run the test.
+        // The runner calls NSApp.terminate explicitly on completion.
+        #if DEBUG
+        if PerfTestArgs.fromCommandLine() != nil { return false }
+        #endif
+        return true
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        guard let args = PerfTestArgs.fromCommandLine() else { return }
+        // Close any window the WindowGroup auto-spawned so the test runs
+        // headless. The runner shows the lock window on top of the
+        // (now-closed) launcher via LockController.startLock anyway.
+        for window in NSApplication.shared.windows {
+            window.close()
+        }
+        Task { @MainActor in
+            await PerfTestRunner.run(args: args)
+        }
+        #endif
     }
 }
 
