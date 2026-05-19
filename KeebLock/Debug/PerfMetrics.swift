@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Darwin
 import Foundation
 
@@ -36,8 +37,23 @@ final class PerfMetrics: ObservableObject {
     private(set) var eventCallbackP99Ns: UInt64 = 0
     private(set) var eventCallbackSamples: Int = 0
 
+    // MARK: - Per-type latency split (key vs mouse)
+    // Filled in lockstep with the combined stats above when verbosePerfEnabled
+    // is true. Lets us see whether mouse callback latency degrades during
+    // keyDown bursts — the proxy metric for "MainActor saturation under mixed
+    // load" (hypothesis A for the cursor-flicker symptom).
+    private(set) var keyCallbackMaxNs: UInt64 = 0
+    private(set) var keyCallbackAvgNs: UInt64 = 0
+    private(set) var keyCallbackP99Ns: UInt64 = 0
+    private(set) var keyCallbackSamples: Int = 0
+    private(set) var mouseCallbackMaxNs: UInt64 = 0
+    private(set) var mouseCallbackAvgNs: UInt64 = 0
+    private(set) var mouseCallbackP99Ns: UInt64 = 0
+    private(set) var mouseCallbackSamples: Int = 0
+
     // MARK: - Per-second rates (sliding 1 s bucket)
     private(set) var eventTapEventsPerSec: Int = 0
+    private(set) var mouseEventsPerSec: Int = 0
     private(set) var wipeCallsPerSec: Int = 0
     private(set) var mainHopsPerSec: Int = 0
 
@@ -78,7 +94,19 @@ final class PerfMetrics: ObservableObject {
     /// won't get there.
     private var eventCallbackTotalNs: UInt64 = 0
 
+    // Per-type ring buffers — same capacity as the combined ring so each
+    // can independently produce a p99. Keeping them separate also means
+    // mouseMoved at 60 Hz can't push keyDown samples out of the combined
+    // window during a mousekeymix run.
+    private var keyLatencyRing: [UInt64] = []
+    private var keyLatencyRingHead = 0
+    private var keyCallbackTotalNs: UInt64 = 0
+    private var mouseLatencyRing: [UInt64] = []
+    private var mouseLatencyRingHead = 0
+    private var mouseCallbackTotalNs: UInt64 = 0
+
     private var eventBucket = 0
+    private var mouseEventBucket = 0
     private var wipeBucket = 0
     private var mainHopBucket = 0
 
@@ -132,10 +160,27 @@ final class PerfMetrics: ObservableObject {
         latencyRing.removeAll(keepingCapacity: true)
         latencyRingHead = 0
 
+        keyCallbackMaxNs = 0
+        keyCallbackAvgNs = 0
+        keyCallbackP99Ns = 0
+        keyCallbackSamples = 0
+        keyCallbackTotalNs = 0
+        keyLatencyRing.removeAll(keepingCapacity: true)
+        keyLatencyRingHead = 0
+        mouseCallbackMaxNs = 0
+        mouseCallbackAvgNs = 0
+        mouseCallbackP99Ns = 0
+        mouseCallbackSamples = 0
+        mouseCallbackTotalNs = 0
+        mouseLatencyRing.removeAll(keepingCapacity: true)
+        mouseLatencyRingHead = 0
+
         eventTapEventsPerSec = 0
+        mouseEventsPerSec = 0
         wipeCallsPerSec = 0
         mainHopsPerSec = 0
         eventBucket = 0
+        mouseEventBucket = 0
         wipeBucket = 0
         mainHopBucket = 0
 
@@ -180,10 +225,14 @@ final class PerfMetrics: ObservableObject {
 
     // MARK: - Recording (cheap, called from hot paths)
 
-    func recordCallback(machTicks: UInt64) {
+    func recordCallback(machTicks: UInt64, type: CGEventType) {
         eventBucket &+= 1
+        if Self.isMouseType(type) { mouseEventBucket &+= 1 }
         guard AppSettings.shared.verbosePerfEnabled else { return }
         let ns = Self.ticksToNs(machTicks)
+
+        // Combined stats — unchanged for downstream consumers that still
+        // read the aggregated avg/max/p99.
         eventCallbackSamples &+= 1
         if ns > eventCallbackMaxNs { eventCallbackMaxNs = ns }
         eventCallbackTotalNs &+= ns
@@ -193,6 +242,57 @@ final class PerfMetrics: ObservableObject {
         } else {
             latencyRing[latencyRingHead] = ns
             latencyRingHead = (latencyRingHead &+ 1) % latencyRingCapacity
+        }
+
+        // Per-type split. Gestures, NX_SYSDEFINED, and tap-disabled events
+        // intentionally feed only the combined ring — their latency
+        // characteristics differ enough that mixing them into the
+        // mouse/key buckets would muddy the proxy metric.
+        if Self.isKeyType(type) {
+            recordKeyLatency(ns: ns)
+        } else if Self.isMouseType(type) {
+            recordMouseLatency(ns: ns)
+        }
+    }
+
+    private func recordKeyLatency(ns: UInt64) {
+        keyCallbackSamples &+= 1
+        if ns > keyCallbackMaxNs { keyCallbackMaxNs = ns }
+        keyCallbackTotalNs &+= ns
+        keyCallbackAvgNs = keyCallbackTotalNs / UInt64(keyCallbackSamples)
+        if keyLatencyRing.count < latencyRingCapacity {
+            keyLatencyRing.append(ns)
+        } else {
+            keyLatencyRing[keyLatencyRingHead] = ns
+            keyLatencyRingHead = (keyLatencyRingHead &+ 1) % latencyRingCapacity
+        }
+    }
+
+    private func recordMouseLatency(ns: UInt64) {
+        mouseCallbackSamples &+= 1
+        if ns > mouseCallbackMaxNs { mouseCallbackMaxNs = ns }
+        mouseCallbackTotalNs &+= ns
+        mouseCallbackAvgNs = mouseCallbackTotalNs / UInt64(mouseCallbackSamples)
+        if mouseLatencyRing.count < latencyRingCapacity {
+            mouseLatencyRing.append(ns)
+        } else {
+            mouseLatencyRing[mouseLatencyRingHead] = ns
+            mouseLatencyRingHead = (mouseLatencyRingHead &+ 1) % latencyRingCapacity
+        }
+    }
+
+    private static func isKeyType(_ type: CGEventType) -> Bool {
+        type == .keyDown || type == .keyUp || type == .flagsChanged
+    }
+
+    private static func isMouseType(_ type: CGEventType) -> Bool {
+        switch type {
+        case .mouseMoved, .leftMouseDown, .leftMouseDragged,
+             .rightMouseDown, .rightMouseDragged,
+             .otherMouseDown, .otherMouseDragged, .scrollWheel:
+            return true
+        default:
+            return false
         }
     }
 
@@ -232,23 +332,30 @@ final class PerfMetrics: ObservableObject {
 
     private func tickRates() {
         eventTapEventsPerSec = eventBucket
+        mouseEventsPerSec = mouseEventBucket
         wipeCallsPerSec = wipeBucket
         mainHopsPerSec = mainHopBucket
         eventBucket = 0
+        mouseEventBucket = 0
         wipeBucket = 0
         mainHopBucket = 0
         memoryNowMB = Self.currentResidentMB()
-        if !latencyRing.isEmpty {
-            // 99th percentile from the rolling window. Sorting 1024 UInt64s is
-            // ~10 µs — fine at 1 Hz.
-            let sorted = latencyRing.sorted()
-            let idx = max(0, min(sorted.count - 1, Int(Double(sorted.count) * 0.99)))
-            eventCallbackP99Ns = sorted[idx]
-        }
+        // 99th percentile from each rolling window. Sorting 1024 UInt64s is
+        // ~10 µs — fine at 1 Hz, even when we now do it three times.
+        eventCallbackP99Ns = Self.p99(of: latencyRing)
+        keyCallbackP99Ns = Self.p99(of: keyLatencyRing)
+        mouseCallbackP99Ns = Self.p99(of: mouseLatencyRing)
         // Single publish per second — drives all view refreshes that observe
         // PerfMetrics. recordCallback / recordEvent / recordWipe never
         // publish from the hot path themselves.
         tickSeq &+= 1
+    }
+
+    private static func p99(of ring: [UInt64]) -> UInt64 {
+        guard !ring.isEmpty else { return 0 }
+        let sorted = ring.sorted()
+        let idx = max(0, min(sorted.count - 1, Int(Double(sorted.count) * 0.99)))
+        return sorted[idx]
     }
 
     // MARK: - Memory
@@ -271,10 +378,21 @@ final class PerfMetrics: ObservableObject {
         let avgUs = Double(eventCallbackAvgNs) / 1000
         let maxUs = Double(eventCallbackMaxNs) / 1000
         let p99Us = Double(eventCallbackP99Ns) / 1000
+        let keyAvgUs = Double(keyCallbackAvgNs) / 1000
+        let keyMaxUs = Double(keyCallbackMaxNs) / 1000
+        let keyP99Us = Double(keyCallbackP99Ns) / 1000
+        let mouseAvgUs = Double(mouseCallbackAvgNs) / 1000
+        let mouseMaxUs = Double(mouseCallbackMaxNs) / 1000
+        let mouseP99Us = Double(mouseCallbackP99Ns) / 1000
         return [
             "------ Performance ------",
             "callback latency:  avg=\(fmt(avgUs))µs  max=\(fmt(maxUs))µs  p99=\(fmt(p99Us))µs  · \(eventCallbackSamples) samples",
-            "rates (last 1s):   events=\(eventTapEventsPerSec)/s  wipes=\(wipeCallsPerSec)/s  mainHops=\(mainHopsPerSec)/s",
+            // Per-type split — useful when the combined number looks healthy
+            // but one event class is bottlenecking. Mouse spike during a
+            // keyDown burst is the proxy metric for MainActor saturation.
+            "  key latency:     avg=\(fmt(keyAvgUs))µs  max=\(fmt(keyMaxUs))µs  p99=\(fmt(keyP99Us))µs  · \(keyCallbackSamples) samples",
+            "  mouse latency:   avg=\(fmt(mouseAvgUs))µs  max=\(fmt(mouseMaxUs))µs  p99=\(fmt(mouseP99Us))µs  · \(mouseCallbackSamples) samples",
+            "rates (last 1s):   events=\(eventTapEventsPerSec)/s  mouse=\(mouseEventsPerSec)/s  wipes=\(wipeCallsPerSec)/s  mainHops=\(mainHopsPerSec)/s",
             "allocations:       NSEvent=\(nsEventAllocations)  JSONenc=\(jsonEncodeCount)  JSONdec=\(jsonDecodeCount)  UDwrites=\(userDefaultsWrites)",
             // tapTimeouts is the smoking-gun for the cursor-flicker / typing-lag
             // symptom: every increment is one moment where macOS disabled our
@@ -301,7 +419,9 @@ final class PerfMetrics: ObservableObject {
         let timestamp: String
         let durationMs: Int
         let config: Config
-        let latencyUs: LatencyStats
+        let latencyUs: LatencyStats          // combined (all event types)
+        let keyLatencyUs: LatencyStats       // keyDown/Up + flagsChanged
+        let mouseLatencyUs: LatencyStats     // mouseMoved/dragged/down + scroll
         let counters: Counters
         let memory: Memory
         let histogramUs: [HistogramBin]
@@ -318,6 +438,7 @@ final class PerfMetrics: ObservableObject {
         }
         struct Counters: Encodable {
             let eventsTotal: Int
+            let mouseEventsTotal: Int
             let wipesTotal: Int
             let tapTimeouts: Int
             let nsEventAllocs: Int
@@ -344,13 +465,6 @@ final class PerfMetrics: ObservableObject {
                           screenCount: Int,
                           wipeMode: String) -> PerfTestSnapshot {
         let sorted = latencyRing.sorted()
-        let percentileUs = { (frac: Double) -> Int in
-            guard !sorted.isEmpty else { return 0 }
-            let idx = Swift.max(0, Swift.min(sorted.count - 1, Int(Double(sorted.count) * frac)))
-            return Int(sorted[idx] / 1000)
-        }
-        let avgUs = Int(eventCallbackAvgNs / 1000)
-        let maxUs = Int(eventCallbackMaxNs / 1000)
         // Bin edges in µs — chosen to expose the regime transitions:
         // sub-100µs = healthy, 100-500µs = busy, 500-1000µs = strained,
         // 1-5ms = budget risk, 5-50ms = the tap WILL get disabled.
@@ -381,17 +495,27 @@ final class PerfMetrics: ObservableObject {
                 wipeMode: wipeMode,
                 totalEventsRequested: totalEventsRequested
             ),
-            latencyUs: .init(
-                avg: avgUs,
-                p50: percentileUs(0.50),
-                p95: percentileUs(0.95),
-                p99: percentileUs(0.99),
-                p999: percentileUs(0.999),
-                max: maxUs,
+            latencyUs: Self.latencyStats(
+                ring: latencyRing,
+                avgNs: eventCallbackAvgNs,
+                maxNs: eventCallbackMaxNs,
                 samples: eventCallbackSamples
+            ),
+            keyLatencyUs: Self.latencyStats(
+                ring: keyLatencyRing,
+                avgNs: keyCallbackAvgNs,
+                maxNs: keyCallbackMaxNs,
+                samples: keyCallbackSamples
+            ),
+            mouseLatencyUs: Self.latencyStats(
+                ring: mouseLatencyRing,
+                avgNs: mouseCallbackAvgNs,
+                maxNs: mouseCallbackMaxNs,
+                samples: mouseCallbackSamples
             ),
             counters: .init(
                 eventsTotal: eventCallbackSamples,
+                mouseEventsTotal: mouseCallbackSamples,
                 wipesTotal: wipesTotal,
                 tapTimeouts: tapTimeoutCount,
                 nsEventAllocs: nsEventAllocations,
@@ -406,6 +530,27 @@ final class PerfMetrics: ObservableObject {
             ),
             histogramUs: hist,
             recentEvents: eventLines()
+        )
+    }
+
+    private static func latencyStats(ring: [UInt64],
+                                     avgNs: UInt64,
+                                     maxNs: UInt64,
+                                     samples: Int) -> PerfTestSnapshot.LatencyStats {
+        let sorted = ring.sorted()
+        let percentileUs = { (frac: Double) -> Int in
+            guard !sorted.isEmpty else { return 0 }
+            let idx = Swift.max(0, Swift.min(sorted.count - 1, Int(Double(sorted.count) * frac)))
+            return Int(sorted[idx] / 1000)
+        }
+        return .init(
+            avg: Int(avgNs / 1000),
+            p50: percentileUs(0.50),
+            p95: percentileUs(0.95),
+            p99: percentileUs(0.99),
+            p999: percentileUs(0.999),
+            max: Int(maxNs / 1000),
+            samples: samples
         )
     }
     #endif

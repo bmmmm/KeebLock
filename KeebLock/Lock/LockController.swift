@@ -640,7 +640,7 @@ final class LockController {
                     let t0 = PerfMetrics.now()
                     let controller = Unmanaged<LockController>.fromOpaque(refcon).takeUnretainedValue()
                     let result = controller.handleEvent(type: type, event: event)
-                    PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0)
+                    PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0, type: type)
                     return result
                 }
             },
@@ -1227,7 +1227,7 @@ extension LockController {
     func _testInjectEvent(_ event: CGEvent, type: CGEventType) {
         let t0 = PerfMetrics.now()
         _ = handleEvent(type: type, event: event)
-        PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0)
+        PerfMetrics.shared.recordCallback(machTicks: PerfMetrics.now() &- t0, type: type)
     }
 }
 #endif

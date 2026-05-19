@@ -10,6 +10,11 @@ struct PerfTestArgs {
     enum Suite: String {
         case burst
         case saveStorm = "savestorm"
+        /// Interleaves synthetic mouseMoved at 60 Hz with keyDown at 100 Hz.
+        /// Targets the cursor-flicker symptom that only reproduces when the
+        /// mouse has moved before/during a typing burst — pure key bursts
+        /// (`burst`/`saveStorm`) never reach that pre-condition.
+        case mouseKeyMix = "mousekeymix"
     }
     enum Mode: String {
         /// Direct call into LockController._testInjectEvent. No real CGEvent.post.
