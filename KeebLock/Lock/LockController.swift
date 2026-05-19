@@ -791,14 +791,22 @@ final class LockController {
             || type == .leftMouseDragged
             || type == .rightMouseDragged
             || type == .otherMouseDragged {
-            // Silent swallow. These events fire 60–120×/s while the user
-            // moves the cursor; counting them would inflate metrics and
-            // sounding/sparking on every pixel of motion would be worse
-            // than the leak we're closing. Cursor rendering itself is
-            // WindowServer-level and unaffected; what changes is that
-            // app-level hover behaviours (button highlights, tooltips,
-            // NSToolbar tracking, URL previews) under the lock window
-            // stop responding, which is the intended freeze.
+            // Pass through. We used to return nil here to "freeze" the cursor
+            // for the app underneath, but the live cursor-flicker / brief
+            // wait-cursor flash that appeared after the first mouse move +
+            // typing burst was traced to this swallow: under combined key +
+            // mouse load, the nil returns made WindowServer treat our tap as
+            // unresponsive to mouse events and throttle its cursor refresh,
+            // surfacing as a 1-frame visual stutter. Letting the events
+            // through eliminates the symptom (verified by hypothesis-B
+            // toggle test 2026-05-20).
+            //
+            // App-level hover effects under the lock window stay frozen
+            // anyway because the lock window is the topmost full-screen
+            // `.screenSaver`-level window at every cursor position, so
+            // WindowServer routes mouseMoved to it — not to the apps
+            // underneath. Our lock window doesn't enable
+            // `acceptsMouseMovedEvents`, so the event reaches no responder.
             if AppSettings.shared.verbosePerfEnabled {
                 let loc = event.location
                 checkAnyEventCursorJump(loc, eventLabel: "mouseMoved")
@@ -811,16 +819,7 @@ final class LockController {
                     )
                 }
             }
-            // Hypothesis-B probe: when the debug flag is on, pass mouseMoved
-            // through instead of swallowing it. If the cursor-flicker /
-            // wait-cursor symptom disappears, the swallow itself was the
-            // upstream cause (likely WindowServer throttling its cursor
-            // refresh because our nil-returns make the tap look unresponsive
-            // to mouse events under load).
-            if AppSettings.shared.passMouseMoveThroughDebug {
-                return Unmanaged.passUnretained(event)
-            }
-            return nil
+            return Unmanaged.passUnretained(event)
         }
         if type == .scrollWheel {
             if isInWarmup { return nil }
