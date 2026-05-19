@@ -201,7 +201,25 @@ enum KeyboardPositionMap {
         176: 99,   // Stage Manager / F3 alternative → F3
         177: 118,  // Search / Spotlight / F4 alternative → F4
         178: 96,   // Dictation / Mic / F5 alternative → F5
+        179: 97,   // Focus / DND / F6 alternative → F6 (best-effort; unverified)
     ]
+
+    /// Reverse of `aliasTable`: canonical keycode → all keycodes that alias to it.
+    /// Used by the cleanmap to merge counts for non-standard keycodes into the
+    /// matching layout tile (e.g. Stage Manager 176 folds into F3 99).
+    private static let reverseAliasTable: [UInt16: [UInt16]] = {
+        var result: [UInt16: [UInt16]] = [:]
+        for (alias, canonical) in aliasTable {
+            result[canonical, default: []].append(alias)
+        }
+        return result
+    }()
+
+    /// All non-canonical keycodes that alias to `canonicalKeycode`.
+    /// Returns an empty array if none exist.
+    static func aliasedKeycodes(for canonicalKeycode: UInt16) -> [UInt16] {
+        reverseAliasTable[canonicalKeycode] ?? []
+    }
 
     static func normalizedPosition(for keycode: UInt16) -> CGPoint? {
         mapping(for: keycode)?.position

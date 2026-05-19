@@ -184,7 +184,7 @@ struct CleanmapView: View {
                             KeyTile(
                                 key: key,
                                 resolvedLabel: resolvedLabel(for: key),
-                                count: key.code.map { keyCounts[$0] ?? 0 } ?? 0,
+                                count: key.code.map { tileCount(for: $0) } ?? 0,
                                 maxCount: maxCount
                             )
                         }
@@ -261,6 +261,16 @@ struct CleanmapView: View {
     }
 
     // MARK: - Helpers
+
+    /// Count for a canonical layout tile: direct hits + any aliased keycode hits.
+    /// Merges e.g. Stage Manager (176) into the F3 tile (99) so the grid reflects
+    /// the physical key regardless of which keycode the hardware emits.
+    private func tileCount(for code: UInt16) -> Int {
+        let direct = keyCounts[code] ?? 0
+        let aliased = KeyboardPositionMap.aliasedKeycodes(for: code)
+            .reduce(0) { $0 + (keyCounts[$1] ?? 0) }
+        return direct + aliased
+    }
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
@@ -362,6 +372,8 @@ enum KeycodeNames {
         117: "Fwd Del", 118: "F4", 119: "End", 120: "F2",
         121: "PgDn", 122: "F1",
         123: "←", 124: "→", 125: "↓", 126: "↑",
+        160: "Globe",
+        176: "Stage", 177: "Search", 178: "Mic", 179: "Focus",
     ]
 
     private static let asciiMap: [UInt16: Character] = [
