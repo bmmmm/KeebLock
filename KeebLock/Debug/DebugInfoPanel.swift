@@ -12,6 +12,10 @@ struct DebugInfoPanel: View {
     @State private var screens: [NSScreen] = NSScreen.screens
 
     var body: some View {
+        // Subscribe to displayTick so the counter rows refresh at 1 Hz
+        // even though the per-event mutations don't fire observation
+        // tracking themselves.
+        let _ = controller.displayTick
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "ladybug.fill")

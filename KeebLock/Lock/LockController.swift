@@ -15,59 +15,81 @@ final class LockController {
     @MainActor static let shared = LockController()
 
     private(set) var isLocked: Bool = false
-    private(set) var keystrokeCount: Int = 0
     private(set) var remainingSeconds: Int = 0
     private(set) var totalSeconds: Int = 0
     private(set) var currentCodeword: String = ""
     private(set) var isPaused: Bool = false
+
+    /// 1 Hz pulse driven by the existing pause/unlock timer. Views that
+    /// display per-event counters subscribe to this instead of to the
+    /// counters themselves — the counters live as @ObservationIgnored so
+    /// the per-keystroke / per-mousedown mutations don't fire view-update
+    /// cascades through the registrar. Mirrors PerfMetrics.tickSeq.
+    ///
+    /// Per-event mutation of an @Observable property goes through
+    /// _$observationRegistrar.withMutation, which synchronously notifies
+    /// every access tracker registered for that keyPath. With 8-10
+    /// observable mutations per keyDown (counters + bucket + dict +
+    /// trail + spark + codewordMatchProgress) and multiple views
+    /// observing (HUDView, LockOverlayDebug, CleanmapView, TrailmapView),
+    /// the keyDown callback was driving a downstream body-eval storm
+    /// that pushed mouse-callback p99 latency from ~20 µs to ~2.2 ms in
+    /// the mousekeymix perf test — the MainActor saturated under
+    /// combined load. 1 Hz refresh on counters is more than enough for
+    /// readouts that show running totals.
+    private(set) var displayTick: Int = 0
+
     /// Per-keycode counts for the *current* lock session. Reset on each
     /// startLock(). Lives in memory only.
-    private(set) var sessionKeyCounts: [UInt16: Int] = [:]
+    @ObservationIgnored private(set) var sessionKeyCounts: [UInt16: Int] = [:]
     /// Per-keycode counts accumulated across every lock session on this
     /// machine. Persisted to UserDefaults on each stopLock and re-loaded
     /// on launch. The user can clear it via the Cleanmap view's Reset
     /// button. Privacy-trade-off acknowledged: this is keystroke-pattern
     /// data and stays on-disk, scoped to this user's UserDefaults — never
     /// leaves the machine.
-    private(set) var overallKeyCounts: [UInt16: Int] = [:]
+    @ObservationIgnored private(set) var overallKeyCounts: [UInt16: Int] = [:]
     /// Ordered sequence of (keycode, timestamp) pairs for the *current*
     /// lock session — drives the Trailmap view's polyline rendering.
     /// Reset on each startLock(). Lives in memory only; not persisted
     /// (the cross-session view was deemed not useful enough to justify
     /// the on-disk footprint).
-    private(set) var sessionTrail: [TrailPoint] = []
+    @ObservationIgnored private(set) var sessionTrail: [TrailPoint] = []
+    @ObservationIgnored private(set) var keystrokeCount: Int = 0
     private(set) var sparkTrigger: Int = 0
-    // Keyboard breakdown
-    private(set) var letterCount: Int = 0
-    private(set) var numberCount: Int = 0
+    // Keyboard breakdown — all @ObservationIgnored: per-keyDown bumps were
+    // multiplying the per-event publish count under the hot path. Views
+    // refresh on displayTick.
+    @ObservationIgnored private(set) var letterCount: Int = 0
+    @ObservationIgnored private(set) var numberCount: Int = 0
     /// Punctuation, !@#$%&, all printable non-letter / non-number chars.
-    private(set) var symbolCount: Int = 0
+    @ObservationIgnored private(set) var symbolCount: Int = 0
     /// Esc, Tab, Return, Space, Backspace, Delete, Arrows, Home/End/PgUp/PgDn.
-    private(set) var controlKeyCount: Int = 0
+    @ObservationIgnored private(set) var controlKeyCount: Int = 0
     /// F1–F20.
-    private(set) var functionKeyCount: Int = 0
+    @ObservationIgnored private(set) var functionKeyCount: Int = 0
     /// Brightness, Volume, Play/Next/Prev — emitted by NX_SYSDEFINED subtype 8.
-    private(set) var mediaKeyCount: Int = 0
-    // Mouse breakdown
-    private(set) var leftClickCount: Int = 0
-    private(set) var rightClickCount: Int = 0
-    private(set) var middleClickCount: Int = 0
-    private(set) var backClickCount: Int = 0
-    private(set) var forwardClickCount: Int = 0
-    private(set) var scrollCount: Int = 0
+    @ObservationIgnored private(set) var mediaKeyCount: Int = 0
+    // Mouse breakdown — also off the observation path. Same rationale.
+    @ObservationIgnored private(set) var leftClickCount: Int = 0
+    @ObservationIgnored private(set) var rightClickCount: Int = 0
+    @ObservationIgnored private(set) var middleClickCount: Int = 0
+    @ObservationIgnored private(set) var backClickCount: Int = 0
+    @ObservationIgnored private(set) var forwardClickCount: Int = 0
+    @ObservationIgnored private(set) var scrollCount: Int = 0
     // Gestures
     /// Discrete 3/4-finger trackpad swipes — counts both NSEventType.swipe
     /// (31) when the tap sees it AND `activeSpaceDidChange` notifications
     /// (which is how 4-finger swipes manifest on macOS 26+ where the OS
     /// dispatches the gesture above our event tap). Debounced across both
     /// paths so a swipe that triggers a Space change counts once, not twice.
-    private(set) var swipeCount: Int = 0
+    @ObservationIgnored private(set) var swipeCount: Int = 0
     /// 2-finger pinch (NSEventType.magnify = 30) plus double-tap zoom
     /// (NSEventType.smartMagnify = 32). Magnify streams during a pinch, so
     /// debounced; smartMagnify is discrete and counted directly.
-    private(set) var pinchCount: Int = 0
+    @ObservationIgnored private(set) var pinchCount: Int = 0
     /// 2-finger rotation attempts. NSEventType.rotate = 18, debounced.
-    private(set) var rotateCount: Int = 0
+    @ObservationIgnored private(set) var rotateCount: Int = 0
 
     private(set) var codewordMatchProgress: Int = 0
 
@@ -211,6 +233,15 @@ final class LockController {
     @ObservationIgnored private var lastAnyEventCursor: CGPoint = .zero
     @ObservationIgnored private var lastAnyEventAt: TimeInterval = 0
 
+    /// 60 Hz gate on sparkTrigger increments. The visual effect already
+    /// rate-limits spawn() inside SparkOverlayView to 60 Hz, but the
+    /// upstream sparkTrigger mutation drives a LockView → SparkOverlayView
+    /// body re-eval *per keystroke* — capping the bump at 60 Hz collapses
+    /// that cascade for autorepeat / perf-test bursts without altering
+    /// the visible effect (normal typing stays well under 60 Hz).
+    @ObservationIgnored private var lastSparkTriggerAt: TimeInterval = 0
+    private static let sparkTriggerMinInterval: TimeInterval = 1.0 / 60.0
+
     @ObservationIgnored private let pauseDetectThreshold: TimeInterval = 30
     /// Window after lockStartedAt during which non-keyboard events are still
     /// swallowed by the tap but not counted/sounded/sparked. Eats the burst
@@ -335,6 +366,7 @@ final class LockController {
         lastSwipeAt = nil
         lastPinchAt = nil
         lastRotateAt = nil
+        lastSparkTriggerAt = 0
         // Reset cursor-jump detector state so the first mouseMoved of
         // the new session doesn't fire a false-positive jump relative
         // to wherever the cursor sat at the end of the last session.
@@ -567,6 +599,12 @@ final class LockController {
     }
 
     private func tick() {
+        // Bump displayTick first thing so views observing it always see a
+        // 1 Hz refresh signal, even on pause or with auto-unlock disabled.
+        // Carries the per-event counter updates (@ObservationIgnored) into
+        // the view layer at a tolerable cadence.
+        displayTick &+= 1
+
         if let last = lastInputAt,
            Date().timeIntervalSince(last) > pauseDetectThreshold {
             isPaused = true
@@ -1091,7 +1129,13 @@ final class LockController {
     private func triggerInputFeedback() {
         lastInputAt = Date()
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
-        if AppSettings.shared.effectEnabled { sparkTrigger += 1 }
+        if AppSettings.shared.effectEnabled {
+            let now = Date().timeIntervalSinceReferenceDate
+            if now - lastSparkTriggerAt >= Self.sparkTriggerMinInterval {
+                lastSparkTriggerAt = now
+                sparkTrigger &+= 1
+            }
+        }
     }
 
     /// Bucket the keystroke counts in the breakdown. Each event path

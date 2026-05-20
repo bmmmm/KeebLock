@@ -64,6 +64,11 @@ struct CleanmapView: View {
     }
 
     var body: some View {
+        // Subscribe to displayTick so the heatmap refreshes when the
+        // @ObservationIgnored sessionKeyCounts / overallKeyCounts /
+        // mouse counters change. 1 Hz refresh is generous for a
+        // statistical heatmap.
+        let _ = controller.displayTick
         VStack(spacing: 0) {
             header
             Divider()

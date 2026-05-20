@@ -135,6 +135,10 @@ private struct HUDStatsRow: View {
     @ObservedObject var settings: AppSettings = .shared
 
     var body: some View {
+        // Subscribe to the 1 Hz displayTick so the row refreshes when
+        // @ObservationIgnored counters (keystrokeCount etc.) move. The
+        // raw counters don't fire observation tracking themselves.
+        let _ = controller.displayTick
         HStack(spacing: 40) {
             HUDStat(label: "Wipes", value: "\(controller.keystrokeCount)")
             HUDStat(
@@ -458,6 +462,7 @@ private struct HUDBreakdownTile: View {
 private struct KeyboardBreakdownCard: View {
     var controller: LockController
     var body: some View {
+        let _ = controller.displayTick
         InputBreakdownCard(title: "Keyboard", categories: [
             .init(label: "Letters",  count: controller.letterCount),
             .init(label: "Numbers",  count: controller.numberCount),
@@ -472,6 +477,7 @@ private struct KeyboardBreakdownCard: View {
 private struct MouseBreakdownCard: View {
     var controller: LockController
     var body: some View {
+        let _ = controller.displayTick
         InputBreakdownCard(title: "Mouse", categories: [
             .init(label: "Left",    count: controller.leftClickCount),
             .init(label: "Right",   count: controller.rightClickCount),
@@ -486,6 +492,7 @@ private struct MouseBreakdownCard: View {
 private struct GestureBreakdownCard: View {
     var controller: LockController
     var body: some View {
+        let _ = controller.displayTick
         InputBreakdownCard(title: "Gestures", categories: [
             .init(label: "Swipes", count: controller.swipeCount),
             .init(label: "Pinch",  count: controller.pinchCount),
