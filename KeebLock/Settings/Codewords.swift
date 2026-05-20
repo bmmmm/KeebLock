@@ -21,9 +21,9 @@ enum Codewords {
         "corundum", "garnet", "albite", "microcline", "lazurite", "marcasite",
         "chalcedony", "rutile", "zircon", "ilmenite",
         // Phenomena
-        "caldera", "geyser", "lahar", "tephra", "magma", "eruption",
+        "hotspring", "geyser", "lahar", "tephra", "magma", "eruption",
         "crater", "vent", "pluton", "laccolith", "tsunami", "fumarole",
-        "solfatara", "mofette", "massif", "fissure",
+        "solfatara", "sinkhole", "escarpment", "fissure",
         // Mountain ranges
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
         "apennines", "pamir", "tienshan", "karakoram", "sierra", "vosges",
