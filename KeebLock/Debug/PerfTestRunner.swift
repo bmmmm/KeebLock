@@ -65,11 +65,21 @@ enum PerfTestRunner {
         }
         timeoutTimer.resume()
 
-        // 3) Enable verbose perf so the latency ring fills. Restore on exit
-        //    so we don't pollute the user's settings across test runs.
+        // 3) Decide whether to enable verbose perf for this run. Verbose-on
+        //    is the default — it fills the event-ring and adds per-event
+        //    string formatting (`recordEvent`, `KeyboardPositionMap`
+        //    lookups). Latency *percentiles* run unconditionally since
+        //    Training 3, so verbose-off still gives us p99/max — just
+        //    without the per-event string side-channel.
+        //
+        //    Toggle via env var `KEEBLOCK_PERF_VERBOSE_OFF=1` (set by
+        //    `scripts/run-perf-test.sh --no-verbose`) — lets us measure
+        //    the verbose-overhead delta and capture production-truth
+        //    Release latencies.
         let settings = AppSettings.shared
         let savedVerbose = settings.verbosePerfEnabled
-        settings.verbosePerfEnabled = true
+        let forceOff = ProcessInfo.processInfo.environment["KEEBLOCK_PERF_VERBOSE_OFF"] == "1"
+        settings.verbosePerfEnabled = !forceOff
         defer { settings.verbosePerfEnabled = savedVerbose }
 
         // 4) Permission check — bail with a useful message if the user

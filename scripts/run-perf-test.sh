@@ -2,18 +2,25 @@
 # Drive the KeebLock perf-test harness from outside the app.
 #
 # Usage:
-#   scripts/run-perf-test.sh <suite> [mode] [output]
+#   scripts/run-perf-test.sh [--no-verbose] <suite> [mode] [output]
 #     suite   = burst | savestorm | mousekeymix
 #     mode    = A (direct, default — safe)
 #             | B (real OS-level CGEvent.post — reproduces cursor flicker /
 #                 cursor warp; pre-flighted against lock+tap)
 #     output  = path to write JSON snapshot (default: $TMPDIR/keeblock-perf.json)
 #
-#   scripts/run-perf-test.sh --battery [output-dir]
+#   scripts/run-perf-test.sh [--no-verbose] --battery [output-dir]
 #     Runs every (suite × mode) combo sequentially, writes one JSON per run
 #     into output-dir (default: $TMPDIR), then writes a battery summary
 #     at <output-dir>/keeblock-perf-battery-<timestamp>.json containing
 #     p99/max for all/key/mouse latency plus tap-timeouts + samples.
+#
+#   --no-verbose
+#     Run with `verbosePerfEnabled = false`. Latency percentile rings still
+#     fill (always-on since Training 3) — only the per-event string side-
+#     channel (recordEvent ring, KeyboardPositionMap formatting, cursor-
+#     jump check) is suppressed. Use this to measure production-truth
+#     latency without the debug-mode overhead inflating the numbers.
 #
 # Safety:
 #   - The harness writes $TMPDIR/keeblock-perf-test.lock at launch.
@@ -30,11 +37,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-APP_BUNDLE="$ROOT/build/DerivedData/Build/Products/Debug/KeebLock.app"
+APP_BUNDLE="${KEEBLOCK_APP_BUNDLE_OVERRIDE:-$ROOT/build/DerivedData/Build/Products/Debug/KeebLock.app}"
 APP_BIN="$APP_BUNDLE/Contents/MacOS/KeebLock"
 TMP="${TMPDIR:-/tmp}"
 # Strip trailing slash so we can paste paths without doubles.
 TMP="${TMP%/}"
+
+# Optional verbose-off env var passed through to the launched app via
+# `open --env`. Set by `--no-verbose` flag below.
+VERBOSE_ENV=()
+while [ "${1:-}" = "--no-verbose" ]; do
+    VERBOSE_ENV=(--env KEEBLOCK_PERF_VERBOSE_OFF=1)
+    shift
+done
 
 build_if_needed() {
     if [ ! -x "$APP_BIN" ]; then
@@ -73,10 +88,10 @@ run_one() {
     # write its own snapshot from the hard-timeout path.
     local timeout_secs=60
     if command -v gtimeout >/dev/null 2>&1; then
-        gtimeout "$timeout_secs" open -W -na "$APP_BUNDLE" --args \
+        gtimeout "$timeout_secs" open -W -na "$APP_BUNDLE" ${VERBOSE_ENV[@]+"${VERBOSE_ENV[@]}"} --args \
             --perf-test="$suite" --mode="$mode" --output="$output" || true
     else
-        open -W -na "$APP_BUNDLE" --args \
+        open -W -na "$APP_BUNDLE" ${VERBOSE_ENV[@]+"${VERBOSE_ENV[@]}"} --args \
             --perf-test="$suite" --mode="$mode" --output="$output" &
         local pid=$!
         ( sleep "$timeout_secs"; kill -TERM "$pid" 2>/dev/null; sleep 2; kill -KILL "$pid" 2>/dev/null ) &

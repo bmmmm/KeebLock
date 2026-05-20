@@ -9,9 +9,11 @@ import Foundation
 // MainActor-isolated to match the project default; hot-path bumps are cheap
 // integer mutations on the same actor that drives the event tap callback.
 //
-// Toggle: AppSettings.shared.verbosePerfEnabled gates the per-event work
-// (callback latency sampling + ring buffer). Aggregate counters always run
-// because each is a single Int += that costs less than reading the toggle.
+// Toggle: AppSettings.shared.verbosePerfEnabled now gates only the
+// per-event STRING work (recordEvent / event ring). Callback-latency
+// sampling + percentile rings run unconditionally — they cost ~10 ns
+// each and we want production-truth percentiles without flipping a
+// debug toggle that itself inflates the numbers.
 @MainActor
 final class PerfMetrics: ObservableObject {
     static let shared = PerfMetrics()
@@ -38,10 +40,11 @@ final class PerfMetrics: ObservableObject {
     private(set) var eventCallbackSamples: Int = 0
 
     // MARK: - Per-type latency split (key vs mouse)
-    // Filled in lockstep with the combined stats above when verbosePerfEnabled
-    // is true. Lets us see whether mouse callback latency degrades during
-    // keyDown bursts — the proxy metric for "MainActor saturation under mixed
-    // load" (hypothesis A for the cursor-flicker symptom).
+    // Filled in lockstep with the combined stats above on every callback
+    // (always-on since Training 3, 2026-05-20). Lets us see whether mouse
+    // callback latency degrades during keyDown bursts — the proxy metric
+    // for "MainActor saturation under mixed load" (hypothesis A for the
+    // cursor-flicker symptom).
     private(set) var keyCallbackMaxNs: UInt64 = 0
     private(set) var keyCallbackAvgNs: UInt64 = 0
     private(set) var keyCallbackP99Ns: UInt64 = 0
@@ -228,8 +231,16 @@ final class PerfMetrics: ObservableObject {
     func recordCallback(machTicks: UInt64, type: CGEventType) {
         eventBucket &+= 1
         if Self.isMouseType(type) { mouseEventBucket &+= 1 }
-        guard AppSettings.shared.verbosePerfEnabled else { return }
         let ns = Self.ticksToNs(machTicks)
+
+        // Latency sampling runs UNCONDITIONALLY — the ring updates are
+        // ~10 ns each (single Int compare + array slot write), small
+        // enough that they don't bias the measurement they record. The
+        // verbose-perf gate sits lower, around the string-allocating
+        // `recordEvent` path; that's where the real overhead lives.
+        // Always-on percentiles let us audit Release-mode latency
+        // without flipping a debug toggle that itself inflates the
+        // numbers (the original chicken-and-egg of Training 3).
 
         // Combined stats — unchanged for downstream consumers that still
         // read the aggregated avg/max/p99.
