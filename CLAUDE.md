@@ -133,8 +133,8 @@ global hooks; entitlements file makes this explicit).
   `KeebLock/Resources/CodewordImages/CREDITS.md`. 63 are share-alike, so any
   redistribution must include attribution. The credits file is the
   compliance artifact; keep it in sync with `image_attribution`.
-- Source-of-truth remote is Forgejo at `git.home/your-org/KeebLock` (SSH on port
-  2222). A push-mirror auto-syncs to `github.com/bmmmm/KeebLock` — push to
+- Source-of-truth remote is Forgejo at `https://forgejo.example.com/your-org/KeebLock`
+  (HTTPS-with-token). A push-mirror auto-syncs to `github.com/bmmmm/KeebLock` — push to
   Forgejo, GitHub follows. Don't push to GitHub directly.
 
 ## Pitfalls
