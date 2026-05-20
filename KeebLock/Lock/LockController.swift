@@ -307,6 +307,14 @@ final class LockController {
     /// `stopLock()` save.
     @ObservationIgnored private var wipesSinceLastCleanmapSave: Int = 0
     @ObservationIgnored private static let cleanmapSaveStride: Int = 50
+    /// Background queue for the throttled cleanmap save so the JSON encode
+    /// and UserDefaults write never land inside an event-tap callback.
+    /// Serial: ordering of saves matters (later snapshots must overwrite
+    /// earlier ones, not race with them).
+    @ObservationIgnored private static let cleanmapSaveQueue = DispatchQueue(
+        label: "de.6bm.KeebLock.cleanmap-save",
+        qos: .utility
+    )
     @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     private init() {
@@ -596,6 +604,29 @@ final class LockController {
             PerfMetrics.shared.recordJSONEncode()
             UserDefaults.standard.set(data, forKey: Self.cleanmapKeyCountsKey)
             PerfMetrics.shared.recordUserDefaultsWrite()
+        }
+    }
+
+    /// Hot-path variant of `saveOverallKeyCounts`. Snapshots the dictionary
+    /// on the MainActor (cheap value-type copy of ~20-50 entries) and
+    /// off-loads JSON encode + UserDefaults write to a serial utility
+    /// queue. Apple guarantees `UserDefaults.set(_:forKey:)` is thread-
+    /// safe. The synchronous variant stays in place for `stopLock` and
+    /// `applicationWillTerminate`, where we need the write to flush before
+    /// the session record is finalised / the process exits.
+    private func saveOverallKeyCountsAsync() {
+        let snapshot = overallKeyCounts
+        let key = Self.cleanmapKeyCountsKey
+        Self.cleanmapSaveQueue.async {
+            let stringDict = Dictionary(uniqueKeysWithValues:
+                snapshot.map { (String($0.key), $0.value) }
+            )
+            guard let data = try? JSONEncoder().encode(stringDict) else { return }
+            UserDefaults.standard.set(data, forKey: key)
+            Task { @MainActor in
+                PerfMetrics.shared.recordJSONEncode()
+                PerfMetrics.shared.recordUserDefaultsWrite()
+            }
         }
     }
 
@@ -1264,7 +1295,7 @@ final class LockController {
         // window.
         wipesSinceLastCleanmapSave += 1
         if wipesSinceLastCleanmapSave >= Self.cleanmapSaveStride {
-            saveOverallKeyCounts()
+            saveOverallKeyCountsAsync()
             wipesSinceLastCleanmapSave = 0
         }
         PerfMetrics.shared.recordWipe()
