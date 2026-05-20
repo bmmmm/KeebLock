@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "fetched_at": "2026-05-05T12:09:10Z",
+  "fetched_at": "2026-05-20T00:54:03Z",
   "source": "https://en.wikipedia.org/api/rest_v1",
   "data": {
     "albite": {
@@ -279,6 +279,46 @@
         "Berber peoples have inhabited the Atlas for millennia, developing unique cultures adapted to extreme altitude and isolation.",
         "The range traps Atlantic moisture, creating lush valleys that support olive groves, cedar forests, and unique wildlife.",
         "The Atlas formed when Africa collided with Europe, pushing ancient seafloor sediments skyward millions of years ago."
+      ]
+    },
+    "avalanche": {
+      "title": "Avalanche",
+      "summary": "An avalanche is a rapid flow of snow down a slope, such as a hill or mountain. Avalanches can be triggered spontaneously, by factors such as increased precipitation or snowpack weakening, or by external means such as humans, other animals, and earthquakes. Primarily composed of flowing snow and air, large avalanches have the capability to capture and move ice, rocks, and trees.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Avalanche",
+      "image_filename": "avalanche.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/Avalanche_on_Everest.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "image_attribution": {
+        "commons_file_title": "File:Avalanche on Everest.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Avalanche_on_Everest.jpg",
+        "commons_pageid": 3839230,
+        "uploader": "Yann",
+        "author": "Chagai at English Wikipedia",
+        "author_url": "https://en.wikipedia.org/wiki/User:Chagai",
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": "Transferred from en.wikipedia to Commons.",
+        "attribution_required": false
+      },
+      "facts": [
+        "An avalanche is a rapid flow of snow down a slope, such as a hill or mountain. Avalanches can be triggered spontaneously, by factors such as increased precipitation or snowpack weakening, or by external means such as humans, other animals, and earthquakes. Primarily composed of flowing snow and air, large avalanches have the capability to capture and move ice, rocks, and trees.",
+        "Avalanches occur in two general forms, or combinations thereof: slab avalanches made of tightly packed snow, triggered by a collapse of an underlying weak snow layer, and loose snow avalanches made of looser snow. After being set off, avalanches usually accelerate rapidly and grow in mass and volume as they capture more snow. If an avalanche moves fast enough, some of the snow may mix with the air, forming a powder snow avalanche.",
+        "Though they appear to share similarities, avalanches are distinct from slush flows, mudslides, rock slides, and serac collapses. They are also different from large scale movements of ice. Avalanches can happen in any mountain range that has an enduring snowpack. They are most frequent in winter or spring, but may occur at any time of the year. In mountainous areas, avalanches are among the most serious natural hazards to life and property, so great efforts are made in avalanche control. There are many classification systems for the different forms of avalanches. Avalanches can be described by their size, destructive potential, initiation mechanism, composition, and dynamics.",
+        "Most avalanches occur spontaneously during storms under increased load due to snowfall and/or erosion. Metamorphic changes in the snowpack, such as melting due to solar radiation, is the second-largest cause of natural avalanches. Other natural causes include rain, earthquakes, rockfall, and icefall. Artificial triggers of avalanches include skiers, snowmobiles, and controlled explosive work. Contrary to popular belief, avalanches are not triggered by loud sound; the pressure from sound is orders of magnitude too small to trigger an avalanche.",
+        "Avalanche initiation can start at a point with only a small amount of snow moving initially; this is typical of wet snow avalanches or avalanches in dry unconsolidated snow. However, if the snow has sintered into a stiff slab overlying a weak layer, then fractures can propagate very rapidly, so that a large volume of snow, possibly thousands of cubic metres, can start moving almost simultaneously.",
+        "A snowpack will fail when the load exceeds the strength. The load is straightforward; it is the weight of the snow. However, the strength of the snowpack is much more difficult to determine and is extremely heterogeneous. It varies in detail with properties of the snow grains, size, density, morphology, temperature, water content; and the properties of the bonds between the grains. These properties may all metamorphose in time according to the local humidity, water vapour flux, temperature and heat flux. The top of the snowpack is also extensively influenced by incoming radiation and the local air flow. One of the aims of avalanche research is to develop and validate computer models that can describe the evolution of the seasonal snowpack over time. A complicating factor is the complex interaction of terrain and weather, which causes significant spatial and temporal variability of the depths, crystal forms, and layering of the seasonal snowpack.",
+        "Slab avalanches are formed frequently in snow that has been deposited, or deposited by wind. They have the characteristic appearance of a block (slab) of snow cut out from its surroundings by fractures. Elements of slab avalanches include a crown fracture at the top of the start zone, flank fractures on the sides of the start zones, and a fracture at the bottom called the stauchwall. The crown and flank fractures are vertical walls in the snow delineating the snow that was entrained in the avalanche from the snow that remained on the slope. Slabs can vary in thickness from a few centimetres to three metres. Slab avalanches account for around 90% of avalanche-related fatalities.",
+        "The largest avalanches form turbulent suspension currents known as powder snow avalanches or mixed avalanches, a kind of gravity current. These consist of a powder cloud, which overlies a dense avalanche. They can form from any type of snow or initiation mechanism, but usually occur with fresh dry powder. They can exceed speeds of 300 km/h (190 mph), and masses of 1,000,000 tons; their flows can travel long distances along flat valley bottoms and even uphill for short distances.",
+        "In contrast to powder snow avalanches, wet snow avalanches are a low velocity suspension of snow and water, with the flow confined to the track surface (McClung, 1999, p. 108). The low speed of travel is due to the friction between the sliding surface of the track and the water saturated flow. Despite the low speed of travel (≈10–40 km/h), wet snow avalanches are capable of generating powerful destructive forces, due to the large mass and density. The body of the flow of a wet snow avalanche can plough through soft snow, and can scour boulders, earth, trees, and other vegetation; leaving exposed and often scored ground in the avalanche track. Wet snow avalanches can be initiated from either loose snow releases, or slab releases, and only occur in snowpacks that are water saturated and isothermally equilibrated to the melting point of water. The isothermal characteristic of wet snow avalanches has led to the secondary term of isothermal slides found in the literature (for example in Daffern, 1999, p. 93). At temperate latitudes wet snow avalanches are frequently associated with climatic avalanche cycles at the end of the winter season, when there is significant daytime warming.",
+        "An ice avalanche occurs when a large piece of ice, such as from a serac or calving glacier, falls onto ice (such as the Khumbu Icefall), triggering a movement of broken ice chunks. The resulting movement is more analogous to a rockfall or a landslide than a snow avalanche. They are typically very difficult to predict and almost impossible to mitigate."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "The largest avalanches form turbulent suspension currents known as powder snow avalanches or mixed avalanches, a kind of gravity current.",
+        "In mountainous areas, avalanches are among the most serious natural hazards to life and property, so great efforts are made in avalanche control.",
+        "Most avalanches occur spontaneously during storms under increased load due to snowfall and/or erosion.",
+        "Metamorphic changes in the snowpack, such as melting due to solar radiation, is the second-largest cause of natural avalanches.",
+        "Avalanche initiation can start at a point with only a small amount of snow moving initially; this is typical of wet snow avalanches or avalanches in dry unconsolidated snow."
       ]
     },
     "azurite": {
@@ -881,6 +921,46 @@
         "Named after mineralogist Déodat Gratet de Dolomieu, who identified it in 1791."
       ]
     },
+    "earthquake": {
+      "title": "Earthquake",
+      "summary": "An earthquake, also called a quake, tremor, or temblor, is the shaking of the Earth's surface resulting from a sudden release of energy in the lithosphere that creates seismic waves. Earthquakes can range in intensity, from those so weak they cannot be felt, to those violent enough to propel objects and people into the air, damage critical infrastructure, and wreak destruction across entire cities. The seismic activity of an area is the frequency, type, and size of earthquakes experienced over a particular time. The seismicity at a particular location in the Earth is the average rate of seismic energy released per unit volume.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Earthquake",
+      "image_filename": "earthquake.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/d/db/Quake_epicenters_1963-98.png",
+      "image_attribution": {
+        "commons_file_title": "File:Quake epicenters 1963-98.png",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Quake_epicenters_1963-98.png",
+        "commons_pageid": 35429,
+        "uploader": "Phreneticc",
+        "author": "NASA, DTAM project team",
+        "author_url": "https://denali.gsfc.nasa.gov/dtam/team/",
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": "http://denali.gsfc.nasa.gov/dtam/seismic/",
+        "attribution_required": false
+      },
+      "facts": [
+        "An earthquake, also called a quake, tremor, or temblor, is the shaking of the Earth's surface resulting from a sudden release of energy in the lithosphere that creates seismic waves. Earthquakes can range in intensity, from those so weak they cannot be felt, to those violent enough to propel objects and people into the air, damage critical infrastructure, and wreak destruction across entire cities. The seismic activity of an area is the frequency, type, and size of earthquakes experienced over a particular time. The seismicity at a particular location in the Earth is the average rate of seismic energy released per unit volume.",
+        "In its most general sense, the word earthquake is used to describe any seismic event that generates seismic waves. Earthquakes can occur naturally or be induced by human activities, such as mining, fracking, and nuclear weapons testing. The initial point of rupture is called the hypocenter or focus, while the ground level directly above it is the epicenter. Earthquakes are primarily caused by geological faults, but also by volcanism, landslides, and other seismic events.",
+        "Significant historical earthquakes include the 1976 Tangshan earthquake in China, with over 300,000 fatalities, and the 1960 Valdivia earthquake in Chile, the largest ever recorded at 9.5 magnitude. Earthquakes result in various effects, such as ground shaking and soil liquefaction, leading to significant damage and loss of life. When the epicenter of a large earthquake is located offshore, the seabed may be displaced sufficiently to cause a tsunami. Earthquakes can trigger landslides. The occurrence of earthquakes is influenced by tectonic movements along faults, including normal, reverse (thrust), and strike-slip faults, with energy release and rupture dynamics governed by the elastic-rebound theory.",
+        "Efforts to manage earthquake risks involve prediction, forecasting, and preparedness, including seismic retrofitting and earthquake engineering to design structures that withstand shaking. The cultural impact of earthquakes spans myths, religious beliefs, and modern media, reflecting their profound influence on human societies. Similar seismic phenomena, known as marsquakes and moonquakes, have been observed on other celestial bodies, indicating the universality of such events beyond Earth.",
+        "An earthquake is the shaking of the surface of Earth resulting from a sudden release of energy in the lithosphere that creates seismic waves. Earthquakes may also be referred to as quakes, tremors, or temblors. The word tremor is also used for non-earthquake seismic rumbling.",
+        "In its most general sense, an earthquake is any seismic event—whether natural or caused by humans—that generates seismic waves. Earthquakes are caused mostly by the rupture of geological faults but also by other events such as volcanic activity, landslides, mine blasts, fracking and nuclear tests. An earthquake's point of initial rupture is called its hypocenter or focus. The epicenter is the point at ground level directly above the hypocenter.",
+        "The seismic activity of an area is the frequency, type, and size of earthquakes experienced over a particular time. The seismicity at a particular location in the Earth is the average rate of seismic energy release per unit volume.",
+        "One of the most devastating earthquakes in recorded history was the 1556 Shaanxi earthquake, which occurred on 23 January 1556 in Shaanxi, China. More than 100,000 people died, with the region losing up to 730,000 people afterwards due to emigration, plague, and famine. Most houses in the area were yaodongs—dwellings carved out of loess hillsides—and many victims were killed when these structures collapsed. The 1976 Tangshan earthquake, which killed between 240,000 and 655,000 people, was the deadliest of the 20th century.",
+        "The 1960 Chilean earthquake is the largest earthquake that has been measured on a seismograph, reaching 9.5 magnitude on 22 May 1960. Its epicenter was near Cañete, Chile. The energy released was approximately twice that of the next most powerful earthquake, the Good Friday earthquake (27 March 1964), which was centered in Prince William Sound, Alaska. The ten largest recorded earthquakes have all been megathrust earthquakes; however, of these ten, only the 2004 Indian Ocean earthquake is simultaneously one of the deadliest earthquakes in history.",
+        "Earthquakes that caused the greatest loss of life, while powerful, were deadly because of their proximity to either heavily populated areas or the ocean, where earthquakes often create tsunamis that can devastate communities thousands of kilometers away. Regions most at risk for great loss of life include those where earthquakes are relatively rare but powerful, and poor regions with lax, unenforced, or nonexistent seismic building codes."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "Significant historical earthquakes include the 1976 Tangshan earthquake in China, with over 300,000 fatalities, and the 1960 Valdivia earthquake in Chile, the largest ever recorded at 9.5 magnitude.",
+        "One of the most devastating earthquakes in recorded history was the 1556 Shaanxi earthquake, which occurred on 23 January 1556 in Shaanxi, China.",
+        "The ten largest recorded earthquakes have all been megathrust earthquakes; however, of these ten, only the 2004 Indian Ocean earthquake is simultaneously one of the deadliest earthquakes in history.",
+        "The energy released was approximately twice that of the next most powerful earthquake, the Good Friday earthquake (27 March 1964), which was centered in Prince William Sound, Alaska.",
+        "An earthquake, also called a quake, tremor, or temblor, is the shaking of the Earth's surface resulting from a sudden release of energy in the lithosphere that creates seismic waves."
+      ]
+    },
     "eifel": {
       "title": "Eifel",
       "summary": "The Eifel is a low mountain range in western Germany, eastern Belgium and northern Luxembourg. It occupies parts of southwestern North Rhine-Westphalia, northwestern Rhineland-Palatinate and the southern area of the German-speaking Community of Belgium.",
@@ -961,6 +1041,46 @@
         "The volcano releases hydrogen fluoride and hydrogen chloride gases that interact with Antarctic ice, creating a unique and heavily studied volcanic environment."
       ]
     },
+    "erosion": {
+      "title": "Erosion",
+      "summary": "Erosion is the action of surface processes that removes soil, rock, or dissolved material from one location on the Earth's crust and then transports it to another location where it is deposited. Erosion is distinct from weathering which involves no movement. Removal of rock or soil as clastic sediment is referred to as physical or mechanical erosion; this contrasts with chemical erosion, where soil or rock material is removed from an area by dissolution. Eroded sediment or solutes may be transported just a few millimetres, or for thousands of kilometres.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Erosion",
+      "image_filename": "erosion.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Eroding_rill_in_field_in_eastern_Germany.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:Eroding rill in field in eastern Germany.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Eroding_rill_in_field_in_eastern_Germany.jpg",
+        "commons_pageid": 42387941,
+        "uploader": "Innotata",
+        "author": "Katharina Helming",
+        "author_url": null,
+        "license_name": "CC BY-SA 1.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/1.0",
+        "license_spdx": "CC-BY-SA-1.0",
+        "credit": "Given to me by the photographer",
+        "attribution_required": true
+      },
+      "facts": [
+        "Erosion is the action of surface processes (such as water flow or wind) that removes soil, rock, or dissolved material from one location on the Earth's crust and then transports it to another location where it is deposited. Erosion is distinct from weathering which involves no movement. Removal of rock or soil as clastic sediment is referred to as physical or mechanical erosion; this contrasts with chemical erosion, where soil or rock material is removed from an area by dissolution. Eroded sediment or solutes may be transported just a few millimetres, or for thousands of kilometres.",
+        "Agents of erosion include rainfall; bedrock wear in rivers; coastal erosion by the sea and waves; glacial plucking, abrasion, and scour; areal flooding; wind abrasion; groundwater processes; and mass movement processes in steep landscapes like landslides and debris flows. The rates at which such processes act control how fast a surface is eroded. Typically, physical erosion proceeds the fastest on steeply sloping surfaces, and rates may also be sensitive to some climatically controlled properties including amounts of water supplied (e.g., by rain), storminess, wind speed, wave fetch, or atmospheric temperature (especially for some ice-related processes). Feedbacks are also possible between rates of erosion and the amount of eroded material that is already carried by, for example, a river or glacier. The transport of eroded materials from their original location is followed by deposition, which is arrival and emplacement of material at a new location.",
+        "While erosion is a natural process, human activities have increased by 10–40 times the rate at which soil erosion is occurring globally. At agriculture sites in the Appalachian Mountains, intensive farming practices have caused erosion at up to 100 times the natural rate of erosion in the region. Excessive (or accelerated) erosion causes both \"on-site\" and \"off-site\" problems. On-site impacts include decreases in agricultural productivity and (on natural landscapes) ecological collapse, both because of loss of the nutrient-rich upper soil layers. In some cases, this leads to desertification. Off-site effects include sedimentation of waterways and eutrophication of water bodies, as well as sediment-related damage to roads and houses. Water and wind erosion are the two primary causes of land degradation; combined, they are responsible for about 84% of the global extent of degraded land, making excessive erosion one of the most significant environmental problems worldwide.",
+        "Intensive agriculture, deforestation, roads, anthropogenic climate change and urban sprawl are amongst the most significant human activities in regard to their effect on stimulating erosion. However, there are many prevention and remediation practices that can curtail or limit erosion of vulnerable soils.",
+        "Rainfall, and the surface runoff which may result from rainfall, produces four main types of soil erosion: splash erosion, sheet erosion, rill erosion, and gully erosion. Splash erosion is generally seen as the first and least severe stage in the soil erosion process, which is followed by sheet erosion, then rill erosion and finally gully erosion (the most severe of the four).",
+        "In splash erosion, the impact of a falling raindrop creates a small crater in the soil, ejecting soil particles. The distance these soil particles travel can be as much as 0.6 m (2.0 ft) vertically and 1.5 m (4.9 ft) horizontally on level ground.",
+        "If the soil is saturated, or if the rainfall rate is greater than the rate at which water can infiltrate into the soil, surface runoff occurs. If the runoff has sufficient flow energy, it will transport loosened soil particles (sediment) down the slope. Sheet erosion is the transport of loosened soil particles by overland flow.",
+        "Rill erosion refers to the development of small, ephemeral concentrated flow paths which function as both sediment source and sediment delivery systems for erosion on hillslopes. Generally, where water erosion rates on disturbed upland areas are greatest, rills are active. Flow depths in rills are typically of the order of a few centimetres (about an inch) or less and along-channel slopes may be quite steep. This means that rills exhibit hydraulic physics very different from water flowing through the deeper, wider channels of streams and rivers.",
+        "Gully erosion occurs when runoff water accumulates and rapidly flows in narrow channels during or immediately after heavy rains or melting snow, removing soil to a considerable depth. A gully is distinguished from a rill based on a critical cross-sectional area of at least one square foot, i.e. the size of a channel that can no longer be erased via normal tillage operations.",
+        "Extreme gully erosion can progress to formation of badlands. These form under conditions of high relief on easily eroded bedrock in climates favorable to erosion. Conditions or disturbances that limit the growth of protective vegetation (rhexistasy) are a key element of badland formation."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "Splash erosion is generally seen as the first and least severe stage in the soil erosion process, which is followed by sheet erosion, then rill erosion and finally gully erosion (the most severe of the four).",
+        "The distance these soil particles travel can be as much as 0.6 m (2.0 ft) vertically and 1.5 m (4.9 ft) horizontally on level ground.",
+        "At agriculture sites in the Appalachian Mountains, intensive farming practices have caused erosion at up to 100 times the natural rate of erosion in the region.",
+        "Water and wind erosion are the two primary causes of land degradation; combined, they are responsible for about 84% of the global extent of degraded land, making excessive erosion one of the most significant environmental problems worldwide.",
+        "Intensive agriculture, deforestation, roads, anthropogenic climate change and urban sprawl are amongst the most significant human activities in regard to their effect on stimulating erosion."
+      ]
+    },
     "eruption": {
       "title": "Volcanic eruption",
       "summary": "A volcanic eruption occurs when material is expelled from a volcanic vent or fissure. Several types of volcanic eruptions have been distinguished by volcanologists. These are often named after famous volcanoes where that type of behavior has been observed. Some volcanoes may exhibit only one characteristic type of eruption during a period of activity, while others may display an entire sequence of types all in one eruptive series.",
@@ -1003,7 +1123,7 @@
     },
     "escarpment": {
       "title": "Escarpment",
-      "summary": "An escarpment is a steep slope or long cliff that forms as a result of faulting or erosion and separates two relatively level areas having different elevations.",
+      "summary": "An escarpment is a steep slope or cliff formed by faulting or erosion, separating areas of different elevations. It represents a margin between contrasting landforms, distinct from a scarp. Escarpments form through differential erosion of sedimentary rocks of different ages, or movement of Earth's crust along geologic faults. Fault displacement creates elevation differences producing fault scarps. Escarpments occur on other planetary bodies including Mercury, Mars, and the Moon.",
       "wikipedia_url": "https://en.wikipedia.org/wiki/Escarpment",
       "image_filename": "escarpment.jpg",
       "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/4/4f/Cuesta_-_Lookout_Mountain%2C_Georgia.png",
@@ -1917,7 +2037,7 @@
     },
     "lahar": {
       "title": "Lahar",
-      "summary": "A lahar is a violent type of mudflow or debris flow composed of a slurry of pyroclastic material, rocky debris and water. The material flows down from a volcano, typically along a river valley.",
+      "summary": "A lahar is a violent mudflow of pyroclastic material, rocky debris, and water flowing from a volcano. Lahars flow at tens of metres per second, reach depths of 140 metres, and destroy structures in their path. They vary in magnitude and rheology, from normal flows to debris flows with sediment concentrations exceeding 60 percent. Lahars occur during eruptions (primary) or from rainfall on dormant volcanoes (secondary).",
       "wikipedia_url": "https://en.wikipedia.org/wiki/Lahar",
       "image_filename": "lahar.jpg",
       "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/b/bf/Hot_lahar_at_Santiaguito.jpg",
@@ -1953,6 +2073,83 @@
         "A lahar is a volcanic mudslide containing water, lava, ash, and rock debris.",
         "Towns in Washington's Puyallup River valley face ongoing lahar risk from Mount Rainier.",
         "Lahars vary wildly in rheology and can travel tens of kilometers in hours."
+      ]
+    },
+    "landslide": {
+      "title": "Landslide",
+      "summary": "Landslides, also known as landslips, rockslips or rockslides, are several forms of mass wasting that may include a wide range of ground movements, such as rockfalls, mudflows, shallow or deep-seated slope failures and debris flows. Landslides occur in a variety of environments, characterized by either steep or gentle slope gradients, from mountain ranges to coastal cliffs or even underwater, in which case they are called submarine landslides.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Landslide",
+      "image_filename": "landslide.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Landslide_in_Cusco%2C_Peru_-_2018.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:Landslide in Cusco, Peru - 2018.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Landslide_in_Cusco%2C_Peru_-_2018.jpg",
+        "commons_pageid": 67408597,
+        "uploader": "ZiaLater",
+        "author": "Galeria del Ministerio de Defensa del Perú",
+        "author_url": null,
+        "license_name": "CC BY 2.0",
+        "license_url": "https://creativecommons.org/licenses/by/2.0",
+        "license_spdx": "CC-BY-2.0",
+        "credit": "https://www.flickr.com/photos/ministeriodedefensaperu/39935939755/in/dateposted/",
+        "attribution_required": true
+      },
+      "facts": [
+        "Landslides, also known as landslips, rockslips or rockslides, are several forms of mass wasting that may include a wide range of ground movements, such as rockfalls, mudflows, shallow or deep-seated slope failures and debris flows. Landslides occur in a variety of environments, characterized by either steep or gentle slope gradients, from mountain ranges to coastal cliffs or even underwater, in which case they are called submarine landslides.",
+        "Gravity is the primary driving force for a landslide to occur, but there are other factors affecting slope stability that produce specific conditions that make a slope prone to failure. In many cases, the landslide is triggered by a specific event (such as heavy rainfall, an earthquake, a slope cut to build a road, and many others), although this is not always identifiable.",
+        "Landslides are frequently made worse by human development (such as urban sprawl) and resource exploitation (such as mining and deforestation). Land degradation frequently leads to less stabilization of soil by vegetation. Additionally, global warming caused by climate change and other human impact on the environment, can increase the frequency of natural events (such as extreme weather) which trigger landslides. Landslide mitigation describes the policy and practices for reducing the risk of human impacts of landslides, reducing the risk of natural disaster.",
+        "Landslides occur when the slope (or a portion of it) undergoes some processes that change its condition from stable to unstable. This is essentially due to a decrease in the shear strength of the slope material, an increase in the shear stress borne by the material, or a combination of the two. A change in the stability of a slope can be caused by a number of factors, acting together or alone. Natural causes of landslides include:",
+        "In traditional usage, the term landslide has at one time or another been used to cover almost all forms of mass movement of rocks and regolith at the Earth's surface. In 1978, geologist David Varnes noted this imprecise usage and proposed a new, much tighter scheme for the classification of mass movements and subsidence processes. This scheme was later modified by Cruden and Varnes in 1996, and refined by Hutchinson (1988), Hungr et al. (2001), and finally by Hungr, Leroueil and Picarelli (2014). The classification resulting from the latest update is provided below.",
+        "Under this classification, six types of movement are recognized. Each type can be seen both in rock and in soil. A fall is a movement of isolated blocks or chunks of soil in free-fall. The term topple refers to blocks coming away by rotation from a vertical face. A slide is the movement of a body of material that generally remains intact while moving over one or several inclined surfaces or thin layers of material (also called shear zones) in which large deformations are concentrated. Slides are also sub-classified by the form of the surface(s) or shear zone(s) on which movement happens. The planes may be broadly parallel to the surface (\"planar slides\") or spoon-shaped (\"rotational slides\"). Slides can occur catastrophically, but movement on the surface can also be gradual and progressive. Spreads are a form of subsidence, in which a layer of material cracks, opens up, and expands laterally. Flows are the movement of fluidised material, which can be both dry or rich in water (such as in mud flows). Flows can move imperceptibly for years, or accelerate rapidly and cause disasters. Slope deformations are slow, distributed movements that can affect entire mountain slopes or portions of it. Some landslides are complex in the sense that they feature different movement types in different portions of the moving body, or they evolve from one movement type to another over time. For example, a landslide can initiate as a rock fall or topple and then, as the blocks disintegrate upon the impact, transform into a debris slide or flow. An avalanching effect can also be present, in which the moving mass entrains additional material along its path.",
+        "Slope material that becomes saturated with water may produce a debris flow or mud flow. However, also dry debris can exhibit flow-like movement. Flowing debris or mud may pick up trees, houses and cars, and block bridges and rivers causing flooding along its path. This phenomenon is particularly hazardous in alpine areas, where narrow gorges and steep valleys are conducive of faster flows. Debris and mud flows may initiate on the slopes or result from the fluidization of landslide material as it gains speed or incorporates further debris and water along its path. River blockages as the flow reaches a main stream can generate temporary dams. As the impoundments fail, a domino effect may be created, with a remarkable growth in the volume of the flowing mass, and in its destructive power.",
+        "An earthflow is the downslope movement of mostly fine-grained material. Earthflows can move at speeds within a very wide range, from as low as 1 mm/yr to many km/h. Though these are a lot like mudflows, overall they are more slow-moving and are covered with solid material carried along by the flow from within. Clay, fine sand and silt, and fine-grained, pyroclastic material are all susceptible to earthflows. These flows are usually controlled by the pore water pressures within the mass, which should be high enough to produce a low shearing resistance. On the slopes, some earthflow may be recognized by their elongated shape, with one or more lobes at their toes. As these lobes spread out, drainage of the mass increases and the margins dry out, lowering the overall velocity of the flow. This process also causes the flow to thicken. Earthflows occur more often during periods of high precipitation, which saturates the ground and builds up water pressures. However, earthflows that keep advancing also during dry seasons are not uncommon. Fissures may develop during the movement of clayey materials, which facilitate the intrusion of water into the moving mass and produce faster responses to precipitation.",
+        "A rock avalanche, sometimes referred to as sturzstrom, is a large and fast-moving landslide of the flow type. It is rarer than other types of landslides but it is often very destructive. It exhibits typically a long runout, flowing very far over a low-angle, flat, or even slightly uphill terrain. The mechanisms favoring the long runout can be different, but they typically result in the weakening of the sliding mass as the speed increases. The causes of this weakening are not completely understood. Especially for the largest landslides, it may involve the very quick heating of the shear zone due to friction, which may even cause the water that is present to vaporize and build up a large pressure, producing a sort of hovercraft effect. In some cases, the very high temperature may even cause some of the minerals to melt. During the movement, the rock in the shear zone may also be finely ground, producing a nanometer-size mineral powder that may act as a lubricant, reducing the resistance to motion and promoting larger speeds and longer runouts. The weakening mechanisms in large rock avalanches are similar to those occurring in seismic faults.",
+        "Slides can occur in any rock or soil material and are characterized by the movement of a mass over a planar or curvilinear surface or shear zone."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "(2001), and finally by Hungr, Leroueil and Picarelli (2014).",
+        "Landslides, also known as landslips, rockslips or rockslides, are several forms of mass wasting that may include a wide range of ground movements, such as rockfalls, mudflows, shallow or deep-seated slope failures and debris flows.",
+        "Landslides occur in a variety of environments, characterized by either steep or gentle slope gradients, from mountain ranges to coastal cliffs or even underwater, in which case they are called submarine landslides.",
+        "In 1978, geologist David Varnes noted this imprecise usage and proposed a new, much tighter scheme for the classification of mass movements and subsidence processes.",
+        "The classification resulting from the latest update is provided below."
+      ]
+    },
+    "lapilli": {
+      "title": "Lapilli",
+      "summary": "Lapilli is a size classification of tephra, which is material that falls out of the air during a volcanic eruption or during some meteorite impacts. Lapilli is Latin for \"little stones\". It consists of fresh pumice or scoria, volcanic glass such as Pele’s hair, lithic fragments of rock or crystal or as ash aggregates such as accretionary lapilli, cored accretionary lapilli, ash pellets or ash coated clasts.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Lapilli",
+      "image_filename": "lapilli.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/6/67/PuuPuaiLapilli_large.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:PuuPuaiLapilli large.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:PuuPuaiLapilli_large.jpg",
+        "commons_pageid": 511771,
+        "uploader": "Civvi~commonswiki",
+        "author": null,
+        "author_url": null,
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": null,
+        "attribution_required": false
+      },
+      "facts": [
+        "Lapilli (sg.: lapillus) is a size classification of tephra, which is material that falls out of the air during a volcanic eruption or during some meteorite impacts. Lapilli is Latin for \"little stones\". It consists of fresh pumice or scoria, volcanic glass such as Pele’s hair, lithic fragments of rock or crystal or as ash aggregates such as accretionary lapilli, cored accretionary lapilli, ash pellets or ash coated clasts.",
+        "By definition lapilli range from 2 to 64 mm (0.08 to 2.52 in) in diameter. A pyroclastic particle greater than 64 mm in diameter is known as a volcanic bomb when molten, or a volcanic block when solid. Pyroclastic material with particles less than 2 mm in diameter is referred to as volcanic ash.",
+        "Lapilli are usually irregular or angular in shape due to violent magma fragmentation but can be spherical, teardrop, dumbbell, or button shaped droplets if more fluid. They are typically molten or partially molten lava ejected from a volcanic eruption that fall to earth as solid or partially molten rock. Lapilli that forms from this process usually becomes pumice if felsic or scoria if mafic. These granules are the direct result of liquid rock cooling as it travels through the air. Country rock can also be accidentally blasted out during an eruption and can fall into lapilli size category.",
+        "Lapilli tuffs are a very common form of volcanic rock typical of rhyolite, andesite and dacite pyroclastic eruptions, where thick layers of lapilli can be deposited during a basal surge eruption. Most lapilli tuffs which remain in ancient terrains are formed by the accumulation and welding of semi-molten lapilli into what is known as a welded tuff. If an eruption is unusually rich in pumice, it can become a type of pumiceous lapilli tuff or if from a pyroclastic flow, an Ignimbrite.",
+        "The heat of the newly deposited volcanic pile tends to cause the semi-molten material to flatten out and then become welded. Welded tuff textures are distinctive (termed eutaxitic), with flattened lapilli, fiamme, blocks and bombs forming oblate to discus-shaped forms within layers. These rocks are quite indurated and tough, as opposed to non-welded lapilli tuffs, which are unconsolidated and easily eroded.",
+        "Rounded balls of tephra are called accretionary lapilli if they consist of layered volcanic ash particles. Accretionary lapilli are formed by a process of wet ash aggregation due to moisture in volcanic clouds that sticks the particles together, with the volcanic ash nucleating on some object and then accreting to it in layers before the accretionary lapillus falls from the cloud. Accretionary lapilli are like volcanic hailstones that form by the addition of concentric layers of moist ash around a central nucleus.",
+        "These lapilli are a variety of accretionary lapilli, though they contain lithic or crystal cores coated by rinds of coarse to fine ash. Armoured lapilli only form in hydroclastic eruptions, where significant moisture is present. The vapour column contains cohesive ash which sticks to particles within it."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "A pyroclastic particle greater than 64 mm in diameter is known as a volcanic bomb when molten, or a volcanic block when solid.",
+        "Most lapilli tuffs which remain in ancient terrains are formed by the accumulation and welding of semi-molten lapilli into what is known as a welded tuff.",
+        "By definition lapilli range from 2 to 64 mm (0.08 to 2.52 in) in diameter.",
+        "Pyroclastic material with particles less than 2 mm in diameter is referred to as volcanic ash.",
+        "Rounded balls of tephra are called accretionary lapilli if they consist of layered volcanic ash particles."
       ]
     },
     "lassen": {
@@ -1993,6 +2190,46 @@
         "The volcano's 1914–1917 eruptions were powerful enough to send ash hundreds of kilometres away and reshape the surrounding landscape dramatically.",
         "Lassen Volcanic National Park now protects the volcano and its geothermal features, including boiling mud pots and fumaroles powered by residual volcanic heat.",
         "The volcano's eruptions occurred after a 27-year dormancy, demonstrating how dormant volcanoes can reawaken without clear warning."
+      ]
+    },
+    "lavaflow": {
+      "title": "Lava",
+      "summary": "Lava is molten or partially molten rock (magma) that has been expelled from the interior of a terrestrial planet or a moon onto its surface. Lava may be erupted at a volcano or through a fracture in the crust, on land or underwater, usually at temperatures from 800 to 1,200 °C. Lava may be erupted directly onto the land surface or onto the sea floor or it may be ejected into the atmosphere before falling back down. The solid volcanic rock resulting from subsequent cooling of the molten material is often also called lava.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Lava",
+      "image_filename": "lavaflow.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/0/04/001_Volcano_eruption_of_Litli-Hr%C3%BAtur_in_Iceland_in_2023_Photo_by_Giles_Laurent.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:001 Volcano eruption of Litli-Hrútur in Iceland in 2023 Photo by Giles Laurent.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:001_Volcano_eruption_of_Litli-Hr%C3%BAtur_in_Iceland_in_2023_Photo_by_Giles_Laurent.jpg",
+        "commons_pageid": 141202680,
+        "uploader": "Giles Laurent",
+        "author": "Giles Laurent",
+        "author_url": "https://commons.wikimedia.org/wiki/User:Giles_Laurent",
+        "license_name": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+        "license_spdx": "CC-BY-SA-4.0",
+        "credit": "Own work, from gileslaurent.com",
+        "attribution_required": true
+      },
+      "facts": [
+        "Lava is molten or partially molten rock (magma) that has been expelled from the interior of a terrestrial planet (such as Earth) or a moon onto its surface. Lava may be erupted at a volcano or through a fracture in the crust, on land or underwater, usually at temperatures from 800 to 1,200 °C (1,470 to 2,190 °F). Lava may be erupted directly onto the land surface or onto the sea floor or it may be ejected into the atmosphere before falling back down. The solid volcanic rock resulting from subsequent cooling of the molten material is often also called lava.",
+        "A lava flow is an outpouring of lava during an effusive eruption. (An explosive eruption, by contrast, produces a mixture of volcanic ash and other fragments called tephra, not lava flows.) The viscosity of most molten lava is about that of ketchup, roughly 10,000 to 100,000 times that of water (the latter two substances measured at 25 °C (77 °F) and 1 atm). Even so, lava can flow great distances before cooling causes it to solidify, because lava exposed to air quickly develops a solid crust that insulates the remaining liquid lava, helping to keep it hot and inviscid enough to continue flowing.",
+        "The word lava comes from Italian and is probably derived from the Latin word labes, which means a 'fall' or 'slide'. An early use of the word in connection with extrusion of magma from below the surface is found in a short account of the 1737 eruption of Vesuvius, written by Francesco Serao, who described \"a flow of fiery lava\" as an analogy to the flow of water and mud down the flanks of the volcano (a lahar) after heavy rain.",
+        "Solidified lava on the Earth's crust is predominantly silicate minerals: mostly feldspars, feldspathoids, olivine, pyroxenes, amphiboles, micas and quartz. Rare nonsilicate lavas can be formed by local melting of nonsilicate mineral deposits or by separation of a magma into immiscible silicate and nonsilicate liquid phases.",
+        "Silicate lavas are molten mixtures dominated by oxygen and silicon, the most abundant elements of the Earth's crust, with smaller quantities of aluminium, calcium, magnesium, iron, sodium, and potassium and minor amounts of many other elements. Petrologists routinely express the composition of a silicate lava in terms of the weight or molar mass fraction of the oxides of the major elements (other than oxygen) present in the lava.",
+        "The silica component dominates the physical behavior of silicate magmas. Silicon ions in lava strongly bind to four oxygen ions in a tetrahedral arrangement. If an oxygen ion is bound to two silicon ions in the melt, it is described as a bridging oxygen, and lava with many clumps or chains of silicon ions connected by bridging oxygen ions is described as partially polymerized. Aluminium in combination with alkali metal oxides (sodium and potassium) also tends to polymerize the lava. Other cations, such as ferrous iron, calcium, and magnesium, bond much more weakly to oxygen and reduce the tendency to polymerize. Partial polymerization makes the lava viscous, so lava high in silica is much more viscous than lava low in silica.",
+        "Because of the role of silica in determining viscosity and because many other properties of a lava (such as its temperature) are observed to correlate with silica content, silicate lavas are divided into four chemical types based on silica content: felsic, intermediate, mafic, and ultramafic.",
+        "Felsic or silicic lavas have a silica content greater than 63%. They include rhyolite and dacite lavas. With such a high silica content, these lavas are extremely viscous, ranging from 10 cP (10 Pa⋅s) for hot rhyolite lava at 1,200 °C (2,190 °F) to 10 cP (10 Pa⋅s) for cool rhyolite lava at 800 °C (1,470 °F). For comparison, water has a viscosity of about 1 cP (0.001 Pa⋅s). Because of this very high viscosity, felsic lavas usually erupt explosively to produce pyroclastic (fragmental) deposits. However, rhyolite lavas occasionally erupt effusively to form lava spines, lava domes or \"coulees\" (which are thick, short lava flows). The lavas typically fragment as they extrude, producing block lava flows. These often contain obsidian.",
+        "Felsic magmas can erupt at temperatures as low as 800 °C (1,470 °F). Unusually hot (>950 °C; >1,740 °F) rhyolite lavas, however, may flow for distances of many tens of kilometres, such as in the Snake River Plain of the northwestern United States.",
+        "Intermediate or andesitic lavas contain 52% to 63% silica, and are lower in aluminium and usually somewhat richer in magnesium and iron than felsic lavas. Intermediate lavas form andesite domes and block lavas and may occur on steep composite volcanoes, such as in the Andes. They are also commonly hotter than felsic lavas, in the range of 850 to 1,100 °C (1,560 to 2,010 °F). Because of their lower silica content and higher eruptive temperatures, they tend to be much less viscous, with a typical viscosity of 3.5 million cP (3,500 Pa⋅s) at 1,200 °C (2,190 °F). This is slightly greater than the viscosity of smooth peanut butter. Intermediate lavas show a greater tendency to form phenocrysts. Higher iron and magnesium tends to manifest as a darker groundmass, including amphibole or pyroxene phenocrysts."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "Lava may be erupted at a volcano or through a fracture in the crust, on land or underwater, usually at temperatures from 800 to 1,200 °C (1,470 to 2,190 °F).",
+        "With such a high silica content, these lavas are extremely viscous, ranging from 10 cP (10 Pa⋅s) for hot rhyolite lava at 1,200 °C (2,190 °F) to 10 cP (10 Pa⋅s) for cool rhyolite lava at 800 °C (1,470 °F).",
+        "For comparison, water has a viscosity of about 1 cP (0.001 Pa⋅s).",
+        "Felsic magmas can erupt at temperatures as low as 800 °C (1,470 °F).",
+        "Unusually hot (>950 °C; >1,740 °F) rhyolite lavas, however, may flow for distances of many tens of kilometres, such as in the Snake River Plain of the northwestern United States."
       ]
     },
     "lazurite": {
@@ -2429,6 +2666,46 @@
         "Devil's Hole Beryl Mine, Colorado, US, yielded documented largest single microcline crystals.",
         "Spanish explorers confused it with another green mineral from the same region.",
         "Microcline's name reflects the subtle angular deviation from orthoclase's structure."
+      ]
+    },
+    "mudflow": {
+      "title": "Mudflow",
+      "summary": "A mudflow, also known as mudslide or mud flow, is a form of mass wasting involving fast-moving flow of debris and dirt that has become liquified by the addition of water. Such flows can move at speeds ranging from three to five metres per second. Mudflows contain a significant proportion of clay, which makes them more fluid than debris flows, allowing them to travel farther and across lower slope angles. Both types of flow are generally mixtures of particles with a wide range of sizes, which typically become sorted by size upon deposition.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Mudflow",
+      "image_filename": "mudflow.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/9/9b/MSH80_mailboxes_along_cowlitz_river_1980.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:MSH80 mailboxes along cowlitz river 1980.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:MSH80_mailboxes_along_cowlitz_river_1980.jpg",
+        "commons_pageid": 672548,
+        "uploader": "Mnh",
+        "author": "Lyn Topinka, USGS",
+        "author_url": null,
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": "Archived source link",
+        "attribution_required": false
+      },
+      "facts": [
+        "A mudflow, also known as mudslide or mud flow, is a form of mass wasting involving fast-moving flow of debris and dirt that has become liquified by the addition of water. Such flows can move at speeds ranging from three to five metres per second (9.8 to 16.4 ft/s). Mudflows contain a significant proportion of clay, which makes them more fluid than debris flows, allowing them to travel farther and across lower slope angles. Both types of flow are generally mixtures of particles with a wide range of sizes, which typically become sorted by size upon deposition.",
+        "Mudflows are often called mudslips, a term applied indiscriminately by the mass media to a variety of mass wasting events. Mudflows often start as slides, becoming flows as water is entrained along the flow path; such events are often called mud failures.",
+        "Other types of mudflows include lahars (involving fine-grained pyroclastic deposits on the flanks of volcanoes) and jökulhlaups (outbursts from under glaciers or icecaps).",
+        "Heavy rainfall, snowmelt, or high levels of groundwater flowing through cracked bedrock may trigger a movement of soil or sediments in landslides that continue as mudflows. Floods and debris flows may also occur when strong rains on hill or mountain slopes cause extensive erosion and/or mobilize loose sediment that is located in steep mountain channels. The 2006 Sidoarjo mud flow may have been caused by rogue drilling.",
+        "The point where a muddy material begins to flow depends on its grain size, the water content, and the slope of the topography. Fine grained material like mud or sand can be mobilized by shallower flows than a coarse sediment or a debris flow. Higher water content (higher precipitation/overland flow) also increases the potential to initiate a mudflow.",
+        "After a mudflow forms, coarser sediment may be picked up by the flow. Coarser sediment picked up by the flow often forms the front of a mudflow surge and is pushed by finer sediment and water that pools up behind the coarse-grained moving mudflow-front. Mudflows may contain multiple surges of material as the flow scours channels and destabilizes adjacent hillslopes (potentially nucleating new mudflows). Mudflows have mobilized boulders 1–10 metres (3 ft 3 in – 32 ft 10 in) across in mountain settings.",
+        "Some broad mudflows are rather viscous and therefore slow; others begin very quickly and continue like an avalanche. They are composed of at least 50% silt and clay-sized materials and up to 30% water. Because mudflows mobilize a significant amount of sediment, mudflows have higher flow heights than a clear water flood for the same water discharge. Also, sediment within the mudflow increases granular friction within the flow structure of the flow relative to clear water floods, which raises the flow depth for the same water discharge.",
+        "Landslide is a more general term than mudflow. It refers to the gravity-driven failure and more subsequent movement downslope of any types of surface movement of soil, rock, or other debris. The term incorporates earth slides, rock falls, flows, and mudslides, amongst other categories of hillslope mass movements.",
+        "The world's largest historic subaerial (on land) landslide occurred during the 1980 eruption of Mount St. Helens, a volcano in the Cascade Mountain Range in the US state of Washington. The volume of material displaced was 2.8 cubic kilometres (0.67 cu mi).",
+        "The largest known of all prehistoric landslides was an enormous submarine landslide that disintegrated 60,000 years ago and produced the longest flow of sand and mud yet documented on Earth. The massive submarine flow travelled 1,500 kilometres (930 mi) – the distance from London to Rome."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "The world's largest historic subaerial (on land) landslide occurred during the 1980 eruption of Mount St.",
+        "The largest known of all prehistoric landslides was an enormous submarine landslide that disintegrated 60,000 years ago and produced the longest flow of sand and mud yet documented on Earth.",
+        "Mudflows have mobilized boulders 1–10 metres (3 ft 3 in – 32 ft 10 in) across in mountain settings.",
+        "The volume of material displaced was 2.8 cubic kilometres (0.67 cu mi).",
+        "The massive submarine flow travelled 1,500 kilometres (930 mi) – the distance from London to Rome."
       ]
     },
     "novarupta": {
@@ -2989,6 +3266,44 @@
         "Rhyolite contains high silica (>69%) and forms at subduction zones and continental hotspots."
       ]
     },
+    "rockfall": {
+      "title": "Rockfall",
+      "summary": "A rockfall is a quantity of rock that has fallen from a cliff face or from the roof or walls of a mine or quarry working. Favourable geology and climate are the principal causal mechanisms — intact rock condition, discontinuities within the rockmass, weathering susceptibility, ground and surface water, freeze-thaw, root-wedging, and external stresses all contribute. Fallen pieces accumulate at the base as talus or scree, and dislodged material can trigger further mass-wasting processes such as avalanches.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Rockfall",
+      "image_filename": "rockfall.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/Jalalabad_Road_rock_fall.jpg",
+      "image_attribution": {
+        "commons_file_title": "File:Jalalabad Road rock fall.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Jalalabad_Road_rock_fall.jpg",
+        "commons_pageid": 5143165,
+        "uploader": "Slap882",
+        "author": "Sven Dirks, Wien",
+        "author_url": null,
+        "license_name": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+        "license_spdx": "CC-BY-SA-4.0",
+        "credit": "Own work",
+        "attribution_required": true
+      },
+      "facts": [
+        "A rockfall or rock-fall is a quantity of rock that has fallen from a cliff face or from the roof or walls of mine or quarry workings.",
+        "Favourable geology and climate are the principal causal mechanisms of rockfall, factors that include intact condition of the rock mass, discontinuities within the rockmass, weathering susceptibility, ground and surface water, freeze-thaw, root-wedging, and external stresses. A tree may be blown by the wind, and this causes a pressure at the root level and this loosens rocks and can trigger a fall. The pieces of rock collect at the bottom creating a talus or scree. Rocks falling from the cliff may dislodge other rocks and serve to create another mass wasting process, for example an avalanche.",
+        "A cliff that has favorable geology to a rockfall may be said to be incompetent. One that is not favorable to a rockfall, which is better consolidated, may be said to be competent.",
+        "In higher altitude mountains, rockfalls may be caused by thawing of rock masses with permafrost. In contrast, lower altitude mountains with warmer climates rockfalls may be caused by weathering being enhanced by non-freezing conditions.",
+        "Assessing the propagation of rockfall is a key issue for defining the best mitigation strategy as it allows the delineation of run out zones and the quantification of the rock blocks kinematics parameters along their way down to the elements at risk. In this purpose, many approaches may be considered. For example, the energy line method allows expediently estimating the rockfall run out. Numerical models simulating the rock block propagation offer a more detailed characterisation of the rockfall propagation kinematics. These simulation tools in particular focus on the modeling of the rebound of the rock block onto the soil The numerical models in particular provide the rock block passing height and kinetic energy that are necessary for designing passive mitigation structures.",
+        "Typically, rockfall events are mitigated in one of two ways: either by passive mitigation or active mitigation. Passive mitigation is where only the effects of the rockfall event are mitigated and are generally employed in the deposition or run-out zones, such as through the use of drape nets, rockfall catchment fences, galeries, ditches, embankments, etc. The rockfall still takes place but an attempt is made to control the outcome. In contrast, active mitigation is carried out in the initiation zone and prevents the rockfall event from ever occurring. Some examples of these measures are rock bolting, slope retention systems, shotcrete, etc. Other active measures might be by changing the geographic or climatic characteristics in the initiation zone, e.g. altering slope geometry, dewatering the slope, revegetation, etc.",
+        "Design guides of passive measures with respect to the block trajectory control have been proposed by several authors.",
+        "The effect of rockfalls on trees can be seen in several ways. The tree roots may rotate, via the rotational energy of the rockfall. The tree may move via the application of translational energy. And lastly deformation may occur, either elastic or plastic. Dendrochronology can reveal a past impact, with missing tree rings, as the tree rings grow around and close over a gap; the callus tissue can be seen microscopically. A macroscopic section can be used for dating of avalanche and rockfall events."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "Passive mitigation is where only the effects of the rockfall event are mitigated and are generally employed in the deposition or run-out zones, such as through the use of drape nets, rockfall catchment fences, galeries, ditches, embankments, etc.",
+        "A tree may be blown by the wind, and this causes a pressure at the root level and this loosens rocks and can trigger a fall.",
+        "The pieces of rock collect at the bottom creating a talus or scree.",
+        "Rocks falling from the cliff may dislodge other rocks and serve to create another mass wasting process, for example an avalanche.",
+        "A cliff that has favorable geology to a rockfall may be said to be incompetent."
+      ]
+    },
     "ruapehu": {
       "title": "Mount Ruapehu",
       "summary": "Mount Ruapehu is an active stratovolcano at the southern end of the Taupō Volcanic Zone and North Island volcanic plateau in New Zealand. It is 23 km (14 mi) northeast of Ohakune and 23 km (14 mi) southwest of the southern shore of Lake Taupō, within Tongariro National Park. The North Island's major ski resorts and only glaciers are on its slopes.",
@@ -3147,6 +3462,46 @@
         "Santorini's eruption is considered one of the largest and most violent volcanic events in recorded history, rivalling even the 1815 Tambora eruption.",
         "The island's soil is rich in volcanic minerals, making it famous for white wine production despite its small arable area.",
         "Archaeological evidence shows the Minoan civilization thrived on Santorini before the eruption destroyed it, burying cities under volcanic ash."
+      ]
+    },
+    "seiche": {
+      "title": "Seiche",
+      "summary": "A seiche is a standing wave in an enclosed or partially enclosed body of water. Seiches and seiche-related phenomena have been observed on lakes, reservoirs, swimming pools, bays, harbors, caves, and seas. The key requirement for formation of a seiche is that the body of water be at least partially bounded, allowing the formation of the standing wave.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Seiche",
+      "image_filename": "seiche.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/7/7d/Standing_wave_2.gif",
+      "image_attribution": {
+        "commons_file_title": "File:Standing wave 2.gif",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:Standing_wave_2.gif",
+        "commons_pageid": 535974,
+        "uploader": "LucasVB",
+        "author": "Lucas Vieira",
+        "author_url": "https://commons.wikimedia.org/wiki/User:LucasVB",
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": "Own work",
+        "attribution_required": false
+      },
+      "facts": [
+        "A seiche (/seɪʃ/ SAYSH) is a standing wave in an enclosed or partially enclosed body of water. Seiches and seiche-related phenomena have been observed on lakes, reservoirs, swimming pools, bays, harbors, caves, and seas. The key requirement for formation of a seiche is that the body of water be at least partially bounded, allowing the formation of the standing wave.",
+        "The term was promoted in 1890 by the Swiss hydrologist François-Alphonse Forel, who was the first to make scientific observations of the effect in Lake Geneva. The word had apparently long been used in the region to describe oscillations in alpine lakes. According to Wilson (1972), this Swiss French dialect word comes from the Latin word siccus meaning \"dry\", i.e., as the water recedes, the beach dries. The French word sec or sèche (dry) descends from the Latin.",
+        "Seiches in harbours can be caused by long-period or infragravity waves, which are due to subharmonic nonlinear wave interaction with the wind waves, having periods longer than the accompanying wind-generated waves.",
+        "Seiches are often imperceptible to the naked eye, and observers in boats on the surface may not notice that a seiche is occurring due to the extremely long periods.",
+        "The effect is caused by resonances in a body of water that has been disturbed by one or more factors, most often meteorological effects (wind and atmospheric pressure variations), seismic activity, or tsunamis. Gravity always seeks to restore the horizontal surface of a body of liquid water, as this represents the configuration in which the water is in hydrostatic equilibrium.",
+        "Vertical harmonic motion results, producing an impulse that travels the length of the basin at a velocity that depends on the depth of the water. The impulse is reflected back from the end of the basin, generating interference. Repeated reflections produce standing waves with one or more nodes, or points, that experience no vertical motion. The frequency of the oscillation is determined by the size of the basin, its depth and contours, and the water temperature.",
+        "The longest natural period of a seiche is the period associated with the fundamental resonance for the body of water—corresponding to the longest standing wave. For a surface seiche in an enclosed rectangular body of water this can be estimated using Merian's formula:",
+        "where T is the longest natural period, L and h are the length and average depth of the body of water, and g the acceleration of gravity.",
+        "Higher-order harmonics are also observed. The period of the second harmonic will be half the natural period, the period of the third harmonic will be a third of the natural period, and so forth.",
+        "Seiches have been observed on both lakes and seas. The key requirement is that the body of water be partially constrained to allow formation of standing waves. Regularity of geometry is not required; even harbours with exceedingly irregular shapes are routinely observed to oscillate with very stable frequencies."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "According to Wilson (1972), this Swiss French dialect word comes from the Latin word siccus meaning \"dry\", i.e., as the water recedes, the beach dries.",
+        "The term was promoted in 1890 by the Swiss hydrologist François-Alphonse Forel, who was the first to make scientific observations of the effect in Lake Geneva.",
+        "The effect is caused by resonances in a body of water that has been disturbed by one or more factors, most often meteorological effects (wind and atmospheric pressure variations), seismic activity, or tsunamis.",
+        "The key requirement for formation of a seiche is that the body of water be at least partially bounded, allowing the formation of the standing wave.",
+        "The longest natural period of a seiche is the period associated with the fundamental resonance for the body of water—corresponding to the longest standing wave."
       ]
     },
     "sierra": {
@@ -3429,6 +3784,46 @@
         "The volcano's name inspired the scientific term 'Strombolian eruption,' describing frequent small explosive eruptions with good forecasting intervals."
       ]
     },
+    "subsidence": {
+      "title": "Subsidence",
+      "summary": "Subsidence is a general term for downward vertical movement of the Earth's surface, which can be caused by both natural processes and human activities. Subsidence involves little or no horizontal movement, which distinguishes it from slope movement.",
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Subsidence",
+      "image_filename": "subsidence.jpg",
+      "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/b/b4/The_Crooked_House.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "image_attribution": {
+        "commons_file_title": "File:The Crooked House.jpg",
+        "commons_page_url": "https://commons.wikimedia.org/wiki/File:The_Crooked_House.jpg",
+        "commons_pageid": 132668457,
+        "uploader": "Unknown Unknowns",
+        "author": null,
+        "author_url": null,
+        "license_name": "Public domain",
+        "license_url": null,
+        "license_spdx": "PD",
+        "credit": null,
+        "attribution_required": false
+      },
+      "facts": [
+        "Subsidence is a general term for downward vertical movement of the Earth's surface, which can be caused by both natural processes and human activities. Subsidence involves little or no horizontal movement, which distinguishes it from slope movement.",
+        "Processes that lead to subsidence include dissolution of underlying carbonate rock by groundwater; gradual compaction of sediments; withdrawal of fluid lava from beneath a solidified crust of rock; mining; pumping of subsurface fluids, such as groundwater or petroleum; or warping of the Earth's crust by tectonic forces. Subsidence resulting from tectonic deformation of the crust is known as tectonic subsidence and can create accommodation for sediments to accumulate and eventually lithify into sedimentary rock.",
+        "Ground subsidence is of global concern to geologists, geotechnical engineers, surveyors, engineers, urban planners, landowners, and the public in general. Pumping of groundwater or petroleum has led to subsidence of as much as 9 meters (30 ft) in many locations around the world and incurring costs measured in hundreds of millions of US dollars. Land subsidence caused by groundwater withdrawal will likely increase in occurrence and related damages, primarily due to global population and economic growth, which will continue to drive higher groundwater demand.",
+        "Groundwater-related subsidence is the sinking of land resulting from groundwater extraction. It is a growing problem in the developing world as cities increase in population and water use, without adequate pumping regulation and enforcement. One estimate has 80% of serious land subsidence problems associated with the excessive extraction of groundwater, making it a growing problem throughout the world.",
+        "Groundwater fluctuations can also indirectly affect the decay of organic material. The habitation of lowlands, such as coastal or delta plains, requires drainage. The resulting aeration of the soil leads to the oxidation of its organic components, such as peat, and this decomposition process may cause significant land subsidence. This applies especially when groundwater levels are periodically adapted to subsidence, in order to maintain desired unsaturated zone depths, exposing more and more peat to oxygen. In addition to this, drained soils consolidate as a result of increased effective stress. In this way, land subsidence has the potential of becoming self-perpetuating, having rates up to 5 cm/yr. Water management used to be tuned primarily to factors such as crop optimization but, to varying extents, avoiding subsidence has come to be taken into account as well.",
+        "Subsidence causes major problems in karst terrains, where dissolution of limestone by fluid flow in the subsurface creates voids (i.e., caves). If the roof of a void becomes too weak, it can collapse and the overlying rock and earth will fall into the space, causing subsidence at the surface. This type of subsidence can cause sinkholes which can be many hundreds of meters deep.",
+        "Several types of sub-surface mining, and specifically methods which intentionally cause the extracted void to collapse (such as pillar extraction, longwall mining and any metalliferous mining method which uses \"caving\" such as \"block caving\" or \"sub-level caving\") will result in surface subsidence. Mining-induced subsidence is relatively predictable in its magnitude, manifestation and extent, except where a sudden pillar or near-surface tunnel collapse occurs (usually very old workings). Mining-induced subsidence is nearly always very localized to the surface above the mined area, plus a margin around the outside. The vertical magnitude of the subsidence itself typically does not cause problems, except in the case of drainage (including natural drainage)–rather, it is the associated surface compressive and tensile strains, curvature, tilts and horizontal displacement that are the cause of the worst damage to the natural environment, buildings and infrastructure.",
+        "Where mining activity is planned, mining-induced subsidence can be successfully managed if there is co-operation from all of the stakeholders. This is accomplished through a combination of careful mine planning, the taking of preventive measures, and the carrying out of repairs post-mining.",
+        "If natural gas is extracted from a natural gas field the initial pressure (up to 60 MPa (600 bar)) in the field will drop over the years. The pressure helps support the soil layers above the field. If the gas is extracted, the overburden pressure sediment compacts and may lead to earthquakes and subsidence at the ground level.",
+        "Since exploitation of the Slochteren (Netherlands) gas field started in the late 1960s the ground level over a 250 km area has dropped by a current maximum of 30 cm."
+      ],
+      "theme": "phenomena",
+      "did_you_know": [
+        "Pumping of groundwater or petroleum has led to subsidence of as much as 9 meters (30 ft) in many locations around the world and incurring costs measured in hundreds of millions of US dollars.",
+        "If natural gas is extracted from a natural gas field the initial pressure (up to 60 MPa (600 bar)) in the field will drop over the years.",
+        "Since exploitation of the Slochteren (Netherlands) gas field started in the late 1960s the ground level over a 250 km area has dropped by a current maximum of 30 cm.",
+        "Subsidence resulting from tectonic deformation of the crust is known as tectonic subsidence and can create accommodation for sediments to accumulate and eventually lithify into sedimentary rock.",
+        "One estimate has 80% of serious land subsidence problems associated with the excessive extraction of groundwater, making it a growing problem throughout the world."
+      ]
+    },
     "sudetes": {
       "title": "Sudetes",
       "summary": "The Sudetes, also known as the Sudeten Mountains or Sudetic Mountains, is a geomorphological subprovince of the Bohemian Massif province in Central Europe, shared by the Czech Republic, Poland and Germany. They consist mainly of mountain ranges and are the highest part of the Bohemian Massif. They stretch from the Saxon capital of Dresden in the northwest across to the region of Lower Silesia in Poland and to the city of Ostrava in the Czech Republic in the east. Geographically the Sudetes are a Mittelgebirge with some characteristics typical of high mountains. Its plateaus and subtle summit relief makes the Sudetes more akin to mountains of Northern Europe than to the Alps.",
@@ -3631,7 +4026,7 @@
     },
     "tephra": {
       "title": "Tephra",
-      "summary": "Tephra is fragmental material produced by a volcanic eruption regardless of composition, fragment size, or emplacement mechanism.",
+      "summary": "Tephra is fragmental material produced by volcanic eruptions regardless of composition or fragment size, including ash, cinders, and blocks. Particles consist of glassy formations from cooling magma and crystalline minerals from the volcano. Once settled, tephra becomes incorporated into the geologic record through sedimentation. Tephrochronology uses discrete volcanic ash layers from individual eruptions to establish chronological frameworks for paleoenvironmental and archaeological records.",
       "wikipedia_url": "https://en.wikipedia.org/wiki/Tephra",
       "image_filename": "tephra.jpg",
       "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Brown_Bluff-2016-Tabarin_Peninsula%E2%80%93Volcanic_tephra.jpg/3840px-Brown_Bluff-2016-Tabarin_Peninsula%E2%80%93Volcanic_tephra.jpg",
@@ -3951,7 +4346,7 @@
     },
     "vent": {
       "title": "Volcano",
-      "summary": "A volcano is a vent or fissure in the crust of a planetary-mass object, such as Earth, that allows hot lava, volcanic ash, and gases to escape from a magma chamber below the surface.",
+      "summary": "A volcano is a vent or fissure in planetary crust allowing hot lava, ash, and gases to escape from a magma chamber. On Earth, volcanoes form where tectonic plates diverge or converge; most are underwater. Volcanoes also arise from mantle plumes creating hotspot volcanism, as in the Hawaiian Islands. Based on eruption frequency, volcanoes are classified as active, dormant, or extinct. Large eruptions affect climate by releasing ash and aerosols that block sunlight and cool the troposphere.",
       "wikipedia_url": "https://en.wikipedia.org/wiki/Volcano",
       "image_filename": "vent.jpg",
       "image_source_url": "https://upload.wikimedia.org/wikipedia/commons/4/48/Augustine_volcano_Jan_24_2006_-_Cyrus_Read.jpg",

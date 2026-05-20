@@ -68,6 +68,8 @@ WORDS_BY_THEME: dict[str, list[str]] = {
         "hotspring", "geyser", "lahar", "tephra", "magma", "eruption",
         "crater", "vent", "pluton", "laccolith", "tsunami", "fumarole",
         "solfatara", "sinkhole", "escarpment", "fissure",
+        "earthquake", "lapilli", "avalanche", "landslide", "mudflow",
+        "rockfall", "subsidence", "seiche", "lavaflow", "erosion",
     ],
     "ranges": [
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
@@ -102,6 +104,7 @@ SLUG_OVERRIDES: dict[str, str] = {
     "dolomite":   "Dolomite (mineral)",
     "vent":       "Volcanic vent",
     "hotspring":  "Hot spring",
+    "lavaflow":   "Lava",
     "andes":      "Andes",
     "alps":       "Alps",
     "atlas":      "Atlas Mountains",

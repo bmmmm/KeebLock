@@ -24,6 +24,8 @@ enum Codewords {
         "hotspring", "geyser", "lahar", "tephra", "magma", "eruption",
         "crater", "vent", "pluton", "laccolith", "tsunami", "fumarole",
         "solfatara", "sinkhole", "escarpment", "fissure",
+        "earthquake", "lapilli", "avalanche", "landslide", "mudflow",
+        "rockfall", "subsidence", "seiche", "lavaflow", "erosion",
         // Mountain ranges
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
         "apennines", "pamir", "tienshan", "karakoram", "sierra", "vosges",
