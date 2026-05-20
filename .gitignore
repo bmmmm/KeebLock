@@ -32,8 +32,8 @@ id_ed25519*
 *.swp
 *~
 
-# Claude Code (project-local state, hooks, transcripts, permissions)
-.claude/
+# Claude Code (only local override stays private; shared settings.json tracked)
+.claude/settings.local.json
 
 # Temp
 tmp/
