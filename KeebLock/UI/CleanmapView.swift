@@ -64,11 +64,11 @@ struct CleanmapView: View {
     }
 
     var body: some View {
-        // Subscribe to displayTick so the heatmap refreshes when the
-        // @ObservationIgnored sessionKeyCounts / overallKeyCounts /
-        // mouse counters change. 1 Hz refresh is generous for a
-        // statistical heatmap.
-        let _ = controller.displayTick
+        // No displayTick subscription: CleanmapView is only reachable from
+        // Settings, which sits behind the full-screen lock window. The
+        // counters refresh once when isLocked transitions false on
+        // stopLock (isLocked is @Observable; SettingsView's parent
+        // re-evaluates the modal sheet), which is the user-visible moment.
         VStack(spacing: 0) {
             header
             Divider()

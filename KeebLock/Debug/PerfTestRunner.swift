@@ -17,6 +17,15 @@ import Foundation
 ///      was suppressed; nothing else in the app is interactive.
 @MainActor
 enum PerfTestRunner {
+    /// Set true while the harness is driving synthetic input. Read by
+    /// LockController.checkAnyEventCursorJump to suppress the auto-
+    /// snapshot trigger — synthetic key/mouse events have unrelated
+    /// `event.location` values that legitimately produce 500+ px deltas
+    /// between consecutive events, which would otherwise machine-gun
+    /// inline snapshots and pollute the latency measurement we're
+    /// trying to take.
+    @MainActor static private(set) var isRunning: Bool = false
+
     private static let killFileName = "keeblock-perf-test.lock"
     /// Hard ceiling for the entire test, including warmup + harness +
     /// snapshot write. burst takes ~5 s, saveStorm ~2 s; 30 s is
@@ -33,6 +42,11 @@ enum PerfTestRunner {
             .appendingPathComponent(killFileName)
 
         DebugLog.log("perf-test: starting suite=\(args.suite.rawValue) mode=\(args.mode.rawValue) output=\(args.outputPath)")
+
+        // Surface the harness flag so the lock loop's cursor-jump
+        // auto-snapshot stays out of the measurement.
+        Self.isRunning = true
+        defer { Self.isRunning = false }
 
         // 1) Write kill-file so external `rm` is the abort mechanism.
         FileManager.default.createFile(atPath: killFile, contents: Data("running\n".utf8))

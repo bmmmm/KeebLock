@@ -38,12 +38,11 @@ struct TrailmapView: View {
     }
 
     var body: some View {
-        // Subscribe to displayTick so the polyline refreshes when the
-        // @ObservationIgnored sessionTrail grows. TrailmapView is only
-        // visible from Settings (not during a lock), so this matters
-        // mainly when the user opens TrailmapView right after stopLock —
-        // the displayTick at session end pushes the final trail in.
-        let _ = controller.displayTick
+        // No displayTick subscription: TrailmapView is only reachable from
+        // Settings (hidden behind the lock), so per-frame trail growth
+        // during a lock is invisible to the user anyway. The view
+        // re-evaluates when it is presented (on user navigation) and
+        // reads the current sessionTrail value at that point.
         VStack(spacing: 0) {
             header
             Divider()

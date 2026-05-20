@@ -44,15 +44,18 @@ final class PerfTestHarness {
     /// field; the actual injected count lands in `injectedCount`.
     var totalEvents: Int {
         switch suite {
-        case .burst:        return 500
-        case .saveStorm:    return 1000
+        case .burst:        return 200
+        case .saveStorm:    return 500
         case .mouseKeyMix:  return mouseKeyMixKeyEvents + mouseKeyMixMouseEvents
         }
     }
 
-    // mousekeymix targets: 10 s window, ~160 Hz combined load.
-    private let mouseKeyMixKeyEvents = 1000        // 100 Hz × 10 s
-    private let mouseKeyMixMouseEvents = 600       // 60 Hz × 10 s
+    // mousekeymix targets: 4 s window, ~160 Hz combined load. Still
+    // produces ~400 key + ~240 mouse samples — enough for stable p99
+    // without lockout times that disrupt the user during iterative
+    // tuning.
+    private let mouseKeyMixKeyEvents = 400         // 100 Hz × 4 s
+    private let mouseKeyMixMouseEvents = 240       // 60 Hz × 4 s
     private let mouseKeyMixKeyIntervalNs: UInt64 = 10_000_000    // 100 Hz
     private let mouseKeyMixMouseIntervalNs: UInt64 = 16_666_666  // 60 Hz
 

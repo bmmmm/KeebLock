@@ -553,8 +553,7 @@ struct SettingsView: View {
     }
 
     private var cleanmapSection: some View {
-        let _ = controller.displayTick
-        return tintedSection("Cleanmap") {
+        tintedSection("Cleanmap") {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accumulated wipe data")
@@ -576,8 +575,7 @@ struct SettingsView: View {
     }
 
     private var trailmapSection: some View {
-        let _ = controller.displayTick
-        return tintedSection("Trailmap") {
+        tintedSection("Trailmap") {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wipe trail visualisation")
