@@ -25,6 +25,10 @@ final class SoundPlayer {
     /// descriptor is cached on the player but the scope contract is broken
     /// and TCC re-evaluations can silence playback intermittently.
     private var customScopedURL: URL?
+    /// Raw bookmark for the current custom file. Kept so we can re-resolve
+    /// the URL if `AVAudioPlayer.play()` silently fails (e.g. the backing
+    /// file lives on a USB volume that got unmounted mid-session).
+    private var customBookmark: Data?
 
     private var lastPlayTime: TimeInterval = -.infinity
     // 100 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
@@ -95,8 +99,10 @@ final class SoundPlayer {
         customScopedURL?.stopAccessingSecurityScopedResource()
         customScopedURL = nil
         customPlayer = nil
+        customBookmark = nil
 
         guard let bookmark else { return }
+        customBookmark = bookmark
 
         var stale = false
         let url: URL
@@ -151,9 +157,11 @@ final class SoundPlayer {
             // AVAudioPlayer is not thread-safe; dispatch async to main (non-blocking —
             // returns before executing, so the event tap is free immediately).
             DispatchQueue.main.async { [weak self] in
-                guard let p = self?.customPlayer else { return }
+                guard let self, let p = self.customPlayer else { return }
                 p.currentTime = 0
-                p.play()
+                if !p.play() {
+                    self.recoverCustomPlayer()
+                }
             }
         } else {
             // AVAudioPlayerNode.scheduleBuffer is thread-safe.
@@ -204,6 +212,66 @@ final class SoundPlayer {
     }
 
     // MARK: - Private
+
+    /// `AVAudioPlayer.play()` returned false — most likely the backing file
+    /// disappeared (external volume unmounted, file deleted). Try once to
+    /// rebuild the player from the stored bookmark; if that also fails,
+    /// drop the custom player so subsequent keystrokes fall through to the
+    /// synth-click path and play one synth click for *this* keystroke so
+    /// the user still hears something.
+    private func recoverCustomPlayer() {
+        DebugLog.log("SoundPlayer: customPlayer.play() failed — attempting bookmark re-resolve")
+        customScopedURL?.stopAccessingSecurityScopedResource()
+        customScopedURL = nil
+        customPlayer = nil
+
+        let fallbackToSynth: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.audioQueue.async { [weak self] in self?.playSynthClick() }
+        }
+
+        guard let bookmark = customBookmark else {
+            fallbackToSynth()
+            return
+        }
+        var stale = false
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &stale
+            )
+        } catch {
+            DebugLog.log("SoundPlayer: re-resolve failed: \(error.localizedDescription) — falling back to synth")
+            fallbackToSynth()
+            return
+        }
+        if stale {
+            DebugLog.log("SoundPlayer: re-resolved bookmark is stale — falling back to synth; user must re-pick")
+            fallbackToSynth()
+            return
+        }
+        guard url.startAccessingSecurityScopedResource() else {
+            DebugLog.log("SoundPlayer: re-resolved URL not accessible — falling back to synth")
+            fallbackToSynth()
+            return
+        }
+        do {
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.prepareToPlay()
+            p.volume = playerNode.volume
+            customPlayer = p
+            customScopedURL = url
+            p.play()
+            DebugLog.log("SoundPlayer: customPlayer recovered after re-resolve")
+        } catch {
+            url.stopAccessingSecurityScopedResource()
+            DebugLog.log("SoundPlayer: AVAudioPlayer re-init failed: \(error.localizedDescription) — falling back to synth")
+            fallbackToSynth()
+        }
+    }
 
     private func playSynthClick() {
         guard let buffer = clickBuffer else { return }
