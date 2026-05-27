@@ -419,6 +419,7 @@ final class LockController {
         }
         lockStartedAt = Date()
         PerfMetrics.shared.sessionStart()
+        soundPlayer.warmUp()
         installSpaceObserver()
         DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
         windowManager.show(

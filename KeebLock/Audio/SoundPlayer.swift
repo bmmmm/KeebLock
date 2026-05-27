@@ -41,7 +41,16 @@ final class SoundPlayer {
 
     // High-priority serial queue for AVAudioEngine/PlayerNode scheduling.
     // AVAudioPlayerNode.scheduleBuffer is thread-safe and can be called from here.
+    // Engine start/stop also runs here so the lifecycle state (running vs
+    // stopped, idle-timer scheduling) is single-threaded.
     private let audioQueue = DispatchQueue(label: "keeblock.audio", qos: .userInteractive)
+    /// Stops the engine 30 s after the last activity (warmUp or play). Owned
+    /// by audioQueue; nil when no engine-stop is pending.
+    private var idleTimer: DispatchSourceTimer?
+    /// 30 s of silence is enough to clear the engine's wake-lock on the audio
+    /// hardware; shorter and a slow typist would pay restart latency between
+    /// pauses; longer and an idle Mac keeps the audio HAL awake for no reason.
+    private let idleTimeout: TimeInterval = 30
 
     init() {
         let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
@@ -62,13 +71,23 @@ final class SoundPlayer {
         }
         clickBuffer = buffer
 
-        // Connect and start eagerly so the first keystroke doesn't pay engine-init latency.
+        // Attach and connect now; do NOT start the engine. start() opens
+        // the audio HAL, which costs measurable energy when the app is just
+        // sitting in the menu bar between locks. Engine spins up lazily on
+        // the first play() (or warmUp() if the caller wants to pre-pay
+        // start latency before a keystroke), and stops 30 s after the last
+        // activity via idleTimer.
         engine.attach(playerNode)
         engine.connect(playerNode, to: engine.mainMixerNode, format: format)
-        do {
-            try engine.start()
-        } catch {
-            DebugLog.log("SoundPlayer: AVAudioEngine start failed at init: \(error.localizedDescription)")
+    }
+
+    /// Pre-warm the engine so the first keystroke of a session doesn't pay
+    /// the engine-start latency. Idempotent; cheap to call on every
+    /// `startLock`. Also resets the idle timer.
+    func warmUp() {
+        audioQueue.async { [weak self] in
+            self?.ensureEngineRunning()
+            self?.scheduleIdleStop()
         }
     }
 
@@ -173,17 +192,17 @@ final class SoundPlayer {
 
     func stop() {
         playerNode.stop()
-        // Engine stays running across sessions — tearing it down here and
-        // lazy-restarting on the next keystroke costs 30–50 ms of warm-up
-        // latency, which is exactly what the eager init at line 58 was
-        // meant to avoid. The engine is dormant when no buffer is
-        // scheduled, so leaving it up only burns a small graph footprint.
+        // Engine itself is left to the idle-timer — within 30 s of the last
+        // click it stops on its own, which is cheaper than the explicit
+        // teardown/restart cycle if the user immediately starts another
+        // lock session.
         customPlayer?.stop()
         customScopedURL?.stopAccessingSecurityScopedResource()
         customScopedURL = nil
     }
 
     deinit {
+        idleTimer?.cancel()
         customScopedURL?.stopAccessingSecurityScopedResource()
     }
 
@@ -275,10 +294,39 @@ final class SoundPlayer {
 
     private func playSynthClick() {
         guard let buffer = clickBuffer else { return }
-        if !engine.isRunning {
-            try? engine.start()
-        }
+        ensureEngineRunning()
         playerNode.scheduleBuffer(buffer, at: nil, options: [])
         if !playerNode.isPlaying { playerNode.play() }
+        scheduleIdleStop()
+    }
+
+    /// Must be called on `audioQueue`. No-op if the engine is already running.
+    private func ensureEngineRunning() {
+        dispatchPrecondition(condition: .onQueue(audioQueue))
+        guard !engine.isRunning else { return }
+        do {
+            try engine.start()
+        } catch {
+            DebugLog.log("SoundPlayer: AVAudioEngine start failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Must be called on `audioQueue`. (Re)arms a one-shot timer that stops
+    /// the engine after `idleTimeout` seconds with no further activity.
+    private func scheduleIdleStop() {
+        dispatchPrecondition(condition: .onQueue(audioQueue))
+        idleTimer?.cancel()
+        let t = DispatchSource.makeTimerSource(queue: audioQueue)
+        t.schedule(deadline: .now() + idleTimeout)
+        t.setEventHandler { [weak self] in
+            guard let self else { return }
+            if self.engine.isRunning {
+                self.playerNode.stop()
+                self.engine.stop()
+            }
+            self.idleTimer = nil
+        }
+        t.resume()
+        idleTimer = t
     }
 }
