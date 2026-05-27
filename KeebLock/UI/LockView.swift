@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 struct LockView: View {
@@ -9,24 +8,16 @@ struct LockView: View {
     // ObservableObject — the overlay would only update on the next
     // unrelated invalidation.
     @ObservedObject private var settings: AppSettings = .shared
-    @StateObject private var rendererProxy: RendererProxy
-    let renderer: WipeRenderer?
+    let renderer: WipeRenderer
     let screenIndex: Int
-
-    init(controller: LockController, renderer: WipeRenderer?, screenIndex: Int) {
-        self.controller = controller
-        self.renderer = renderer
-        self.screenIndex = screenIndex
-        _rendererProxy = StateObject(wrappedValue: RendererProxy(renderer: renderer))
-    }
 
     var body: some View {
         ZStack {
-            if let renderer {
-                WipeView(renderer: renderer)
+            if renderer.isPlaceholder {
+                Color(hue: Double.random(in: 0..<1), saturation: 0.65, brightness: 0.5)
                     .ignoresSafeArea()
             } else {
-                Color(hue: Double.random(in: 0..<1), saturation: 0.65, brightness: 0.5)
+                WipeView(renderer: renderer)
                     .ignoresSafeArea()
             }
 
@@ -34,7 +25,7 @@ struct LockView: View {
 
             HUDView(
                 controller: controller,
-                rendererProxy: rendererProxy,
+                renderer: renderer,
                 screenIndex: screenIndex
             )
             .padding(36)

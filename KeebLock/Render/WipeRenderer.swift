@@ -14,8 +14,15 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     @Published private(set) var stage: Int = 1
     @Published private(set) var wipedFraction: Double = 0
 
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
+    /// True for the no-Metal fallback. The instance is fully constructed
+    /// (so LockView can hold a non-optional reference and HUDView can
+    /// observe stage/wipedFraction) but skips pipeline setup; draw(),
+    /// wipe*, and stop() short-circuit. The lock window falls back to a
+    /// SwiftUI Color so the user still sees an opaque cover.
+    let isPlaceholder: Bool
+
+    private let device: MTLDevice?
+    private let commandQueue: MTLCommandQueue?
     private var renderPipeline: MTLRenderPipelineState?
 
     private let fixedBg: SIMD4<Float>?
@@ -40,15 +47,11 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     let screenFrame: CGRect
 
-    init?(screen: NSScreen,
-          fixedBg: SIMD4<Float>?,
-          fixedPixel: SIMD4<Float>?,
-          cellsPerAxis: Int,
-          stageThreshold: Double) {
-        guard let dev = MTLCreateSystemDefaultDevice(),
-              let queue = dev.makeCommandQueue() else { return nil }
-        device = dev
-        commandQueue = queue
+    init(screen: NSScreen,
+         fixedBg: SIMD4<Float>?,
+         fixedPixel: SIMD4<Float>?,
+         cellsPerAxis: Int,
+         stageThreshold: Double) {
         screenFrame = screen.frame
         self.fixedBg = fixedBg
         self.fixedPixel = fixedPixel
@@ -65,11 +68,17 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         currentBg = fixedBg ?? Self.randomColor()
         currentPixel = fixedPixel ?? Self.randomColor()
 
+        let dev = MTLCreateSystemDefaultDevice()
+        let queue = dev?.makeCommandQueue()
+        device = dev
+        commandQueue = queue
+        isPlaceholder = (dev == nil || queue == nil)
+
         let view = MTKView(
             frame: NSRect(origin: .zero, size: screen.frame.size),
             device: dev
         )
-        view.isPaused = false
+        view.isPaused = isPlaceholder
         view.enableSetNeedsDisplay = false
         view.clearColor = MTLClearColorMake(0, 0, 0, 0)
         view.colorPixelFormat = .bgra8Unorm
@@ -83,9 +92,11 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         metalView = view
 
         super.init()
-        setupPipeline()
-        rebuildMaskTexture()
-        view.delegate = self
+        if !isPlaceholder {
+            setupPipeline()
+            rebuildMaskTexture()
+            view.delegate = self
+        }
     }
 
     // MARK: - Public API
@@ -207,6 +218,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     func stop() {
         metalView.delegate = nil
         metalView.isPaused = true
+        guard !isPlaceholder, let commandQueue else { return }
         // Drain any in-flight command buffer so the GPU isn't still
         // pointing at our textures / drawables when LockWindowManager.hide()
         // nils contentView and drops the renderer in the same runloop tick.
@@ -225,7 +237,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        guard let drawable = view.currentDrawable,
+        guard let commandQueue,
+              let drawable = view.currentDrawable,
               let passDesc = view.currentRenderPassDescriptor,
               let cmdBuf = commandQueue.makeCommandBuffer() else { return }
 
@@ -288,7 +301,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     }
 
     private func setupPipeline() {
-        guard let lib = device.makeDefaultLibrary() else {
+        guard let device, let lib = device.makeDefaultLibrary() else {
             DebugLog.log("Metal: no default shader library")
             return
         }
@@ -320,7 +333,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         )
         desc.usage       = [.shaderRead]
         desc.storageMode = .shared
-        guard let tex = device.makeTexture(descriptor: desc) else { return }
+        guard let device, let tex = device.makeTexture(descriptor: desc) else { return }
         tex.replace(
             region: MTLRegionMake2D(0, 0, maskDims.w, maskDims.h),
             mipmapLevel: 0,

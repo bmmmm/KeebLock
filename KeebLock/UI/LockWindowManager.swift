@@ -130,7 +130,7 @@ final class LockNSWindow: NSWindow {
 @MainActor
 final class LockWindowManager {
     private var windows: [LockNSWindow] = []
-    private var renderers: [WipeRenderer?] = []  // nil if Metal unavailable on a screen
+    private var renderers: [WipeRenderer] = []  // placeholder instance if Metal unavailable
     private var savedPresentationOptions: NSApplication.PresentationOptions = []
     /// Displays we yanked off a fullscreen Space at lock start. On hide()
     /// we switch them back to where the user was — without this they'd
@@ -165,8 +165,8 @@ final class LockWindowManager {
                 cellsPerAxis: cellsPerAxis,
                 stageThreshold: stageThreshold
             )
-            if renderer == nil {
-                DebugLog.log("show: screen \(index) WipeRenderer init failed (no Metal device)")
+            if renderer.isPlaceholder {
+                DebugLog.log("show: screen \(index) WipeRenderer in placeholder mode (no Metal device)")
             }
             renderers.append(renderer)
 
@@ -264,7 +264,7 @@ final class LockWindowManager {
         restoreMovedDisplays()
 
         // 1) Stop Metal display links so draw() stops being scheduled.
-        for renderer in renderers { renderer?.stop() }
+        for renderer in renderers { renderer.stop() }
 
         // 2) Detach hosting views BEFORE close(). NSHostingView with TimelineView(.animation)
         //    holds animation hooks and MTKView holds a CVDisplayLink (CADisplayLink is
@@ -316,22 +316,22 @@ final class LockWindowManager {
                           bounds: CGRect? = nil) {
         for renderer in renderers {
             if let position, let bounds {
-                renderer?.wipeAtNormalizedPosition(position, count: count, bounds: bounds)
+                renderer.wipeAtNormalizedPosition(position, count: count, bounds: bounds)
             } else {
-                renderer?.wipeRandomCell()
+                renderer.wipeRandomCell()
             }
         }
     }
 
     /// Highest stage reached across all screens.
     var maxStage: Int {
-        renderers.compactMap { $0?.stage }.max() ?? 1
+        renderers.map(\.stage).max() ?? 1
     }
 
     /// Per-renderer mask state for the diagnostic log. Empty when no
     /// lock is active (renderers are torn down on `hide()`).
     func screenStates() -> [WipeRenderer.State] {
-        renderers.compactMap { $0?.snapshotState() }
+        renderers.map { $0.snapshotState() }
     }
 
     // MARK: - Diagnostics

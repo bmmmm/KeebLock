@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import SwiftUI
 
 struct HUDView: View {
@@ -8,7 +7,7 @@ struct HUDView: View {
     /// and unrelated mutations (e.g. heatmap dictionary writes that no view
     /// in this hierarchy reads) no longer invalidate this view.
     var controller: LockController
-    @ObservedObject var rendererProxy: RendererProxy
+    @ObservedObject var renderer: WipeRenderer
     @ObservedObject var settings: AppSettings = .shared
     let screenIndex: Int
 
@@ -40,7 +39,7 @@ struct HUDView: View {
                 CompactUnlockButton(controller: controller)
             }
 
-            HUDStatsRow(controller: controller, rendererProxy: rendererProxy)
+            HUDStatsRow(controller: controller, renderer: renderer)
             inputBreakdown
             colorIndicators
             HUDKnowledgeFooter(controller: controller)
@@ -126,12 +125,12 @@ struct HUDView: View {
 // MARK: - Stats row
 //
 // Lifted out of HUDView so the body() that reads keystrokeCount /
-// rendererProxy.stage / wipedFraction / isPaused / remainingSeconds
+// renderer.stage / wipedFraction / isPaused / remainingSeconds
 // invalidates ONLY this strip — typing no longer re-evaluates the
 // breakdown cards or the knowledge footer just because a counter ticked.
 private struct HUDStatsRow: View {
     var controller: LockController
-    @ObservedObject var rendererProxy: RendererProxy
+    @ObservedObject var renderer: WipeRenderer
     @ObservedObject var settings: AppSettings = .shared
 
     var body: some View {
@@ -142,8 +141,8 @@ private struct HUDStatsRow: View {
         HStack(spacing: 40) {
             HUDStat(label: "Wipes", value: "\(controller.keystrokeCount)")
             HUDStat(
-                label: "Stage \(rendererProxy.stage)",
-                value: "\(Int(rendererProxy.wipedFraction * 100))% wiped"
+                label: "Stage \(renderer.stage)",
+                value: "\(Int(renderer.wipedFraction * 100))% wiped"
             )
             if settings.autoUnlockEnabled {
                 HUDStat(
@@ -501,22 +500,3 @@ private struct GestureBreakdownCard: View {
     }
 }
 
-// Bridges an optional WipeRenderer into an ObservableObject owned by LockView.
-final class RendererProxy: ObservableObject {
-    @Published var stage: Int = 1
-    @Published var wipedFraction: Double = 0
-
-    private var bag = Set<AnyCancellable>()
-
-    init(renderer: WipeRenderer?) {
-        guard let renderer else { return }
-        renderer.$stage
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.stage = $0 }
-            .store(in: &bag)
-        renderer.$wipedFraction
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.wipedFraction = $0 }
-            .store(in: &bag)
-    }
-}
