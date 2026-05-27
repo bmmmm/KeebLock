@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var permissionPollTask: Task<Void, Never>?
     @State private var showVerifyPopover = false
+    @State private var isResettingPermission = false
     /// CDHash the user has manually verified against the published values.
     /// Empty until they actively confirm; resets implicitly with every new
     /// release because each build has a fresh CDHash. The shield only glows
@@ -386,11 +387,26 @@ struct ContentView: View {
                     AccessibilityPermission.openSystemSettings()
                 }
                 .keyboardShortcut("o", modifiers: .command)
+                .disabled(isResettingPermission)
 
-                Button("Reset & Retry") {
-                    AccessibilityPermission.resetAndRequest()
+                Button {
+                    isResettingPermission = true
+                    AccessibilityPermission.resetAndRequest {
+                        isResettingPermission = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isResettingPermission {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Resetting…")
+                        } else {
+                            Text("Reset & Retry")
+                        }
+                    }
                 }
                 .keyboardShortcut("r", modifiers: .command)
+                .disabled(isResettingPermission)
             }
             .buttonStyle(.bordered)
 
