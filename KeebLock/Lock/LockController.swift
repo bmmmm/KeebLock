@@ -455,6 +455,7 @@ final class LockController {
         // Defer window teardown to the next run loop pass — calling window.close()
         // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
         // pools un-drained and causes EXC_BAD_ACCESS when SwiftUI starts updating.
+        PerfMetrics.shared.recordMainHop()
         DispatchQueue.main.async {
             self.windowManager.hide()
             self.isLocked = false

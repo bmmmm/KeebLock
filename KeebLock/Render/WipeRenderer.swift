@@ -105,6 +105,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         let advance = wipedCellCount >= advanceTarget
         stateLock.unlock()
 
+        PerfMetrics.shared.recordMainHop()
         DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
         if advance { advanceStage() }
     }
@@ -170,6 +171,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         stateLock.unlock()
 
         if madeProgress {
+            PerfMetrics.shared.recordMainHop()
             DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
         }
         if advance { advanceStage() }
@@ -278,6 +280,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         wipedCellCount = 0
         maskDirty = true
         stateLock.unlock()
+        PerfMetrics.shared.recordMainHop()
         DispatchQueue.main.async {
             self.stage += 1
             self.wipedFraction = 0
