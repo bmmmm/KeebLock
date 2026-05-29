@@ -117,7 +117,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         stateLock.unlock()
 
         PerfMetrics.shared.recordMainHop()
-        DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
+        DispatchQueue.main.async { [weak self] in self?.wipedFraction = min(1.0, frac) }
         if advance { advanceStage() }
     }
 
@@ -183,7 +183,7 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
         if madeProgress {
             PerfMetrics.shared.recordMainHop()
-            DispatchQueue.main.async { self.wipedFraction = min(1.0, frac) }
+            DispatchQueue.main.async { [weak self] in self?.wipedFraction = min(1.0, frac) }
         }
         if advance { advanceStage() }
     }
@@ -294,9 +294,9 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         maskDirty = true
         stateLock.unlock()
         PerfMetrics.shared.recordMainHop()
-        DispatchQueue.main.async {
-            self.stage += 1
-            self.wipedFraction = 0
+        DispatchQueue.main.async { [weak self] in
+            self?.stage += 1
+            self?.wipedFraction = 0
         }
     }
 

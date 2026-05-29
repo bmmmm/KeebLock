@@ -61,34 +61,43 @@ enum DebugLog {
     /// at creation and rotation. One chmod per process is cheap; the
     /// alternative of chmod-per-line on the hot path is wasteful.
     private static var permissionsTightenedThisLaunch: Bool = false
+    /// Serializes all file I/O and the `appendCount` / `permissionsTightened`
+    /// state. `log()` is called from the event-tap callback (main) AND from
+    /// SoundPlayer's `audioQueue`; without this, two threads could open
+    /// separate FileHandles, both seek to the same end-of-file offset, and
+    /// interleave their writes into corrupted log lines. async keeps the
+    /// per-keystroke logging path off the disk write entirely.
+    private static let ioQueue = DispatchQueue(label: "de.6bm.KeebLock.debuglog", qos: .utility)
 
     private static func appendLine(_ line: String) {
         let payload = line + "\n"
         guard let data = payload.data(using: .utf8) else { return }
 
-        appendCount &+= 1
-        if appendCount % rotationCheckInterval == 0 {
-            rotateIfNeeded()
-        }
+        ioQueue.async {
+            appendCount &+= 1
+            if appendCount % rotationCheckInterval == 0 {
+                rotateIfNeeded()
+            }
 
-        do {
-            if FileManager.default.fileExists(atPath: logURL.path) {
-                let handle = try FileHandle(forWritingTo: logURL)
-                defer { try? handle.close() }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: data)
-                if !permissionsTightenedThisLaunch {
+            do {
+                if FileManager.default.fileExists(atPath: logURL.path) {
+                    let handle = try FileHandle(forWritingTo: logURL)
+                    defer { try? handle.close() }
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: data)
+                    if !permissionsTightenedThisLaunch {
+                        restrictPermissions(logURL)
+                        permissionsTightenedThisLaunch = true
+                    }
+                } else {
+                    try data.write(to: logURL)
                     restrictPermissions(logURL)
                     permissionsTightenedThisLaunch = true
                 }
-            } else {
-                try data.write(to: logURL)
-                restrictPermissions(logURL)
-                permissionsTightenedThisLaunch = true
+            } catch {
+                // Debug logging must never crash the app. Failures still show in
+                // NSLog (the line above), so we lose nothing by swallowing here.
             }
-        } catch {
-            // Debug logging must never crash the app. Failures still show in
-            // NSLog (the line above), so we lose nothing by swallowing here.
         }
     }
 

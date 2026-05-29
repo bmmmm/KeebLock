@@ -11,10 +11,16 @@ struct LockView: View {
     let renderer: WipeRenderer
     let screenIndex: Int
 
+    // Fixed once when the view is created, not re-rolled on every body
+    // re-evaluation. Computing Double.random() inside body would pick a new
+    // hue on every invalidation (displayTick, settings change…), flashing the
+    // placeholder background random colours on Metal-unavailable devices.
+    @State private var placeholderHue: Double = .random(in: 0..<1)
+
     var body: some View {
         ZStack {
             if renderer.isPlaceholder {
-                Color(hue: Double.random(in: 0..<1), saturation: 0.65, brightness: 0.5)
+                Color(hue: placeholderHue, saturation: 0.65, brightness: 0.5)
                     .ignoresSafeArea()
             } else {
                 WipeView(renderer: renderer)
