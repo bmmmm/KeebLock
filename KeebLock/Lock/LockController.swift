@@ -223,6 +223,13 @@ final class LockController {
     @ObservationIgnored private var lastPinchAt: Date?
     @ObservationIgnored private var lastRotateAt: Date?
     @ObservationIgnored private var spaceObserver: NSObjectProtocol?
+    /// Watches for display arrangement changes (monitor hot-plug/unplug,
+    /// resolution or primary-display change) so we can rebuild the lock
+    /// surface across the new screen set while locked.
+    @ObservationIgnored private var screenObserver: NSObjectProtocol?
+    /// Coalesces the burst of `didChangeScreenParameters` notifications a
+    /// single hot-plug emits into one rebuild.
+    @ObservationIgnored private var screenChangeWork: DispatchWorkItem?
     /// Cursor location at the most recent keyDown, captured from
     /// `CGEvent.location`. Used purely by the verbose-perf event-ring
     /// log so we can see if the cursor jumps between two consecutive
@@ -325,10 +332,17 @@ final class LockController {
         let s = AppSettings.shared
         soundPlayer.setVolume(s.soundVolume)
         soundPlayer.setCustomFile(bookmark: s.soundFileBookmark)
+        // Deliver on main so SoundPlayer's custom-file state (customPlayer,
+        // customScopedURL, customBookmark) is only ever mutated on the main
+        // thread — the same thread play() runs on (the event tap dispatches to
+        // CFRunLoopGetMain). A @Published change published from a background
+        // context would otherwise race play()'s reads of that state.
         s.$soundVolume
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.soundPlayer.setVolume($0) }
             .store(in: &bag)
         s.$soundFileBookmark
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
             .store(in: &bag)
 
@@ -421,6 +435,7 @@ final class LockController {
         PerfMetrics.shared.sessionStart()
         soundPlayer.warmUp()
         installSpaceObserver()
+        installScreenObserver()
         DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
         windowManager.show(
             controller: self,
@@ -448,6 +463,7 @@ final class LockController {
         stopTimer()
         removeEventTap()
         removeSpaceObserver()
+        removeScreenObserver()
         soundPlayer.stop()
         recordSession()
         saveOverallKeyCounts()
@@ -849,13 +865,100 @@ final class LockController {
         spaceObserver = nil
     }
 
+    // MARK: - Screen arrangement observer
+
+    /// Rebuild the lock surface when the display arrangement changes. Without
+    /// this, a monitor hot-plugged mid-session has no lock window — leaving a
+    /// usable desktop next to the lock — and the CADisplayLink stays anchored
+    /// to the screen that was `NSScreen.main` at lock start, so it can stall
+    /// (freezing the HUD counter) when the primary display changes.
+    private func installScreenObserver() {
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isLocked else { return }
+                // Coalesce the burst of notifications a single arrangement
+                // change emits; rebuild once, shortly after it settles.
+                self.screenChangeWork?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self, self.isLocked else { return }
+                    self.rebuildLockSurface()
+                }
+                self.screenChangeWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+            }
+        }
+    }
+
+    private func removeScreenObserver() {
+        screenChangeWork?.cancel()
+        screenChangeWork = nil
+        if let token = screenObserver {
+            NotificationCenter.default.removeObserver(token)
+        }
+        screenObserver = nil
+    }
+
+    /// Re-create the lock windows for the current screen set and re-anchor the
+    /// display link. The per-cell wipe progress resets (the renderers are
+    /// rebuilt) — acceptable for the rare hot-plug event, and far simpler than
+    /// migrating live Metal mask state across a window rebuild.
+    private func rebuildLockSurface() {
+        guard isLocked else { return }
+        DebugLog.log("screen params changed — rebuilding lock surface for \(NSScreen.screens.count) screen(s)")
+        windowManager.show(
+            controller: self,
+            fixedBg: AppSettings.shared.backgroundSIMD,
+            fixedPixel: AppSettings.shared.pixelSIMD,
+            cellsPerAxis: AppSettings.shared.cellsPerAxis,
+            stageThreshold: AppSettings.shared.stageAdvanceThreshold
+        )
+        // Re-anchor the display link to the (possibly new) main screen.
+        stopDisplayLink()
+        startDisplayLink()
+    }
+
+    /// The event tap could not be re-enabled (almost always: Accessibility
+    /// permission revoked while locked). Break out of the dead lock instead of
+    /// trapping the user, and explain why. Dispatched off the tap callback so
+    /// the modal alert and window teardown don't run inside the C callback.
+    private func handleDeadTap() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isLocked else { return }
+            self.stopLock()
+            let alert = NSAlert()
+            alert.messageText = "KeebLock unlocked itself"
+            alert.informativeText = "The keyboard hook stopped working — most likely Accessibility "
+                + "permission was revoked. Re-grant it under System Settings › Privacy & Security › "
+                + "Accessibility before locking again."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     fileprivate func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            let reason = (type == .tapDisabledByTimeout) ? "timeout" : "user input / permission change"
             if type == .tapDisabledByTimeout {
                 PerfMetrics.shared.recordTapTimeout()
-                DebugLog.log("tap: disabled by timeout — re-enabling")
             }
-            if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+            DebugLog.log("tap: disabled by \(reason) — re-enabling")
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                // Verify the re-enable actually took. If Accessibility
+                // permission was revoked mid-session, tapEnable is a no-op and
+                // the tap stays dead: keystrokes pass through and the user can
+                // no longer type the codeword to unlock — trapped behind a
+                // non-functional full-screen lock. Detect that and force-unlock.
+                if !CGEvent.tapIsEnabled(tap: tap) {
+                    DebugLog.log("tap: re-enable FAILED (\(reason)) — forcing unlock so the user isn't trapped")
+                    handleDeadTap()
+                }
+            }
             return nil
         }
 
