@@ -149,7 +149,12 @@ final class LockWindowManager {
         hide()
 
         savedPresentationOptions = NSApp.presentationOptions
-        NSApp.presentationOptions = [.hideDock, .hideMenuBar]
+        // .disableProcessSwitching blocks the ⌘-Tab app switcher so the lock
+        // can't be sidestepped by bringing another app forward. Force-quit
+        // (⌘⌥Esc) is deliberately left enabled: KeebLock is a keyboard-cleaning
+        // aid, not a lockdown/kiosk tool, so the user must always keep a manual
+        // escape hatch if the codeword path ever wedges.
+        NSApp.presentationOptions = [.hideDock, .hideMenuBar, .disableProcessSwitching]
 
         let screens = NSScreen.screens
         let screenSummary = screens.enumerated().map { i, s in
