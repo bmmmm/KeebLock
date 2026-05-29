@@ -41,6 +41,19 @@ case "$ACTION" in
     release) ACTION="build"; CONFIGURATION="Release" ;;
 esac
 
+# --- Codeword/manifest consistency guard -------------------------------------
+# Fails the build if any word in Codewords.all lacks a knowledge entry in the
+# bundled manifest (would render as an empty HUD stub). Stdlib-only; skipped
+# with a warning if python3 is unavailable so the build still runs.
+if command -v python3 >/dev/null 2>&1; then
+    if ! python3 scripts/check_codewords.py; then
+        echo "build.sh: codeword consistency check failed — aborting" >&2
+        exit 1
+    fi
+else
+    echo "build.sh: python3 not found — skipping codeword consistency check" >&2
+fi
+
 # --- Version derivation ------------------------------------------------------
 VERSION="${VERSION:-}"
 BUILD="${BUILD:-}"
@@ -53,7 +66,7 @@ if [ -z "$BUILD" ]; then
 fi
 echo "Building $CONFIGURATION  $VERSION ($BUILD)"
 
-LOG=$(mktemp)
+LOG=$(mktemp) || { echo "build.sh: mktemp failed — cannot capture build log" >&2; exit 1; }
 # -allowProvisioningUpdates is required: without it, xcodebuild reads a
 # stale signing reference from the build cache and fails with "Signing
 # certificate is invalid" even when the keychain has a fresh, valid
