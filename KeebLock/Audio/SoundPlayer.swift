@@ -209,7 +209,12 @@ final class SoundPlayer {
     /// Brief celebratory chime, played when the lock unlocks. Bypasses the
     /// per-keystroke throttle so a single trigger always sounds.
     func playUnlockChime() {
-        DispatchQueue.global(qos: .userInitiated).async {
+        // NSSound's playback methods are AppKit/main-thread API; calling .play()
+        // off the main thread is undefined and can silently fail under certain
+        // AVAudio session states. This fires once on unlock (not the hot path),
+        // so main-thread dispatch costs nothing. NSSound.play() itself returns
+        // immediately and mixes on a system audio thread.
+        DispatchQueue.main.async {
             // Use a system sound so we don't have to bundle a separate WAV.
             // "Glass" is short, melodic, and ships on every Mac.
             NSSound(named: NSSound.Name("Glass"))?.play()
