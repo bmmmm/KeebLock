@@ -421,6 +421,12 @@ def fetch_word(word: str, force: bool) -> dict | None:
         html = wiki_html(title)
     except Exception as e:
         print(f"      html fetch failed: {e}", flush=True)
+        # Drop the orphaned image we just downloaded — otherwise the next
+        # incremental run sees the file on disk, treats the word as cached,
+        # and never retries the (recoverable) html fetch, leaving a manifest
+        # entry with an image but no facts.
+        if image_target.exists():
+            image_target.unlink()
         return None
 
     facts = extract_facts(html, limit=10)

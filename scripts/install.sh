@@ -53,7 +53,10 @@ if [[ -d "$DEST" ]]; then
 fi
 
 echo "→ Copying to /Applications..."
-cp -r "$APP_SRC" "$DEST"
+# `ditto` (not `cp -r`) preserves the bundle's extended attributes and
+# code-signature metadata faithfully — the same tool release.sh uses for
+# packaging. `cp -r` can drop xattrs and risks disturbing signing data.
+ditto "$APP_SRC" "$DEST"
 echo "→ Done."
 echo ""
 echo "Next: open KeebLock and grant Accessibility permission when prompted."

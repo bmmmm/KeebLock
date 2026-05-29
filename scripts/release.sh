@@ -59,12 +59,12 @@ if ! command -v tea >/dev/null 2>&1; then
     exit 1
 fi
 
-# --- Tag + push --------------------------------------------------------------
-echo "==> Tagging $TAG"
-git tag -a "$TAG" -m "Release $VERSION"
-git push origin "$TAG"
-
 # --- Build Release with version pinned ---------------------------------------
+# Build BEFORE tagging: the version is pinned via the VERSION env var, not the
+# tag, so the tag is not needed to build. Tagging only after a green build
+# avoids leaving a pushed tag behind on a build failure — which would then
+# trip the "tag already exists" guard above on the retry and force a manual
+# `git push origin :refs/tags/$TAG` cleanup.
 echo "==> Building Release $VERSION"
 VERSION="$VERSION" scripts/build.sh release
 
@@ -73,6 +73,11 @@ if [ ! -d "$APP" ]; then
     echo "error: build did not produce $APP" >&2
     exit 1
 fi
+
+# --- Tag + push (only after a successful build) ------------------------------
+echo "==> Tagging $TAG"
+git tag -a "$TAG" -m "Release $VERSION"
+git push origin "$TAG"
 
 # --- Package -----------------------------------------------------------------
 echo "==> Packaging $ZIP"
