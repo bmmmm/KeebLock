@@ -690,7 +690,10 @@ final class LockController {
     /// next event-tap callback (which is what a 1 Hz `Timer.tick()`
     /// version did, surfacing as 5 ms key-callback p99 outliers).
     private func startDisplayLink() {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            DebugLog.log("startDisplayLink: NSScreen.main nil and no screens — HUD tick disabled")
+            return
+        }
         let bridge = DisplayLinkBridge { [weak self] in
             self?.displayTick &+= 1
         }
