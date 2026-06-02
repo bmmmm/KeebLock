@@ -10,27 +10,9 @@ struct ColorModeToggle: View {
     private var isCustom: Bool { preset != .random }
 
     var body: some View {
-        Button { showSwatches = true } label: {
-            VStack(spacing: 9) {
-                swatch
-                Text(preset.label)
-                    .font(.caption.weight(.bold))
-                    .tracking(0.3)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 84)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(isCustom ? cardBg : Color.primary.opacity(0.06))
-                    .shadow(color: isCustom ? cardShadow : .clear, radius: 10, y: 5)
-            }
-            .foregroundStyle(isCustom ? .white : Color.secondary)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        LauncherChip(label: preset.label, activeColor: cardBg, isActive: isCustom, action: { showSwatches = true }) {
+            swatch
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isCustom ? 1.0 : 0.96)
-        .animation(.spring(response: 0.28, dampingFraction: 0.58), value: isCustom)
         .popover(isPresented: $showSwatches, arrowEdge: .bottom) {
             picker
         }
@@ -74,8 +56,6 @@ struct ColorModeToggle: View {
         default:           return preset.swiftUIColor
         }
     }
-
-    private var cardShadow: Color { cardBg.opacity(0.45) }
 
     private var picker: some View {
         VStack(alignment: .leading, spacing: 10) {

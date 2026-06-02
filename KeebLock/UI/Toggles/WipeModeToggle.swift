@@ -10,28 +10,14 @@ struct WipeModeToggle: View {
     private var mode: WipeMode { settings.wipeMode }
 
     var body: some View {
-        Button { cycleMode() } label: {
-            VStack(spacing: 9) {
-                Image(systemName: mode.icon)
-                    .font(.system(size: 24, weight: .medium))
-                    .symbolEffect(.bounce, value: mode)
-                Text(mode.label)
-                    .font(.caption.weight(.bold))
-                    .tracking(0.3)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 84)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(mode.activeColor)
-                    .shadow(color: mode.activeColor.opacity(0.45), radius: 10, y: 5)
-            }
-            .foregroundStyle(.white)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        // Wipe is always active (no "off" mode), so isActive is fixed true —
+        // the card stays at full tint/scale and only the icon/label/tint cycle.
+        LauncherChip(label: mode.label, activeColor: mode.activeColor, isActive: true, action: cycleMode) {
+            Image(systemName: mode.icon)
+                .font(.system(size: 24, weight: .medium))
+                .symbolEffect(.bounce, value: mode)
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.22, dampingFraction: 0.55), value: mode)
+        .animation(.spring(response: 0.28, dampingFraction: 0.58), value: mode)
     }
 
     private func cycleMode() {
