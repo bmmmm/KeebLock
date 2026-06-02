@@ -227,10 +227,7 @@ private struct HUDKnowledgeFooter: View {
                         .minimumScaleFactor(0.7)
                     if !displayFacts.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("DID YOU KNOW?")
-                                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                                .tracking(2.0)
-                                .foregroundStyle(.white.opacity(0.55))
+                            SectionEyebrow("DID YOU KNOW?")
                             Text(displayFacts[factIndex])
                                 .font(.body)
                                 .opacity(0.92)
@@ -422,10 +419,7 @@ private struct InputBreakdownCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title.uppercased())
-                .font(.system(size: 13, weight: .heavy, design: .rounded))
-                .tracking(2.4)
-                .foregroundStyle(.white.opacity(0.7))
+            SectionEyebrow(title, color: .muted)
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading), count: 3),
                 alignment: .leading,

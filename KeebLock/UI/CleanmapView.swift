@@ -278,10 +278,7 @@ struct CleanmapView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .tracking(2.0)
-            .foregroundStyle(.secondary)
+        SectionEyebrow(text, color: .secondary)
     }
 }
 

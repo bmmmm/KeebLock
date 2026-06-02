@@ -123,10 +123,7 @@ struct CleaningHistoryView: View {
         let maxKeys = days.map(\.keystrokes).max().map { max(1, $0) } ?? 1
 
         return VStack(alignment: .leading, spacing: 10) {
-            Text("14-DAY ACTIVITY")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1.5)
-                .foregroundStyle(.secondary)
+            SectionEyebrow("14-DAY ACTIVITY", color: .secondary)
                 .padding(.leading, 24)
 
             HStack(alignment: .bottom, spacing: 3) {
