@@ -482,7 +482,14 @@ final class LockController {
         removeScreenObserver()
         soundPlayer.stop()
         recordSession()
-        saveOverallKeyCounts()
+        // Final cleanmap flush. Enqueue the latest snapshot on the serial save
+        // queue (async): removeEventTap() above means no further keystrokes can
+        // enqueue a save, so FIFO guarantees this snapshot writes last — without
+        // blocking the event-tap callback this stopLock may be running inside
+        // (the codeword-unlock path lands here from processKeyDown). The blocking
+        // flush is reserved for applicationWillTerminate, which must hit disk
+        // before the process exits.
+        saveOverallKeyCountsAsync()
         wipesSinceLastCleanmapSave = 0
         PerfMetrics.shared.sessionStop()
         // Defer window teardown to the next run loop pass — calling window.close()
@@ -630,24 +637,36 @@ final class LockController {
         UserDefaults.standard.set(true, forKey: Self.legacyMigrationDoneKey)
     }
 
+    /// Blocking cleanmap flush for `applicationWillTerminate` only: the write
+    /// must reach disk before the process exits. Runs on `.main` from the
+    /// termination notification — NOT inside the event-tap callback — so the
+    /// block is acceptable here (`stopLock` uses `saveOverallKeyCountsAsync` to
+    /// stay off the unlock-keystroke path). Encodes on the caller, then runs the
+    /// write on the SAME serial queue the throttled async saves use, blocking
+    /// until it completes: the queue is FIFO, so any async save still in flight
+    /// drains first and this final snapshot lands last — a late async write
+    /// carrying an older snapshot can no longer regress the persisted counts.
     private func saveOverallKeyCounts() {
         let stringDict = Dictionary(uniqueKeysWithValues:
             overallKeyCounts.map { (String($0.key), $0.value) }
         )
-        if let data = try? JSONEncoder().encode(stringDict) {
-            PerfMetrics.shared.recordJSONEncode()
+        guard let data = try? JSONEncoder().encode(stringDict) else { return }
+        PerfMetrics.shared.recordJSONEncode()
+        Self.cleanmapSaveQueue.sync {
             UserDefaults.standard.set(data, forKey: Self.cleanmapKeyCountsKey)
-            PerfMetrics.shared.recordUserDefaultsWrite()
         }
+        PerfMetrics.shared.recordUserDefaultsWrite()
     }
 
     /// Hot-path variant of `saveOverallKeyCounts`. Snapshots the dictionary
     /// on the MainActor (cheap value-type copy of ~20-50 entries) and
     /// off-loads JSON encode + UserDefaults write to a serial utility
     /// queue. Apple guarantees `UserDefaults.set(_:forKey:)` is thread-
-    /// safe. The synchronous variant stays in place for `stopLock` and
-    /// `applicationWillTerminate`, where we need the write to flush before
-    /// the session record is finalised / the process exits.
+    /// safe. Also used for the FINAL flush in `stopLock`: FIFO ordering on the
+    /// serial queue makes the last-enqueued snapshot win, and it keeps the
+    /// unlock keystroke off the synchronous I/O path. The blocking
+    /// `saveOverallKeyCounts` is reserved for `applicationWillTerminate`, where
+    /// the write must reach disk before the process exits.
     private func saveOverallKeyCountsAsync() {
         let snapshot = overallKeyCounts
         let key = Self.cleanmapKeyCountsKey
