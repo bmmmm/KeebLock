@@ -32,7 +32,7 @@ struct DebugInfoPanel: View {
             Divider().padding(.vertical, 2)
 
             // Screens
-            row("Screens",      "\(screens.count) (main=\(screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1))")
+            row("Screens",      "\(screens.count) (main=\((NSScreen.main ?? screens.first).flatMap { screens.firstIndex(of: $0) } ?? -1))")
             ForEach(Array(screens.enumerated()), id: \.offset) { idx, sc in
                 row("  [\(idx)]", "\(Int(sc.frame.width))×\(Int(sc.frame.height)) @ \(sc.backingScaleFactor)x · origin=(\(Int(sc.frame.minX)),\(Int(sc.frame.minY))) · \(sc.maximumFramesPerSecond)Hz")
             }

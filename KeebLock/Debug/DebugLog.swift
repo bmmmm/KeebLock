@@ -171,7 +171,7 @@ enum DebugLog {
         lines.append("")
 
         let screens = NSScreen.screens
-        let mainIdx = screens.firstIndex(of: NSScreen.main ?? screens[0]) ?? -1
+        let mainIdx = (NSScreen.main ?? screens.first).flatMap { screens.firstIndex(of: $0) } ?? -1
         lines.append("------ Screens (\(screens.count), main=\(mainIdx)) ------")
         for (i, sc) in screens.enumerated() {
             lines.append("  [\(i)] \(Int(sc.frame.width))×\(Int(sc.frame.height)) @ \(sc.backingScaleFactor)x  origin=(\(Int(sc.frame.minX)),\(Int(sc.frame.minY)))  \(sc.colorSpace?.localizedName ?? "?")  \(sc.maximumFramesPerSecond)Hz")
