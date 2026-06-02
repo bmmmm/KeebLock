@@ -117,7 +117,7 @@ struct ContentView: View {
 
             vibesPanel
 
-            WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted)
+            WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted, accent: settings.appTheme.color)
                 .keyboardShortcut(.return, modifiers: [])
 
             shortcutHints
@@ -364,7 +364,7 @@ struct ContentView: View {
                 GameModeToggle(
                     icon: "speaker.wave.2.fill",
                     label: "Sound",
-                    activeColor: Color(red: 1.0, green: 0.60, blue: 0.72),
+                    activeColor: settings.appTheme.color,
                     isOn: $settings.soundEnabled
                 )
                 EffectCycleToggle(settings: settings)

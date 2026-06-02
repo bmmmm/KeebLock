@@ -41,13 +41,17 @@ private struct WaterShape: Shape {
 struct WaterFillButton: View {
     let action: () -> Void
     var disabled: Bool = false
+    /// Accent the water gradient + border derive from — pass the active theme
+    /// color so the Start CTA follows the theme instead of hardcoding blue
+    /// (which clashed with Coffee / Sakura / Sleepy).
+    var accent: Color = .accentColor
 
     @State private var filling = false
     @State private var fillFraction: Double = 0
 
-    private let waterTop    = Color(red: 0.30, green: 0.75, blue: 1.0)
-    private let waterBottom = Color(red: 0.05, green: 0.42, blue: 0.92)
-    private let borderColor = Color(red: 0.25, green: 0.62, blue: 1.0)
+    private var waterTop: Color    { accent.mix(with: .white, by: 0.35) }
+    private var waterBottom: Color { accent.mix(with: .black, by: 0.28) }
+    private var borderColor: Color { accent }
 
     var body: some View {
         // Only mount TimelineView while the wave is actually animating —
