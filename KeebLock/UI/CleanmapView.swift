@@ -230,9 +230,9 @@ struct CleanmapView: View {
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity, minHeight: 88)
-        .background(heatBackground(fraction: frac), in: RoundedRectangle(cornerRadius: 10))
+        .background(heatBackground(fraction: frac), in: RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: Radius.md)
                 .strokeBorder(.secondary.opacity(0.18), lineWidth: 1)
         )
     }
@@ -310,9 +310,9 @@ private struct KeyTile: View {
             }
         }
         .frame(width: Self.unitSize * key.width, height: Self.unitSize)
-        .background(heatBackground(fraction: frac), in: RoundedRectangle(cornerRadius: 5))
+        .background(heatBackground(fraction: frac), in: RoundedRectangle(cornerRadius: Radius.xs))
         .overlay(
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: Radius.xs)
                 .strokeBorder(.secondary.opacity(count > 0 ? 0.25 : 0.12), lineWidth: 1)
         )
     }
@@ -342,9 +342,9 @@ private struct HeatBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Radius.xs)
                     .fill(Color.primary.opacity(0.06))
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Radius.xs)
                     .fill(color)
                     .frame(width: geo.size.width * fraction)
             }

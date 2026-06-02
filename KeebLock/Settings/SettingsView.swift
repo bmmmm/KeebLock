@@ -107,10 +107,10 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: Radius.md)
                                 .fill(settings.appTheme.color.opacity(0.08))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: Radius.md)
                                         .strokeBorder(settings.appTheme.color, lineWidth: 1.5)
                                 )
                         )
@@ -133,10 +133,10 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: Radius.md)
                                 .fill(Color.primary.opacity(0.05))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: Radius.md)
                                         .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
                                 )
                         )
@@ -184,11 +184,11 @@ struct SettingsView: View {
                             .padding(.vertical, 6)
                             .background(
                                 settings.codeword == word
-                                ? RoundedRectangle(cornerRadius: 8).fill(settings.appTheme.color.opacity(0.15))
-                                : RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05))
+                                ? RoundedRectangle(cornerRadius: Radius.sm).fill(settings.appTheme.color.opacity(0.15))
+                                : RoundedRectangle(cornerRadius: Radius.sm).fill(Color.primary.opacity(0.05))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: Radius.sm)
                                     .strokeBorder(
                                         settings.codeword == word ? settings.appTheme.color.opacity(0.5) : Color.clear,
                                         lineWidth: 1
@@ -342,9 +342,9 @@ struct SettingsView: View {
                 }
             }
             .frame(width: 28, height: 28)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: Radius.sm)
                     .strokeBorder(isSelected ? settings.appTheme.color : .secondary.opacity(0.25), lineWidth: isSelected ? 2 : 1)
             )
         }
@@ -520,7 +520,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: Radius.xs)
                         .strokeBorder(c, lineWidth: 1.2)
                 )
 
@@ -717,7 +717,7 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.sm))
             }
             .buttonStyle(.plain)
 
@@ -753,7 +753,7 @@ struct SettingsView: View {
                                     .textSelection(.enabled)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
-                                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.xs))
                                 Button {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(cmd, forType: .string)

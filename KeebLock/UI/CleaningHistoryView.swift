@@ -135,7 +135,7 @@ struct CleaningHistoryView: View {
                         let fraction = Double(day.keystrokes) / Double(maxKeys)
                         let active = day.keystrokes > 0
 
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: Radius.xs)
                             .fill(active
                                 ? LinearGradient(
                                     colors: [
@@ -249,7 +249,7 @@ struct CleaningHistoryView: View {
                 GeometryReader { g in
                     let maxD = Double(history.sessions.map(\.durationSeconds).max() ?? 1)
                     let f = min(1, Double(session.durationSeconds) / maxD)
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: Radius.xs)
                         .fill(settings.appTheme.color.opacity(0.45))
                         .frame(width: max(4, g.size.width * f), height: 3)
                 }

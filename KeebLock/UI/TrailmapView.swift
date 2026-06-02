@@ -165,7 +165,7 @@ struct TrailmapView: View {
 
     private var canvas: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: Radius.md)
                 .fill(Color.black.opacity(0.88))
 
             // Two Canvas passes with the same content: the lower one
@@ -181,7 +181,7 @@ struct TrailmapView: View {
             }
         }
         .frame(height: 360)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
     }
 
     private func drawTrail(ctx: GraphicsContext, size: CGSize) {

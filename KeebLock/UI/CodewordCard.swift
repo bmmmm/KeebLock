@@ -36,9 +36,9 @@ struct CodewordCard: View {
         }
         .padding(12)
         .frame(maxWidth: 380, alignment: .leading)
-        .background(.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .background(.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: Radius.md)
                 .strokeBorder(.tint.opacity(0.15), lineWidth: 1)
         )
     }
@@ -50,9 +50,9 @@ struct CodewordCard: View {
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
         } else {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Radius.sm)
                 .fill(.tint.opacity(0.12))
                 .frame(width: 72, height: 72)
                 .overlay(

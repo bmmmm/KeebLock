@@ -95,7 +95,7 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(.tint.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
                 }
                 .buttonStyle(.plain)
                 .help("Click for next codeword")
@@ -165,7 +165,7 @@ struct ContentView: View {
                 .tracking(4)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 3)
-                .background(.tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                .background(.tint.opacity(0.18), in: RoundedRectangle(cornerRadius: Radius.sm))
                 .foregroundStyle(.tint)
             Text(label)
         }
@@ -251,7 +251,7 @@ struct ContentView: View {
             }
         }
         .padding(12)
-        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.sm))
     }
 
     private func verifyPopover(_ id: SigningIdentity.Info, state: BuildVerification) -> some View {
@@ -297,7 +297,7 @@ struct ContentView: View {
                 .help("Copy verify command")
             }
             .padding(8)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.sm))
 
             if let url = URL(string: "https://github.com/bmmmm/KeebLock/releases/latest") {
                 Link(state == .invalid
@@ -416,7 +416,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(16)
-        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.md))
     }
 
     private func start() {

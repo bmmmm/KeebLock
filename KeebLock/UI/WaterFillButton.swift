@@ -82,7 +82,7 @@ struct WaterFillButton: View {
             }
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Radius.lg)
                     .fill(borderColor.opacity(0.10))
 
                 WaterShape(fillFraction: fillFraction, phase: phase)
@@ -93,7 +93,7 @@ struct WaterFillButton: View {
                             endPoint: .top
                         )
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
 
                 Label("Start cleaning", systemImage: "hands.sparkles.fill")
                     .font(.system(size: 20, weight: .bold))
@@ -101,9 +101,9 @@ struct WaterFillButton: View {
                     .animation(.easeInOut(duration: 0.15), value: fillFraction > 0.45)
             }
             .frame(minWidth: 240, minHeight: 56)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Radius.lg)
                     .strokeBorder(
                         borderColor.opacity(disabled ? 0.2 : 0.65),
                         lineWidth: 1.5

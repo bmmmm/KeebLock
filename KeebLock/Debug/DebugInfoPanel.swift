@@ -76,9 +76,9 @@ struct DebugInfoPanel: View {
         }
         .font(.system(.caption, design: .monospaced))
         .padding(12)
-        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: Radius.md)
                 .strokeBorder(.orange.opacity(0.3), lineWidth: 1)
         )
         // NSScreen list mutates via this notification (display added/removed,

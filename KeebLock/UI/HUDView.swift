@@ -107,9 +107,9 @@ struct HUDView: View {
                 }
             }
             .frame(width: 14, height: 14)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
             .overlay(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Radius.xs)
                     .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
             )
             Text(preset.label)
@@ -252,7 +252,7 @@ private struct HUDKnowledgeFooter: View {
             // image at all) doesn't pull the card narrower than its sibling
             // sections.
             .frame(width: Self.cardWidth, alignment: .leading)
-            .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 14))
+            .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: Radius.md))
             .onAppear { refreshEntry(for: controller.currentCodeword) }
             .onChange(of: controller.currentCodeword) { _, new in
                 refreshEntry(for: new)
@@ -324,7 +324,7 @@ private struct CodewordDisplayView: View {
         .padding(.horizontal, 28)
         .padding(.vertical, 10)
         .background(.black.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
     }
 
     /// White until matched, then fade into the active app theme so the
@@ -438,7 +438,7 @@ private struct InputBreakdownCard: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
-        .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 16))
+        .background(.black.opacity(0.32), in: RoundedRectangle(cornerRadius: Radius.lg))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

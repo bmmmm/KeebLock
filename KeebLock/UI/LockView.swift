@@ -35,7 +35,7 @@ struct LockView: View {
                 screenIndex: screenIndex
             )
             .padding(36)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Radius.xl))
 
             // Border-strip live debug HUD. Layered on top of HUD so the
             // strips draw above the codeword card; non-interactive so it
