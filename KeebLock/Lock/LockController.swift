@@ -1217,7 +1217,6 @@ final class LockController {
             // first event for a keycode = press → wipe; second = release
             // → ignore. Non-modifier keycodes that arrive here (rare —
             // some special keys also trigger flagsChanged) are skipped.
-            if isInWarmup { return nil }
             let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             guard Self.modifierKeycodes.contains(keycode) else { return nil }
             if pressedModifiers.contains(keycode) {
@@ -1225,7 +1224,16 @@ final class LockController {
                 return nil
             }
             pressedModifiers.insert(keycode)
-            recordWipingKeystroke(keycode: keycode, bucket: .control)
+            // Track the press in `pressedModifiers` even during warmup so the
+            // matching release is still recognised as a release — only the wipe
+            // recording is suppressed. Gating the whole branch on isInWarmup (as
+            // before) dropped warmup-era presses from the set, so the post-warmup
+            // release fell through to the insert+record path: a spurious wipe,
+            // and worse, it inverted press/release parity for that modifier for
+            // the rest of the session.
+            if !isInWarmup {
+                recordWipingKeystroke(keycode: keycode, bucket: .control)
+            }
             return nil
         }
 
