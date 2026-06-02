@@ -85,13 +85,25 @@ struct SettingsView: View {
             // Animated display/edit card
             ZStack {
                 if codewordEditing {
-                    TextField("codeword", text: $settings.codeword)
+                    TextField("codeword", text: Binding(
+                        get: { settings.codeword },
+                        set: {
+                            let cleaned = sanitizeCodewordInput($0)
+                            // Only write back on an actual change so a rejected
+                            // character (filtered to a no-op) doesn't churn the
+                            // didSet / UserDefaults write on every keystroke.
+                            if cleaned != settings.codeword { settings.codeword = cleaned }
+                        }
+                    ))
                         .font(.system(size: 22, weight: .semibold, design: .monospaced))
                         .tracking(2)
                         .multilineTextAlignment(.center)
                         .textFieldStyle(.plain)
                         .focused($codewordFocused)
-                        .onSubmit { withAnimation(.spring(response: 0.3)) { codewordEditing = false } }
+                        .onSubmit { commitCodeword() }
+                        .onChange(of: codewordFocused) { _, focused in
+                            if !focused { commitCodeword() }
+                        }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
                         .background(
@@ -134,6 +146,12 @@ struct SettingsView: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: codewordEditing)
+
+            if codewordEditing {
+                Text("Letters and numbers only")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack {
                 Text("Suggestions — geology")
@@ -183,6 +201,24 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// Strip anything the keystroke matcher can't receive — it is only ever fed
+    /// ASCII letters and digits (non-ASCII input is remapped to its US-layout
+    /// ASCII key) — so a stored codeword can never contain a character that makes
+    /// it impossible to type during a lock. Case is preserved; matching is
+    /// case-insensitive.
+    private func sanitizeCodewordInput(_ raw: String) -> String {
+        String(raw.filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+    }
+
+    /// End codeword editing (Return or focus loss). An empty field would arm an
+    /// unmatchable lock, so fall back to a fresh suggestion rather than persist "".
+    private func commitCodeword() {
+        if settings.codeword.isEmpty {
+            settings.codeword = Codewords.random()
+        }
+        withAnimation(.spring(response: 0.3)) { codewordEditing = false }
     }
 
     private var pixelSection: some View {

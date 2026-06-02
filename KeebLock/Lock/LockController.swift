@@ -379,8 +379,24 @@ final class LockController {
             AccessibilityPermission.request()
             return
         }
-        currentCodeword = codeword
-        matcher = CodewordMatcher(target: codeword)
+        // Defensive normalisation: the keystroke matcher is only ever fed ASCII
+        // letters and digits — processKeyDown filters on isLetter || isNumber AND
+        // remaps any non-ASCII input to its US-layout ASCII key, so a non-ASCII
+        // glyph never reaches the matcher. A codeword with spaces/punctuation, an
+        // accented letter, or an empty value could therefore never be matched,
+        // trapping the user behind the lock with only ⌘⌥Esc as a way out. Strip
+        // to the matchable ASCII-alphanumeric subset here; if nothing is left,
+        // fall back to a random shipped codeword (same policy as AppSettings'
+        // empty-codeword fallback) so a lock is never armed with an unmatchable
+        // target. The settings UI also sanitises on input — this is the last line
+        // of defence against a corrupted / hand-edited value.
+        let normalizedCodeword = String(codeword.filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+        let effectiveCodeword = normalizedCodeword.isEmpty ? Codewords.random() : normalizedCodeword
+        if effectiveCodeword != codeword {
+            DebugLog.log("startLock: codeword normalised (len \(codeword.count)→\(effectiveCodeword.count); stripped non-alphanumeric or empty-fallback)")
+        }
+        currentCodeword = effectiveCodeword
+        matcher = CodewordMatcher(target: effectiveCodeword)
         keystrokeCount = 0
         letterCount = 0
         numberCount = 0
@@ -436,7 +452,7 @@ final class LockController {
         soundPlayer.warmUp()
         installSpaceObserver()
         installScreenObserver()
-        DebugLog.log("startLock: codewordLen=\(codeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
+        DebugLog.log("startLock: codewordLen=\(effectiveCodeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
         windowManager.show(
             controller: self,
             fixedBg: AppSettings.shared.backgroundSIMD,
