@@ -7,6 +7,8 @@ import SwiftUI
 struct CodewordCard: View {
     let codeword: String
 
+    @Environment(\.uiScale) private var uiScale
+
     private var entry: CodewordKnowledge {
         CodewordKnowledgeBase.entry(for: codeword)
     }
@@ -23,19 +25,19 @@ struct CodewordCard: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 12 * uiScale) {
             thumbnail
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4 * uiScale) {
                 titleRow
                 Text(teaser)
-                    .font(.callout)
+                    .font(.system(size: 16 * uiScale))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
-        .frame(maxWidth: 380, alignment: .leading)
+        .padding(12 * uiScale)
+        .frame(maxWidth: 380 * uiScale, alignment: .leading)
         .background(.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
@@ -49,12 +51,12 @@ struct CodewordCard: View {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 72, height: 72)
+                .frame(width: 72 * uiScale, height: 72 * uiScale)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
         } else {
             RoundedRectangle(cornerRadius: Radius.sm)
                 .fill(.tint.opacity(0.12))
-                .frame(width: 72, height: 72)
+                .frame(width: 72 * uiScale, height: 72 * uiScale)
                 .overlay(
                     Image(systemName: "photo")
                         .foregroundStyle(.secondary.opacity(0.5))
@@ -63,15 +65,15 @@ struct CodewordCard: View {
     }
 
     private var titleRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * uiScale) {
             Text(entry.title)
-                .font(.headline)
+                .font(.system(size: 20 * uiScale, weight: .semibold))
                 .foregroundStyle(.tint)
                 .lineLimit(2)
-            Spacer(minLength: 4)
+            Spacer(minLength: 4 * uiScale)
             Link(destination: entry.wikipediaURL) {
                 Image(systemName: "arrow.up.right.square")
-                    .font(.callout)
+                    .font(.system(size: 16 * uiScale))
                     .foregroundStyle(.secondary)
             }
             .help("Open Wikipedia article")

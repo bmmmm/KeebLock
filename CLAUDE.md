@@ -149,3 +149,7 @@ global hooks; entitlements file makes this explicit).
 - The `build/` directory is gitignored but Xcode's xcuserdata sometimes
   recreates it under odd paths after a project move. Re-run `scripts/build.sh
   clean` if a build behaves weirdly after relocating the repo.
+- SourceKit's live diagnostics cascade into false "Cannot find <Type> in
+  scope" / "'main' attribute cannot be used…" errors across the whole module
+  mid-edit — even for symbols that plainly exist (`AppSettings`, `Radius`,
+  `UIScale`). They're noise; `scripts/build.sh` is the only source of truth.

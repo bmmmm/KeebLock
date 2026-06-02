@@ -49,3 +49,66 @@ extension Font {
     /// Medium stat number (was 22 in a couple of spots).
     static let statMedium = Font.system(size: 22, weight: .semibold, design: .monospaced)
 }
+
+// MARK: - Responsive UI scale
+
+private struct UIScaleKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 1.0
+}
+
+extension EnvironmentValues {
+    /// Continuous typography scale derived from the launcher window's current
+    /// width. `1.0` at `UIScale.referenceWidth`; grows as the user enlarges
+    /// the window so the launcher text fills the new width and stays readable
+    /// at any size. Multiply explicit `.system(size:)` literals by this; the
+    /// Settings form additionally maps it onto `dynamicTypeSize`.
+    var uiScale: CGFloat {
+        get { self[UIScaleKey.self] }
+        set { self[UIScaleKey.self] = newValue }
+    }
+}
+
+enum UIScale {
+    /// Reference content size at which `uiScale == 1.0`. The launcher's base
+    /// font sizes are tuned so the whole column fits exactly inside this box
+    /// (including the TabView's tab bar + padding). The window keeps this
+    /// width:height proportion, so the launcher scales but never needs to
+    /// scroll. Ratio ≈ 0.73, the same proportion the old fixed 560×800
+    /// window used, re-derived for the larger type.
+    static let referenceWidth: CGFloat = 600
+    static let referenceHeight: CGFloat = 820
+
+    /// The aspect ratio the window is pinned to (width : height).
+    static var aspectRatio: CGSize { CGSize(width: referenceWidth, height: referenceHeight) }
+
+    /// Scale that makes the launcher fill the available window in BOTH
+    /// dimensions without overflowing — the smaller of the width- and
+    /// height-fit factors. Because the window is aspect-locked the two
+    /// factors are equal in practice; the `min` is the belt-and-braces that
+    /// guarantees "no scroll" even if the window is briefly off-ratio (e.g.
+    /// clamped by the screen height). Clamped so it never collapses or
+    /// explodes past readability.
+    static func fit(in available: CGSize) -> CGFloat {
+        guard available.width > 0, available.height > 0 else { return 1.0 }
+        let byWidth = available.width / referenceWidth
+        let byHeight = available.height / referenceHeight
+        return min(2.6, max(0.85, min(byWidth, byHeight)))
+    }
+
+    /// Bucket the continuous scale onto the discrete `DynamicTypeSize` ladder
+    /// for the Settings form, whose native AppKit controls only respond to
+    /// dynamic type. Stepped rather than smooth, but keeps the form's stock
+    /// `.body`/`.caption` text growing with the window. The baseline is
+    /// deliberately offset *up* (scale 1.0 → `.xLarge`, not `.medium`) so the
+    /// Settings text reads as large as the launcher at the default window
+    /// size, not stock-small next to it.
+    static func dynamicType(for scale: CGFloat) -> DynamicTypeSize {
+        switch scale {
+        case ..<0.95: return .large
+        case ..<1.12: return .xLarge
+        case ..<1.32: return .xxLarge
+        case ..<1.60: return .xxxLarge
+        default:      return .accessibility1
+        }
+    }
+}

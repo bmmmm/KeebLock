@@ -32,32 +32,48 @@ final class KeebLockAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Forces the hosting NSWindow's content area to a given size whenever
-/// the size prop changes. We need this because `scaleEffect` is render-only
-/// — chained `.frame(...)` after it doesn't propagate the scaled size to
-/// SwiftUI's content-size machinery. Worse, the inner layout `.frame(...)`
-/// becomes a *floor* in SwiftUI's eyes, so a `setContentSize` to anything
-/// smaller (e.g. zoom < 1.0) gets clamped right back up by AppKit on the
-/// next layout pass.
+/// Pins the launcher window to a fixed width:height proportion so the
+/// auto-fit typography keeps a constant aspect — resizing scales the whole
+/// launcher up/down without ever needing to scroll. `contentAspectRatio`
+/// makes AppKit constrain live corner-drags to the ratio.
 ///
-/// Locking `contentMinSize` AND `contentMaxSize` to the target size pins
-/// the window to exactly that size — both growing past it (SwiftUI floor)
-/// and shrinking below it (manual resize) are blocked. The `setContentSize`
-/// call applies the change immediately rather than waiting for the next
-/// layout cycle.
-struct WindowSizer: NSViewRepresentable {
-    let size: CGSize
+/// It also owns the window size for the ⌘+/⌘−/⌘0 zoom: `zoom` maps to a
+/// content size of `ratio * zoom`. A coordinator remembers the last applied
+/// zoom and only calls `setContentSize` when `zoom` actually changes — so a
+/// manual corner-drag (which leaves `zoom` untouched) is never fought. On
+/// every pass it still nudges the current size back onto the exact ratio,
+/// covering the initial layout at launch.
+struct WindowAspectLock: NSViewRepresentable {
+    let ratio: CGSize
+    let minSize: CGSize
+    let zoom: Double
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var lastZoom: Double?
+    }
 
     func makeNSView(context: Context) -> NSView { NSView() }
 
     func updateNSView(_ view: NSView, context: Context) {
-        // Defer one runloop tick so the view is attached to a window.
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            window.contentMinSize = size
-            window.contentMaxSize = size
-            if window.contentLayoutRect.size != size {
-                window.setContentSize(size)
+            window.contentAspectRatio = ratio
+            window.contentMinSize = minSize
+
+            if context.coordinator.lastZoom != zoom {
+                context.coordinator.lastZoom = zoom
+                window.setContentSize(CGSize(width: ratio.width * zoom,
+                                             height: ratio.height * zoom))
+                return
+            }
+
+            // Keep the current (possibly user-dragged) size exactly on-ratio.
+            let size = window.contentLayoutRect.size
+            let targetH = size.width * ratio.height / ratio.width
+            if abs(targetH - size.height) > 0.5 {
+                window.setContentSize(CGSize(width: size.width, height: targetH))
             }
         }
     }
@@ -75,52 +91,40 @@ struct KeebLockApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // App-wide visual zoom — scaleEffect renders the layout 1.3x,
-            // and a WindowSizer drives the AppKit window's contentSize to
-            // match. Why not just chain a .frame() after scaleEffect:
-            // scaleEffect is render-only, the post-scale frame doesn't
-            // reach `windowResizability(.contentSize)` reliably — the
-            // window stayed at the unscaled inner layout width even at
-            // 130 %, clipping rendered content. setContentSize on the
-            // NSWindow IS reliable.
-            //
-            //   inner .frame(560 × 800): the "natural" layout container.
-            //
-            //   .scaleEffect(zoom, anchor: .center): visual zoom around
-            //   the centre — content scales toward / from the midpoint.
-            //   .topLeading would jam content into the upper-left corner
-            //   when zoomed out; .center distributes any leftover space
-            //   symmetrically.
-            //
-            //   outer .frame(560*zoom × 800*zoom, alignment: .center):
-            //   visible window region tracks the scaled content exactly.
-            //   No "minimum natural size" floor — at <100 % the window
-            //   shrinks with the content, at >100 % it grows. Visual
-            //   breathing room comes from the content's own .padding,
-            //   which scales together with everything else.
-            //
-            //   .background(WindowSizer(...)): pushes the same target
-            //   size into NSWindow.contentMin/MaxSize/setContentSize so
-            //   the AppKit window matches exactly.
-            let zoom = settings.appZoom
-            let windowW = 560 * zoom
-            let windowH = 800 * zoom
-            ContentView()
-                .environmentObject(settings)
-                .environment(lockController)
-                .frame(width: 560, height: 800)
-                .scaleEffect(zoom, anchor: .center)
-                .frame(width: windowW, height: windowH, alignment: .center)
-                .background(WindowSizer(size: CGSize(
-                    width: windowW,
-                    height: windowH
-                )))
-                .tint(settings.appTheme.color)
+            // Aspect-locked, auto-fitting window. A GeometryReader reads the
+            // live content size and turns it into a continuous `uiScale` via
+            // `UIScale.fit`, which sizes the launcher to fill BOTH dimensions
+            // without overflowing — so the launcher never scrolls, it just
+            // scales. The window is pinned to the launcher's aspect ratio
+            // (WindowAspectLock) so the proportion stays constant as the user
+            // resizes. All type is re-rendered at true point sizes (no
+            // scaleEffect magnification) so it stays sharp at any size. The
+            // Settings form, which is taller, scrolls within the same window.
+            GeometryReader { proxy in
+                let scale = UIScale.fit(in: proxy.size)
+                ContentView()
+                    .environmentObject(settings)
+                    .environment(lockController)
+                    .environment(\.uiScale, scale)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .tint(settings.appTheme.color)
+                    .background(WindowAspectLock(
+                        ratio: UIScale.aspectRatio,
+                        minSize: CGSize(width: 460, height: 460 * UIScale.referenceHeight / UIScale.referenceWidth),
+                        zoom: settings.appZoom
+                    ))
+            }
+            .frame(
+                minWidth: 460,
+                idealWidth: UIScale.referenceWidth,
+                minHeight: 460 * UIScale.referenceHeight / UIScale.referenceWidth,
+                idealHeight: UIScale.referenceHeight
+            )
         }
-        // .automatic instead of .contentSize: WindowSizer drives the
-        // exact size via NSWindow.contentMinSize/MaxSize; .contentSize
-        // would fight that with SwiftUI's own content-driven sizing pass.
-        .windowResizability(.automatic)
+        // .contentMinSize: the window can't be dragged below the content's
+        // minimum (so text never clips at the floor); WindowAspectLock keeps
+        // every larger size on the fixed proportion.
+        .windowResizability(.contentMinSize)
         .commands {
             // Application menu (replaces the default "About" item)
             CommandGroup(replacing: .appInfo) {

@@ -23,6 +23,11 @@ struct ContentView: View {
     /// mistake "merely signed" for "actually checked".
     @AppStorage("KeebLock.verifiedCDHash") private var verifiedCDHash: String = ""
 
+    /// Window-width-driven typography scale (see `UIScale`). All explicit
+    /// launcher font sizes are expressed as `base * uiScale` so the text
+    /// grows with the window and stays crisp.
+    @Environment(\.uiScale) private var uiScale
+
     var body: some View {
         TabView(selection: $selectedTab) {
             launcherTab
@@ -61,69 +66,80 @@ struct ContentView: View {
     }
 
     private var launcherTab: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "keyboard")
-                .font(.system(size: 64))
-                .foregroundStyle(accessibilityGranted ? settings.appTheme.color : .orange)
+        // No ScrollView: the window is aspect-locked and `uiScale` fits the
+        // column into the available space in both dimensions, so the launcher
+        // never needs to scroll — it just scales. Centered in whatever space
+        // the (proportional) window provides.
+        VStack {
+            Spacer(minLength: 0)
+            VStack(spacing: 18 * uiScale) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 72 * uiScale))
+                    .foregroundStyle(accessibilityGranted ? settings.appTheme.color : .orange)
 
-            Text("KeebLock")
-                .font(.system(size: 32, weight: .bold))
+                Text("KeebLock")
+                    .font(.system(size: 44 * uiScale, weight: .bold))
 
-            Text("Lock the keyboard. Clean it.\nType the codeword to unlock.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                Text("Lock the keyboard. Clean it.\nType the codeword to unlock.")
+                    .font(.system(size: 19 * uiScale, weight: .regular))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
 
-            if !accessibilityGranted {
-                accessibilityBanner
-            }
+                if !accessibilityGranted {
+                    accessibilityBanner
+                }
 
-            VStack(spacing: 6) {
-                Text("Current codeword")
-                    .font(.caption)
-                    .foregroundStyle(.tint)
-                Button {
-                    settings.codeword = Codewords.random()
-                } label: {
-                    HStack(spacing: 8) {
-                        Text(settings.codeword.uppercased())
-                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                            .tracking(2)
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
+                VStack(spacing: 6 * uiScale) {
+                    Text("Current codeword")
+                        .font(.system(size: 14 * uiScale, weight: .semibold))
+                        .foregroundStyle(.tint)
+                    Button {
+                        settings.codeword = Codewords.random()
+                    } label: {
+                        HStack(spacing: 8 * uiScale) {
+                            Text(settings.codeword.uppercased())
+                                .font(.system(size: 32 * uiScale, weight: .semibold, design: .monospaced))
+                                .tracking(2 * uiScale)
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 18 * uiScale, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 18 * uiScale)
+                        .padding(.vertical, 10 * uiScale)
+                        .background(.tint.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Click for next codeword")
+
+                    HStack(spacing: 4 * uiScale) {
+                        Image(systemName: "keyboard.badge.eye")
+                            .font(.system(size: 12 * uiScale))
+                            .foregroundStyle(.tint)
+                        Text(inputSource.localizedName)
+                            .font(.system(size: 12 * uiScale))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.tint.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                    .help("Active keyboard layout — KeebLock follows your input source")
                 }
-                .buttonStyle(.plain)
-                .help("Click for next codeword")
 
-                HStack(spacing: 4) {
-                    Image(systemName: "keyboard.badge.eye")
-                        .font(.caption2)
-                        .foregroundStyle(.tint)
-                    Text(inputSource.localizedName)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                if settings.showCodewordKnowledge {
+                    CodewordCard(codeword: settings.codeword)
                 }
-                .help("Active keyboard layout — KeebLock follows your input source")
+
+                vibesPanel
+
+                WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted, accent: settings.appTheme.color)
+                    .keyboardShortcut(.return, modifiers: [])
+
+                shortcutHints
+                buildIdentityFooter
             }
-
-            if settings.showCodewordKnowledge {
-                CodewordCard(codeword: settings.codeword)
-            }
-
-            vibesPanel
-
-            WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted, accent: settings.appTheme.color)
-                .keyboardShortcut(.return, modifiers: [])
-
-            shortcutHints
-            buildIdentityFooter
+            .frame(maxWidth: .infinity)
+            .padding(28 * uiScale)
+            Spacer(minLength: 0)
         }
-        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private enum BuildVerification { case verified, needsVerification, invalid }
@@ -140,19 +156,19 @@ struct ContentView: View {
     /// native feel; sized for at-a-glance reading from a normal viewing
     /// distance, not whisper-discreet.
     private var shortcutHints: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 18 * uiScale) {
             shortcutBadge(keys: "⌘S",   label: "Start")
             shortcutBadge(keys: "⌘R",   label: "Roll codeword")
             shortcutBadge(keys: "⌘,",   label: "Settings")
             shortcutBadge(keys: "⌘Q",   label: "Quit")
         }
-        .font(.caption)
+        .font(.system(size: 13 * uiScale))
         .foregroundStyle(.secondary)
-        .padding(.top, 4)
+        .padding(.top, 4 * uiScale)
     }
 
     private func shortcutBadge(keys: String, label: String) -> some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 7 * uiScale) {
             // Tracking widens the gap between ⌘ and the letter so the
             // sequence reads as two symbols, not the word "cmdS". Apple's
             // own UI uses uppercase letters (⌘S, not ⌘s) — Shift is
@@ -161,10 +177,10 @@ struct ContentView: View {
             // applied at the WindowGroup root, so the badge re-colours
             // automatically when the user switches accent theme.
             Text(keys)
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                .tracking(4)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 3)
+                .font(.system(size: 13 * uiScale, weight: .semibold, design: .monospaced))
+                .tracking(4 * uiScale)
+                .padding(.horizontal, 9 * uiScale)
+                .padding(.vertical, 3 * uiScale)
                 .background(.tint.opacity(0.18), in: RoundedRectangle(cornerRadius: Radius.sm))
                 .foregroundStyle(.tint)
             Text(label)
@@ -178,24 +194,24 @@ struct ContentView: View {
         return Button {
             showVerifyPopover.toggle()
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 5 * uiScale) {
                 Image(systemName: shieldIcon(for: state))
-                    .font(.caption2)
+                    .font(.system(size: 11 * uiScale))
                     .foregroundStyle(color)
                     .shadow(color: color.opacity(0.55), radius: 3)
                 if let tid = id.teamID {
                     Text("Build identity ")
                         .foregroundStyle(.secondary)
                     Text(tid)
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(.system(size: 11 * uiScale, design: .monospaced))
                         .foregroundStyle(.secondary)
                 } else {
                     Text("Not the official build")
-                        .font(.caption2.weight(.semibold))
+                        .font(.system(size: 11 * uiScale, weight: .semibold))
                         .foregroundStyle(.red)
                 }
             }
-            .font(.caption2)
+            .font(.system(size: 11 * uiScale))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -354,13 +370,13 @@ struct ContentView: View {
     }
 
     private var vibesPanel: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10 * uiScale) {
             Text("vibes")
-                .font(.caption2.weight(.semibold))
-                .tracking(2)
+                .font(.system(size: 11 * uiScale, weight: .semibold))
+                .tracking(2 * uiScale)
                 .foregroundStyle(.tint)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 10 * uiScale) {
                 GameModeToggle(
                     icon: "speaker.wave.2.fill",
                     label: "Sound",
@@ -371,7 +387,7 @@ struct ContentView: View {
                 ColorModeToggle(settings: settings)
                 WipeModeToggle(settings: settings)
             }
-            .frame(maxWidth: 460)
+            .frame(maxWidth: 460 * uiScale)
         }
     }
 

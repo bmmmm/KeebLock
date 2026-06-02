@@ -7,6 +7,12 @@ struct SettingsView: View {
     var controller: LockController
     @ObservedObject var history: CleaningHistory = .shared
 
+    /// Same window-width scale that drives the launcher. The grouped Form's
+    /// native AppKit controls only respond to dynamic type, so the continuous
+    /// scale is bucketed onto the `DynamicTypeSize` ladder below; explicit
+    /// font sizes (the codeword display) multiply by it directly.
+    @Environment(\.uiScale) private var uiScale
+
     @State private var suggestions: [String] = Codewords.suggestions()
     @State private var showCleanmap = false
     @State private var showTrailmap = false
@@ -35,6 +41,7 @@ struct SettingsView: View {
                 debugSection
             }
             .formStyle(.grouped)
+            .dynamicTypeSize(UIScale.dynamicType(for: uiScale))
             .onChange(of: settings.debugLoggingEnabled) { _, enabled in
                 guard enabled else { return }
                 // Defer one runloop tick so the conditional sub-views in
@@ -95,8 +102,8 @@ struct SettingsView: View {
                             if cleaned != settings.codeword { settings.codeword = cleaned }
                         }
                     ))
-                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                        .tracking(2)
+                        .font(.system(size: 22 * uiScale, weight: .semibold, design: .monospaced))
+                        .tracking(2 * uiScale)
                         .multilineTextAlignment(.center)
                         .textFieldStyle(.plain)
                         .focused($codewordFocused)
@@ -225,7 +232,7 @@ struct SettingsView: View {
         tintedSection("Pixel size") {
             HStack(spacing: 12) {
                 Image(systemName: "square.fill")
-                    .font(.system(size: 18))
+                    .font(.system(size: 18 * uiScale))
                     .foregroundStyle(.secondary)
                 Slider(
                     value: Binding(
@@ -236,7 +243,7 @@ struct SettingsView: View {
                     step: 1
                 )
                 Image(systemName: "square.grid.4x3.fill")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12 * uiScale))
                     .foregroundStyle(.secondary)
                 Text("\(settings.pixelFineness)")
                     .font(.system(.body, design: .monospaced))
@@ -274,7 +281,7 @@ struct SettingsView: View {
 
             HStack(spacing: 12) {
                 Image(systemName: "checkmark.circle")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12 * uiScale))
                     .foregroundStyle(.secondary)
                 Slider(
                     value: $settings.stageAdvanceThreshold,
@@ -282,7 +289,7 @@ struct SettingsView: View {
                     step: 0.01
                 )
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 14 * uiScale))
                     .foregroundStyle(.secondary)
                 Text("\(Int(settings.stageAdvanceThreshold * 100))%")
                     .font(.system(.body, design: .monospaced))
@@ -384,7 +391,7 @@ struct SettingsView: View {
 
                 HStack(spacing: 12) {
                     Image(systemName: settings.screenEffect.sliderLeftIcon)
-                        .font(.system(size: 12))
+                        .font(.system(size: 12 * uiScale))
                         .foregroundStyle(.secondary)
                     Slider(
                         value: Binding(
@@ -395,7 +402,7 @@ struct SettingsView: View {
                         step: 1
                     )
                     Image(systemName: settings.screenEffect.sliderRightIcon)
-                        .font(.system(size: 15))
+                        .font(.system(size: 15 * uiScale))
                         .foregroundStyle(settings.screenEffect.activeColor)
                     Text("\(settings.sparkCount)")
                         .font(.system(.body, design: .monospaced))
@@ -492,7 +499,7 @@ struct SettingsView: View {
                 .buttonStyle(.borderless)
                 .disabled(abs(settings.appZoom - 1.0) < 0.001)
             }
-            Text("Visual zoom for the entire KeebLock window — launcher and settings together. Use ⌘+ / ⌘− to step in 10 % increments, ⌘0 to reset. Doesn't affect the lock screen.")
+            Text("Resizes the KeebLock window proportionally — the launcher and settings text scale to fit. You can also just drag the window edge. Use ⌘+ / ⌘− to step in 10 % increments, ⌘0 to reset. Doesn't affect the lock screen.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -679,7 +686,7 @@ struct SettingsView: View {
             // Header line: icon + name/version + GitHub-link inline.
             HStack(spacing: 12) {
                 Image(systemName: "keyboard.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: 22 * uiScale))
                     .foregroundStyle(settings.appTheme.color)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("KeebLock").font(.headline)
