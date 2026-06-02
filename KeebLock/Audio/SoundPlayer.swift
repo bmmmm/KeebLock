@@ -19,7 +19,7 @@ final class SoundPlayer {
 
     private var customPlayer: AVAudioPlayer?
     /// Security-scoped URL for the currently-loaded custom file. Held for
-    /// the lifetime of `customPlayer` — released on swap, stop, or deinit.
+    /// the lifetime of `customPlayer` — released on swap or deinit.
     /// Releasing earlier (via `defer` inside `setCustomFile`) leaves
     /// `AVAudioPlayer` accessing a path whose scope is closed; the file
     /// descriptor is cached on the player but the scope contract is broken
@@ -154,8 +154,8 @@ final class SoundPlayer {
             p.prepareToPlay()
             p.volume = playerNode.volume
             customPlayer = p
-            // Scope held until next setCustomFile() / stop() / deinit —
-            // matches the lifetime of the AVAudioPlayer's open file.
+            // Scope held until next setCustomFile() / deinit — matches the
+            // lifetime of the AVAudioPlayer's open file.
             customScopedURL = url
             DebugLog.log("SoundPlayer: loaded custom file \(url.lastPathComponent) duration=\(p.duration)s")
         } catch {
@@ -197,8 +197,13 @@ final class SoundPlayer {
         // teardown/restart cycle if the user immediately starts another
         // lock session.
         customPlayer?.stop()
-        customScopedURL?.stopAccessingSecurityScopedResource()
-        customScopedURL = nil
+        // Do NOT release the security scope here. SoundPlayer is a singleton
+        // reused across lock sessions and `customPlayer` is only (re)built by
+        // setCustomFile() — never per startLock — so releasing the scope on
+        // stop() while keeping `customPlayer` alive left the next session
+        // playing through a player whose scope was already closed, which TCC
+        // can silence intermittently. The scope's lifetime tracks
+        // `customPlayer`'s: released only on a setCustomFile() swap or deinit.
     }
 
     deinit {
