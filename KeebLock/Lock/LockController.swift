@@ -1219,13 +1219,14 @@ final class LockController {
                 return nil
             }
             // Any other NX_SYSDEFINED subtype (power key, mouse aux, sleep,
-            // etc.) is passed through untouched. Under verbose perf, log the
-            // subtype so a power-button press during a session is observable in
-            // the snapshot — this is the spike for "can we catch the power
-            // button". On Apple Silicon / T2 Macs the power button is wired to
-            // the SMC and handled by powerd below the session event tap, so it
-            // most likely never reaches here at all; an empty log on press
-            // confirms interception is not possible at the app layer. See TODO.
+            // etc.) is passed through untouched — we cannot consume it.
+            // CONFIRMED 2026-06-02: a power-button press produces NO event here
+            // (no sysDefined count on press). On Apple Silicon / T2 Macs the
+            // power button is wired to the SMC and handled by powerd below the
+            // session event tap, so it never reaches an app-level tap at all.
+            // Interception is impossible at the app layer — KeebLock cannot stop
+            // the power button from sleeping / locking the Mac. Logging retained
+            // (gated on verbose perf) as a diagnostic for other hardware.
             if AppSettings.shared.verbosePerfEnabled {
                 let subtype = NSEvent(cgEvent: event)?.subtype.rawValue ?? -1
                 PerfMetrics.shared.recordEvent("sysDefined subtype=\(subtype) (passed through)")
@@ -1260,22 +1261,28 @@ final class LockController {
         }
 
         if type == .keyDown {
-            // ⌘⌥Esc force-quit escape hatch. KeebLock is a cleaning aid, not a
-            // kiosk lock (see threat model) — the user must always keep a manual
-            // way out if the codeword path ever wedges. We swallow every other
-            // keyDown, which previously ate Escape too and silently disabled the
-            // documented force-quit combo. Detect Escape (keycode 53) carrying
-            // both Command and Option and pass the event through untouched so the
-            // system's Force Quit handler fires. The flags on the keyDown event
-            // itself carry the modifier state, so this works even though we
-            // swallow the Cmd/Opt flagsChanged events. Not counted as a wipe —
-            // the user is escaping, not cleaning.
+            // ⌘⌥Esc escape hatch. KeebLock is a cleaning aid, not a kiosk lock
+            // (see threat model) — the user must always keep a way out if the
+            // codeword path ever wedges. Passing the combo through to the
+            // system's Force Quit handler does NOT work during a lock: we
+            // swallow the Cmd/Opt flagsChanged events (so WindowServer never
+            // registers the chord) and, even if it did, the Force Quit window
+            // would open BEHIND our full-screen .screenSaver-level lock window —
+            // invisible. So we handle the chord ourselves and unlock: that frees
+            // the user reliably and tears down the occluding window (a second
+            // ⌘⌥Esc then reaches the system normally). Detect Escape (keycode 53)
+            // with both Command and Option held, checking BOTH our tracked
+            // modifier set (robust — flagsChanged populates it even in warmup)
+            // and the event's own flags. Not counted as a wipe.
             let escKeycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             if escKeycode == 53 {
-                let forceQuitMods: CGEventFlags = [.maskCommand, .maskAlternate]
-                if event.flags.contains(forceQuitMods) {
-                    DebugLog.log("keyDown: ⌘⌥Esc force-quit combo — passing through")
-                    return Unmanaged.passUnretained(event)
+                let cmdHeld = pressedModifiers.contains(54) || pressedModifiers.contains(55)
+                let optHeld = pressedModifiers.contains(58) || pressedModifiers.contains(61)
+                let flagsHaveBoth = event.flags.contains([.maskCommand, .maskAlternate])
+                if (cmdHeld && optHeld) || flagsHaveBoth {
+                    DebugLog.log("keyDown: ⌘⌥Esc escape hatch — unlocking (tracked=\(cmdHeld && optHeld) flags=\(flagsHaveBoth))")
+                    stopLock()
+                    return nil
                 }
             }
             // Skip OS-generated key repeats (held-down key). Repeats are
