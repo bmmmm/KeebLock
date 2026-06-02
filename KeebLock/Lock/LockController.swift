@@ -1180,6 +1180,18 @@ final class LockController {
                 }
                 return nil
             }
+            // Any other NX_SYSDEFINED subtype (power key, mouse aux, sleep,
+            // etc.) is passed through untouched. Under verbose perf, log the
+            // subtype so a power-button press during a session is observable in
+            // the snapshot — this is the spike for "can we catch the power
+            // button". On Apple Silicon / T2 Macs the power button is wired to
+            // the SMC and handled by powerd below the session event tap, so it
+            // most likely never reaches here at all; an empty log on press
+            // confirms interception is not possible at the app layer. See TODO.
+            if AppSettings.shared.verbosePerfEnabled {
+                let subtype = NSEvent(cgEvent: event)?.subtype.rawValue ?? -1
+                PerfMetrics.shared.recordEvent("sysDefined subtype=\(subtype) (passed through)")
+            }
             return Unmanaged.passUnretained(event)
         }
 
@@ -1202,6 +1214,24 @@ final class LockController {
         }
 
         if type == .keyDown {
+            // ⌘⌥Esc force-quit escape hatch. KeebLock is a cleaning aid, not a
+            // kiosk lock (see threat model) — the user must always keep a manual
+            // way out if the codeword path ever wedges. We swallow every other
+            // keyDown, which previously ate Escape too and silently disabled the
+            // documented force-quit combo. Detect Escape (keycode 53) carrying
+            // both Command and Option and pass the event through untouched so the
+            // system's Force Quit handler fires. The flags on the keyDown event
+            // itself carry the modifier state, so this works even though we
+            // swallow the Cmd/Opt flagsChanged events. Not counted as a wipe —
+            // the user is escaping, not cleaning.
+            let escKeycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+            if escKeycode == 53 {
+                let forceQuitMods: CGEventFlags = [.maskCommand, .maskAlternate]
+                if event.flags.contains(forceQuitMods) {
+                    DebugLog.log("keyDown: ⌘⌥Esc force-quit combo — passing through")
+                    return Unmanaged.passUnretained(event)
+                }
+            }
             // Skip OS-generated key repeats (held-down key). Repeats are
             // already swallowed by the trailing `return nil`; we just
             // refrain from counting / matching / sounding them. Without
