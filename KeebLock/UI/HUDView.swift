@@ -98,10 +98,7 @@ struct HUDView: View {
                             .stroke(Color.white.opacity(0.6), lineWidth: 1)
                         )
                 } else if preset == .random {
-                    LinearGradient(
-                        colors: [.pink, .yellow, .green, .blue, .purple],
-                        startPoint: .leading, endPoint: .trailing
-                    )
+                    LinearGradient.presetRainbow
                 } else {
                     preset.swiftUIColor
                 }

@@ -44,3 +44,13 @@ extension Color {
     /// Faintest muted text — disabled / placeholder.
     static let mutedFaint = Color.white.opacity(0.45)
 }
+
+extension LinearGradient {
+    /// Five-stop spectrum that represents the "random color" preset. Was
+    /// copy-pasted at four call sites (HUD codeword swatch, the launcher color
+    /// chip, its picker, and the Settings color picker).
+    static let presetRainbow = LinearGradient(
+        colors: [.pink, .yellow, .green, .blue, .purple],
+        startPoint: .leading, endPoint: .trailing
+    )
+}

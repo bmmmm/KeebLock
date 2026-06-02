@@ -22,10 +22,7 @@ struct ColorModeToggle: View {
     private var swatch: some View {
         switch preset {
         case .random:
-            LinearGradient(
-                colors: [.pink, .yellow, .green, .blue, .purple],
-                startPoint: .leading, endPoint: .trailing
-            )
+            LinearGradient.presetRainbow
             .frame(width: 26, height: 26)
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1.5))
@@ -103,10 +100,7 @@ struct ColorModeToggle: View {
     private func presetSwatchFill(_ p: ColorPreset) -> some View {
         switch p {
         case .random:
-            LinearGradient(
-                colors: [.pink, .yellow, .green, .blue, .purple],
-                startPoint: .leading, endPoint: .trailing
-            )
+            LinearGradient.presetRainbow
         case .transparent:
             ZStack {
                 Color.gray.opacity(0.25)

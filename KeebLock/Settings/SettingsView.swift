@@ -356,10 +356,7 @@ struct SettingsView: View {
     private func presetSwatchFill(_ preset: ColorPreset) -> some View {
         switch preset {
         case .random:
-            LinearGradient(
-                colors: [.pink, .yellow, .green, .blue, .purple],
-                startPoint: .leading, endPoint: .trailing
-            )
+            LinearGradient.presetRainbow
         case .transparent:
             ZStack {
                 Color.gray.opacity(0.25)
