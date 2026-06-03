@@ -1,3 +1,4 @@
+import Carbon
 import SwiftUI
 
 // Polyline visualisation of how the user moved across the keyboard
@@ -10,6 +11,7 @@ import SwiftUI
 struct TrailmapView: View {
     var controller: LockController
     @ObservedObject private var settings: AppSettings = .shared
+    @ObservedObject private var inputSource = InputSourceObserver.shared
     @Environment(\.dismiss) private var dismiss
 
     enum ColorMode: String, CaseIterable, Identifiable {
@@ -19,9 +21,39 @@ struct TrailmapView: View {
         var id: String { rawValue }
     }
 
+    /// Canvas backdrop. `keyboard` draws the layout behind the trail so a
+    /// stroke can be read against the key it landed on; `plain` is the bare
+    /// dark canvas. Keyboard is the default — without it the trail is a set
+    /// of lines floating in space with no spatial reference.
+    enum Backdrop: String, CaseIterable, Identifiable {
+        case keyboard = "Keyboard"
+        case plain    = "Plain"
+        var id: String { rawValue }
+    }
+
+    @State private var backdrop: Backdrop = .keyboard
     @State private var colorMode: ColorMode = .hueGradient
     @State private var blurRadius: Double = 6
     @State private var lineWidth: Double = 2
+
+    /// Layout-translated key labels for the keyboard backdrop, so it reads in
+    /// the user's actual layout (Y↔Z and umlauts on QWERTZ, etc.) — same as
+    /// the Cleanmap. Rebuilt on appear and when the active input source
+    /// changes. Empty until built; `resolvedLabel` falls back to the static
+    /// US label meanwhile.
+    @State private var dynamicLabels: [UInt16: String] = [:]
+
+    /// Modifier / special keycodes whose labels stay as their hard-coded
+    /// glyphs — UCKeyTranslate would return control chars or the same letter
+    /// on every layout for these, so static is more useful.
+    private static let staticLabelKeycodes: Set<UInt16> = [
+        53,                                                        // esc
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,    // F1–F12
+        51, 48, 57, 36,                                            // delete tab caps return
+        56, 60,                                                    // shift
+        63, 59, 62, 58, 61, 55, 54, 49,                            // fn ctrl opt cmd space
+        123, 124, 125, 126,                                        // arrows
+    ]
 
     private var trail: [TrailPoint] { controller.sessionTrail }
 
@@ -60,6 +92,33 @@ struct TrailmapView: View {
             footer
         }
         .frame(minWidth: 720, minHeight: 620)
+        .onAppear { rebuildDynamicLabels() }
+        .onChange(of: inputSource.sourceID) { _, _ in rebuildDynamicLabels() }
+    }
+
+    /// Per-key label: layout-translated when available, otherwise the
+    /// hard-coded fallback (modifier glyphs, F-keys, special keys).
+    private func resolvedLabel(for key: KeyboardKey) -> String {
+        if let code = key.code, let dyn = dynamicLabels[code] { return dyn }
+        return key.label
+    }
+
+    /// Walk the layout's keycodes once, ask UCKeyTranslate for the
+    /// layout-correct label, cache. Cheap and only fires on view show /
+    /// layout switch — never per-frame.
+    private func rebuildDynamicLabels() {
+        guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+        var map: [UInt16: String] = [:]
+        for row in KeyboardLayout.rows {
+            for key in row {
+                guard let code = key.code,
+                      !Self.staticLabelKeycodes.contains(code) else { continue }
+                if let label = KeyboardLayoutLookup.translate(keycode: code, source: src) {
+                    map[code] = label
+                }
+            }
+        }
+        dynamicLabels = map
     }
 
     // MARK: - Header / Footer
@@ -130,6 +189,13 @@ struct TrailmapView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Picker("Backdrop", selection: $backdrop) {
+                ForEach(Backdrop.allCases) { bg in
+                    Text(bg.rawValue).tag(bg)
+                }
+            }
+            .pickerStyle(.segmented)
+
             Picker("Color", selection: $colorMode) {
                 ForEach(ColorMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -168,6 +234,15 @@ struct TrailmapView: View {
             RoundedRectangle(cornerRadius: Radius.md)
                 .fill(Color.black.opacity(0.88))
 
+            // Keyboard backdrop, drawn with the SAME per-row normalisation
+            // KeyboardPositionMap uses to place trail points, so a stroke
+            // lands exactly on the key it was made on.
+            if backdrop == .keyboard {
+                Canvas { ctx, size in
+                    drawKeyboard(ctx: ctx, size: size)
+                }
+            }
+
             // Two Canvas passes with the same content: the lower one
             // is blurred for a halo/glow, the upper stays sharp so
             // the line cores remain crisp regardless of blur radius.
@@ -182,6 +257,47 @@ struct TrailmapView: View {
         }
         .frame(height: 360)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+    }
+
+    /// Renders the keyboard layout as a faint backdrop. Each row is stretched
+    /// to fill the full width and normalised by its own unit total — identical
+    /// to `KeyboardPositionMap`'s coordinate maths — so the trail (which reads
+    /// from that map) aligns key-for-key on top of it.
+    private func drawKeyboard(ctx: GraphicsContext, size: CGSize) {
+        let rowCount = KeyboardLayout.rows.count
+        guard rowCount > 0 else { return }
+        let rowHeight = size.height / CGFloat(rowCount)
+        let gap: CGFloat = 2
+
+        for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
+            let totalWidth = row.reduce(CGFloat(0)) { $0 + $1.width }
+            guard totalWidth > 0 else { continue }
+            let yMin = CGFloat(rowIdx) * rowHeight
+            var cursor: CGFloat = 0
+
+            for key in row {
+                let xMin = cursor / totalWidth * size.width
+                cursor += key.width
+                let xMax = cursor / totalWidth * size.width
+
+                let rect = CGRect(x: xMin + gap, y: yMin + gap,
+                                  width: (xMax - xMin) - gap * 2,
+                                  height: rowHeight - gap * 2)
+                guard rect.width > 0, rect.height > 0 else { continue }
+
+                let shape = Path(roundedRect: rect, cornerRadius: 3)
+                ctx.fill(shape, with: .color(.white.opacity(0.045)))
+                ctx.stroke(shape, with: .color(.white.opacity(0.12)), lineWidth: 1)
+
+                guard key.code != nil else { continue }
+                let fontSize = min(10, rect.height * 0.4)
+                var label = ctx.resolve(
+                    Text(resolvedLabel(for: key)).font(.system(size: fontSize, weight: .medium))
+                )
+                label.shading = .color(.white.opacity(0.22))
+                ctx.draw(label, at: CGPoint(x: rect.midX, y: rect.midY))
+            }
+        }
     }
 
     private func drawTrail(ctx: GraphicsContext, size: CGSize) {
