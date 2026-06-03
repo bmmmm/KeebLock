@@ -376,19 +376,6 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showCodewordProgress, forKey: Keys.codewordProgress) }
     }
 
-    /// App-wide visual zoom (0.80 → 1.60). Applied as a `scaleEffect` on
-    /// the WindowGroup root, with a matching outer frame so the window
-    /// resizes proportionally. Affects launcher AND settings — anything
-    /// rendered inside the main window grows / shrinks together.
-    /// Independent of the macOS-wide accessibility setting; only changes
-    /// KeebLock's own window. ⌘+ / ⌘− / ⌘0 are the only UI controls
-    /// (no slider — it was tried as text-scale via dynamicTypeSize, the
-    /// underlying SwiftUI mechanism under-scales native AppKit controls
-    /// on macOS so the result felt dead even at large values).
-    @Published var appZoom: Double {
-        didSet { defaults.set(appZoom, forKey: Keys.appZoom) }
-    }
-
     // MARK: - Debug
 
     /// Cap for `keeblock.log`. When the file exceeds this size the next
@@ -459,7 +446,6 @@ final class AppSettings: ObservableObject {
         static let pixelColor         = "pixelColorPreset"
         static let knowledge          = "showCodewordKnowledge"
         static let codewordProgress   = "showCodewordProgress"
-        static let appZoom            = "appZoom"
         static let debug              = "debugLoggingEnabled"
         static let logMaxSize         = "logFileMaxSizeMB"
         static let verbosePerf        = "verbosePerfEnabled"
@@ -507,8 +493,6 @@ final class AppSettings: ObservableObject {
 
         self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
         self.showCodewordProgress  = d.object(forKey: Keys.codewordProgress) as? Bool ?? true
-        let zoom = d.object(forKey: Keys.appZoom) as? Double ?? 1.0
-        self.appZoom = (0.80...1.60).contains(zoom) ? zoom : 1.0
         let mb = d.object(forKey: Keys.logMaxSize) as? Int ?? 5
         self.logFileMaxSizeMB = (1...100).contains(mb) ? mb : 5
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false

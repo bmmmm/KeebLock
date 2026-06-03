@@ -35,24 +35,13 @@ final class KeebLockAppDelegate: NSObject, NSApplicationDelegate {
 /// Pins the launcher window to a fixed width:height proportion so the
 /// auto-fit typography keeps a constant aspect — resizing scales the whole
 /// launcher up/down without ever needing to scroll. `contentAspectRatio`
-/// makes AppKit constrain live corner-drags to the ratio.
-///
-/// It also owns the window size for the ⌘+/⌘−/⌘0 zoom: `zoom` maps to a
-/// content size of `ratio * zoom`. A coordinator remembers the last applied
-/// zoom and only calls `setContentSize` when `zoom` actually changes — so a
-/// manual corner-drag (which leaves `zoom` untouched) is never fought. On
-/// every pass it still nudges the current size back onto the exact ratio,
-/// covering the initial layout at launch.
+/// makes AppKit constrain live corner-drags to the ratio; `contentMinSize`
+/// is the floor below which the window can't be dragged, so the launcher
+/// never clips and the text never collapses to unreadable. The only way to
+/// resize is dragging the window edge — there is no separate zoom control.
 struct WindowAspectLock: NSViewRepresentable {
     let ratio: CGSize
     let minSize: CGSize
-    let zoom: Double
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    final class Coordinator {
-        var lastZoom: Double?
-    }
 
     func makeNSView(context: Context) -> NSView { NSView() }
 
@@ -61,13 +50,6 @@ struct WindowAspectLock: NSViewRepresentable {
             guard let window = view.window else { return }
             window.contentAspectRatio = ratio
             window.contentMinSize = minSize
-
-            if context.coordinator.lastZoom != zoom {
-                context.coordinator.lastZoom = zoom
-                window.setContentSize(CGSize(width: ratio.width * zoom,
-                                             height: ratio.height * zoom))
-                return
-            }
 
             // Keep the current (possibly user-dragged) size exactly on-ratio.
             let size = window.contentLayoutRect.size
@@ -110,14 +92,13 @@ struct KeebLockApp: App {
                     .tint(settings.appTheme.color)
                     .background(WindowAspectLock(
                         ratio: UIScale.aspectRatio,
-                        minSize: CGSize(width: 460, height: 460 * UIScale.referenceHeight / UIScale.referenceWidth),
-                        zoom: settings.appZoom
+                        minSize: UIScale.minContentSize
                     ))
             }
             .frame(
-                minWidth: 460,
+                minWidth: UIScale.minContentSize.width,
                 idealWidth: UIScale.referenceWidth,
-                minHeight: 460 * UIScale.referenceHeight / UIScale.referenceWidth,
+                minHeight: UIScale.minContentSize.height,
                 idealHeight: UIScale.referenceHeight
             )
         }
@@ -172,27 +153,6 @@ struct KeebLockApp: App {
             // (⌘N), which a single-window utility doesn't need. Replacing
             // .newItem with an empty group removes it cleanly.
             CommandGroup(replacing: .newItem) {}
-
-            // View — app-zoom shortcuts. ⌘+ / ⌘− step the visual zoom by
-            // 10 %, ⌘0 resets to 100 %. Affects launcher AND settings.
-            CommandGroup(after: .toolbar) {
-                Button("Zoom In") {
-                    let next = (settings.appZoom * 100 + 10).rounded() / 100
-                    settings.appZoom = min(1.60, next)
-                }
-                .keyboardShortcut("+", modifiers: .command)
-
-                Button("Zoom Out") {
-                    let next = (settings.appZoom * 100 - 10).rounded() / 100
-                    settings.appZoom = max(0.80, next)
-                }
-                .keyboardShortcut("-", modifiers: .command)
-
-                Button("Actual Size") {
-                    settings.appZoom = 1.0
-                }
-                .keyboardShortcut("0", modifiers: .command)
-            }
 
             // Help — repo first (issues + source), then diagnostics, then
             // Ko-fi. Ordered by what someone reaching for Help most likely

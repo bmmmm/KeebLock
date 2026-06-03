@@ -22,6 +22,23 @@ struct SettingsView: View {
     @State private var codewordEditing = false
     @FocusState private var codewordFocused: Bool
 
+    // MARK: - Scaled fonts
+    //
+    // Settings drives its type the same way the launcher does: explicit point
+    // sizes multiplied by `uiScale`, not the `DynamicTypeSize` ladder. macOS
+    // under-amplifies dynamic type, so that ladder left the form reading small
+    // next to the launcher however high it was set. These helpers keep the
+    // call sites terse — the argument is the role's base size at uiScale 1.0,
+    // tuned to read as large as the launcher's body text.
+    private func scaled(_ size: CGFloat, _ weight: Font.Weight = .regular, mono: Bool = false) -> Font {
+        .system(size: size * uiScale, weight: weight, design: mono ? .monospaced : .default)
+    }
+
+    private var fCaption2: Font { scaled(13) }
+    private var fCaption: Font  { scaled(14) }
+    private var fCallout: Font  { scaled(16) }
+    private var fBody: Font     { scaled(17) }
+
     var body: some View {
         ScrollViewReader { proxy in
             Form {
@@ -41,6 +58,12 @@ struct SettingsView: View {
                 debugSection
             }
             .formStyle(.grouped)
+            // Base font for the native control labels (Toggle / Picker /
+            // Stepper text) that aren't individually styled below — they
+            // inherit the environment font, so this scales them with the
+            // window. `dynamicTypeSize` stays as a secondary nudge for any
+            // control chrome that only honours dynamic type.
+            .font(scaled(16))
             .dynamicTypeSize(UIScale.dynamicType(for: uiScale))
             .onChange(of: settings.debugLoggingEnabled) { _, enabled in
                 guard enabled else { return }
@@ -129,11 +152,11 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Text(settings.codeword.uppercased())
-                                .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                                .tracking(2)
+                                .font(.system(size: 22 * uiScale, weight: .semibold, design: .monospaced))
+                                .tracking(2 * uiScale)
                                 .foregroundStyle(.primary)
                             Image(systemName: "pencil")
-                                .font(.caption)
+                                .font(fCaption)
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
@@ -156,13 +179,13 @@ struct SettingsView: View {
 
             if codewordEditing {
                 Text("Letters and numbers only")
-                    .font(.caption2)
+                    .font(fCaption2)
                     .foregroundStyle(.secondary)
             }
 
             HStack {
                 Text("Suggestions — geology")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
@@ -171,7 +194,7 @@ struct SettingsView: View {
                     }
                 } label: {
                     Label("Roll new", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption.weight(.medium))
+                        .font(scaled(14, .medium))
                 }
                 .buttonStyle(.borderless)
             }
@@ -186,7 +209,7 @@ struct SettingsView: View {
                         withAnimation(.spring(response: 0.3)) { codewordEditing = false }
                     } label: {
                         Text(word)
-                            .font(.system(.callout, design: .monospaced))
+                            .font(scaled(16, mono: true))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
                             .background(
@@ -246,7 +269,7 @@ struct SettingsView: View {
                     .font(.system(size: 12 * uiScale))
                     .foregroundStyle(.secondary)
                 Text("\(settings.pixelFineness)")
-                    .font(.system(.body, design: .monospaced))
+                    .font(scaled(17, mono: true))
                     .frame(width: 22, alignment: .trailing)
             }
 
@@ -257,7 +280,7 @@ struct SettingsView: View {
             )
 
             Text("Lower = bigger pixel blocks, faster stages. Higher = smaller pixels, longer stages.")
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -272,7 +295,7 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
 
             Text(settings.wipeMode.helpText)
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .animation(.easeInOut(duration: 0.2), value: settings.wipeMode)
@@ -292,11 +315,11 @@ struct SettingsView: View {
                     .font(.system(size: 14 * uiScale))
                     .foregroundStyle(.secondary)
                 Text("\(Int(settings.stageAdvanceThreshold * 100))%")
-                    .font(.system(.body, design: .monospaced))
+                    .font(scaled(17, mono: true))
                     .frame(width: 44, alignment: .trailing)
             }
             Text("Stage advances once this fraction of cells is wiped. Lower if certain keys (e.g. F3/F4 system actions the OS swallows) prevent reaching 100%.")
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -305,7 +328,7 @@ struct SettingsView: View {
     private var colorsSection: some View {
         tintedSection("Colors") {
             Text("Two layers: the **background** is what you see initially; the **pixel** layer is what's revealed when a cell gets wiped. Default is colored bg → transparent pixel (desktop shows through). Swap them for an invert / dirty mode.")
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -326,7 +349,7 @@ struct SettingsView: View {
 
     private func colorRow(label: String, binding: Binding<ColorPreset>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption.weight(.semibold))
+            Text(label).font(scaled(14, .semibold))
             HStack(spacing: 6) {
                 ForEach(ColorPreset.allCases) { preset in
                     presetSwatch(preset, isSelected: binding.wrappedValue == preset) {
@@ -343,7 +366,7 @@ struct SettingsView: View {
                 presetSwatchFill(preset)
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.caption2.weight(.bold))
+                        .font(scaled(13, .bold))
                         .foregroundStyle(.white)
                         .shadow(radius: 1)
                 }
@@ -405,11 +428,11 @@ struct SettingsView: View {
                         .font(.system(size: 15 * uiScale))
                         .foregroundStyle(settings.screenEffect.activeColor)
                     Text("\(settings.sparkCount)")
-                        .font(.system(.body, design: .monospaced))
+                        .font(scaled(17, mono: true))
                         .frame(width: 28, alignment: .trailing)
                 }
                 Text(settings.screenEffect.intensityDescription + " (0 = off, 30 = max)")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                     .animation(.easeInOut(duration: 0.2), value: settings.screenEffect)
             }
@@ -427,7 +450,7 @@ struct SettingsView: View {
                     Image(systemName: "speaker.wave.3")
                         .foregroundStyle(settings.soundVolume > 1.0 ? .red : .primary)
                     Text(volumeLabel)
-                        .font(.system(.body, design: .monospaced))
+                        .font(scaled(17, mono: true))
                         .foregroundStyle(settings.soundVolume > 1.0 ? .red : .primary)
                         .frame(width: 64, alignment: .trailing)
                 }
@@ -436,7 +459,7 @@ struct SettingsView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.red)
                         Text("Overdrive — output is clipping. Lower for clean audio.")
-                            .font(.caption)
+                            .font(fCaption)
                             .foregroundStyle(.red)
                     }
                 }
@@ -444,9 +467,9 @@ struct SettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(settings.soundFileDisplayName ?? "Synthesized click (default)")
-                            .font(.callout)
+                            .font(fCallout)
                         Text(settings.soundFileBookmark != nil ? "Custom audio file" : "Built-in")
-                            .font(.caption)
+                            .font(fCaption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -474,33 +497,8 @@ struct SettingsView: View {
                 themePreview
             }
             .padding(.vertical, 4)
-            Text("Tints the entire app. Light/Dark mode follows your system.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-
-            // App-zoom indicator. No slider — the slider was a UX trap
-            // because dynamic-type-based scaling under-amplifies native
-            // AppKit controls on macOS, so the slider felt unresponsive.
-            // The new mechanism is a scaleEffect zoom on the whole window,
-            // controlled exclusively via ⌘+ / ⌘− / ⌘0 from the View menu.
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                Text("App zoom")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(Int((settings.appZoom * 100).rounded())) %")
-                    .font(.system(.body, design: .monospaced))
-                Button("Reset") {
-                    settings.appZoom = 1.0
-                }
-                .buttonStyle(.borderless)
-                .disabled(abs(settings.appZoom - 1.0) < 0.001)
-            }
-            Text("Resizes the KeebLock window proportionally — the launcher and settings text scale to fit. You can also just drag the window edge. Use ⌘+ / ⌘− to step in 10 % increments, ⌘0 to reset. Doesn't affect the lock screen.")
-                .font(.caption)
+            Text("Tints the entire app. Light/Dark mode follows your system. Drag the window edge to resize — the launcher and settings text scale to fit; it can't be shrunk below a readable floor. Doesn't affect the lock screen.")
+                .font(fCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -515,11 +513,11 @@ struct SettingsView: View {
         let c = settings.appTheme.color
         return HStack(spacing: 8) {
             Image(systemName: "sparkles")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 18 * uiScale, weight: .semibold))
                 .foregroundStyle(c)
 
             Text("Aa")
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .font(scaled(14, .semibold, mono: true))
                 .foregroundStyle(c)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
@@ -529,7 +527,7 @@ struct SettingsView: View {
                 )
 
             Text("Action")
-                .font(.caption2.weight(.bold))
+                .font(scaled(13, .bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
@@ -552,12 +550,12 @@ struct SettingsView: View {
                         .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1.5))
                     if selected {
                         Image(systemName: "checkmark")
-                            .font(.caption.weight(.bold))
+                            .font(scaled(14, .bold))
                             .foregroundStyle(.white)
                             .shadow(radius: 1)
                     } else {
                         Image(systemName: theme.icon)
-                            .font(.caption2.weight(.bold))
+                            .font(scaled(13, .bold))
                             .foregroundStyle(.white.opacity(0.85))
                     }
                 }
@@ -565,7 +563,7 @@ struct SettingsView: View {
                 .scaleEffect(selected ? 1.08 : 1.0)
 
                 Text(theme.label)
-                    .font(.caption2.weight(.semibold))
+                    .font(scaled(13, .semibold))
                     .foregroundStyle(selected ? .primary : .secondary)
             }
         }
@@ -578,14 +576,14 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
                 Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher, or read them rotating in the lock screen.")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Tint codeword in theme color as you type it", isOn: $settings.showCodewordProgress)
                 Text("Off skips a per-wipe HUD redraw — turn off if you hear sound stutter under sustained typing.")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -597,9 +595,9 @@ struct SettingsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accumulated wipe data")
-                        .font(.body)
+                        .font(fBody)
                     Text("\(controller.overallKeyCounts.values.reduce(0, +)) overall · \(controller.sessionKeyCounts.values.reduce(0, +)) this session · \(controller.overallKeyCounts.count) keys")
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -619,9 +617,9 @@ struct SettingsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wipe trail visualisation")
-                        .font(.body)
+                        .font(fBody)
                     Text("\(controller.sessionTrail.count) wipes this session")
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -641,14 +639,14 @@ struct SettingsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Past sessions")
-                        .font(.body)
+                        .font(fBody)
                     if let last = history.lastWipe {
                         Text("Last wipe: \(formatDate(last))")
-                            .font(.caption)
+                            .font(fCaption)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("No sessions recorded yet")
-                            .font(.caption)
+                            .font(fCaption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -676,7 +674,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
             Text("Off by default. Without this, the lock stays active until you type the codeword or click \"Unlock now\". Force-quit (⌘⌥Esc) is always the safety net.")
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -689,21 +687,21 @@ struct SettingsView: View {
                     .font(.system(size: 22 * uiScale))
                     .foregroundStyle(settings.appTheme.color)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("KeebLock").font(.headline)
+                    Text("KeebLock").font(scaled(20, .semibold))
                     Text("Version \(appVersion)")
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Link(destination: URL(string: "https://github.com/bmmmm") ?? URL(fileURLWithPath: "/")) {
                     Label("@bmmmm", systemImage: "person.circle")
-                        .font(.callout)
+                        .font(fCallout)
                 }
                 .buttonStyle(.borderless)
             }
 
             Text("Swallows keystrokes via macOS Accessibility while you wipe down your keys. Type the codeword (suffix-match) to escape — or click the unlock icon once you're half-way through.")
-                .font(.caption)
+                .font(fCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -713,10 +711,10 @@ struct SettingsView: View {
                     Image(systemName: "cup.and.saucer.fill")
                         .foregroundStyle(.pink)
                     Text("Support development on Ko-fi")
-                        .font(.callout.weight(.semibold))
+                        .font(scaled(16, .semibold))
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 10)
@@ -753,7 +751,7 @@ struct SettingsView: View {
                         ForEach(uninstallCommands, id: \.self) { cmd in
                             HStack(spacing: 6) {
                                 Text(cmd)
-                                    .font(.system(.caption, design: .monospaced))
+                                    .font(scaled(14, mono: true))
                                     .textSelection(.enabled)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
@@ -776,11 +774,11 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .font(.caption)
+                .font(fCaption)
                 .padding(.top, 4)
             } label: {
                 Text("Credits & uninstall")
-                    .font(.caption.weight(.semibold))
+                    .font(scaled(14, .semibold))
                     .foregroundStyle(.secondary)
             }
         }
@@ -808,7 +806,7 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Lock-screen overlay")
-                        .font(.callout)
+                        .font(fCallout)
                     Picker("Lock-screen overlay", selection: $settings.lockOverlayDebugLevel) {
                         ForEach(LockOverlayDebugLevel.allCases) { lvl in
                             Text(lvl.label).tag(lvl)
@@ -817,13 +815,13 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     Text("Border-strip HUD around the lock window. Higher levels add more rows AND dampen the spark/effect intensity so the readout stays readable.")
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text("Snapshot includes screen layout, lock state, the name of your frontmost app, and recent keycodes (as numbers, not characters). Review before sharing.")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -851,12 +849,12 @@ struct SettingsView: View {
 
                 if let snapshotMessage {
                     Text(snapshotMessage)
-                        .font(.caption)
+                        .font(fCaption)
                         .foregroundStyle(.green)
                 }
 
                 Text("Log path: ~/Library/Logs/KeebLock/keeblock.log")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
 
                 HStack {
@@ -866,11 +864,11 @@ struct SettingsView: View {
                     Spacer()
                     Stepper(value: $settings.logFileMaxSizeMB, in: 1...100) {
                         Text("\(settings.logFileMaxSizeMB) MB")
-                            .font(.system(.body, design: .monospaced))
+                            .font(scaled(17, mono: true))
                     }
                 }
                 Text("When the log exceeds this, it rotates: current file becomes keeblock.log.old (replacing any previous backup) and a fresh keeblock.log starts.")
-                    .font(.caption)
+                    .font(fCaption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 

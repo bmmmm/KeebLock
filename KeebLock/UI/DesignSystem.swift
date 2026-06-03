@@ -78,8 +78,23 @@ enum UIScale {
     static let referenceWidth: CGFloat = 600
     static let referenceHeight: CGFloat = 820
 
+    /// Lower / upper clamp for the responsive scale. `minScale` is also the
+    /// floor the window's `contentMinSize` is derived from, so the smallest
+    /// allowed window is exactly the size at which the launcher still fits at
+    /// `minScale` — drag any smaller is impossible, so the text can never
+    /// collapse to unreadable and the no-scroll launcher can never clip.
+    static let minScale: CGFloat = 0.92
+    static let maxScale: CGFloat = 2.6
+
     /// The aspect ratio the window is pinned to (width : height).
     static var aspectRatio: CGSize { CGSize(width: referenceWidth, height: referenceHeight) }
+
+    /// Smallest the window content is allowed to get — the reference box taken
+    /// down to `minScale`. Used for both `contentMinSize` and the SwiftUI
+    /// frame floor so the two agree and the launcher fits exactly at the floor.
+    static var minContentSize: CGSize {
+        CGSize(width: referenceWidth * minScale, height: referenceHeight * minScale)
+    }
 
     /// Scale that makes the launcher fill the available window in BOTH
     /// dimensions without overflowing — the smaller of the width- and
@@ -92,23 +107,27 @@ enum UIScale {
         guard available.width > 0, available.height > 0 else { return 1.0 }
         let byWidth = available.width / referenceWidth
         let byHeight = available.height / referenceHeight
-        return min(2.6, max(0.85, min(byWidth, byHeight)))
+        return min(maxScale, max(minScale, min(byWidth, byHeight)))
     }
 
     /// Bucket the continuous scale onto the discrete `DynamicTypeSize` ladder
     /// for the Settings form, whose native AppKit controls only respond to
     /// dynamic type. Stepped rather than smooth, but keeps the form's stock
     /// `.body`/`.caption` text growing with the window. The baseline is
-    /// deliberately offset *up* (scale 1.0 → `.xLarge`, not `.medium`) so the
-    /// Settings text reads as large as the launcher at the default window
-    /// size, not stock-small next to it.
+    /// offset *well* up (scale 1.0 → `.xxxLarge`, ≈ the launcher's 19pt body)
+    /// so the form reads as large as the launcher at the default window size,
+    /// not stock-small next to it — and the top of the ladder runs into the
+    /// accessibility sizes so the form keeps growing all the way to the
+    /// launcher's max scale (2.6) instead of flatlining at a mid-size window.
+    /// The form scrolls, so an aggressive baseline never clips — it just
+    /// reads big.
     static func dynamicType(for scale: CGFloat) -> DynamicTypeSize {
         switch scale {
-        case ..<0.95: return .large
-        case ..<1.12: return .xLarge
-        case ..<1.32: return .xxLarge
-        case ..<1.60: return .xxxLarge
-        default:      return .accessibility1
+        case ..<0.95: return .xxLarge
+        case ..<1.25: return .xxxLarge
+        case ..<1.65: return .accessibility1
+        case ..<2.10: return .accessibility2
+        default:      return .accessibility3
         }
     }
 }

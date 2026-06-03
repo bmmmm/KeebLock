@@ -46,6 +46,13 @@ struct WaterFillButton: View {
     /// (which clashed with Coffee / Sakura / Sleepy).
     var accent: Color = .accentColor
 
+    /// Same window-driven scale as the rest of the launcher. Without it this
+    /// button stayed at its base point size while every sibling grew with the
+    /// window, so enlarging the window made "Start cleaning" look like it was
+    /// shrinking. Multiply the explicit sizes by it so the CTA tracks the
+    /// launcher instead of standing still.
+    @Environment(\.uiScale) private var uiScale
+
     @State private var filling = false
     @State private var fillFraction: Double = 0
 
@@ -96,11 +103,11 @@ struct WaterFillButton: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
 
                 Label("Start cleaning", systemImage: "hands.sparkles.fill")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 20 * uiScale, weight: .bold))
                     .foregroundStyle(fillFraction > 0.45 ? .white : borderColor)
                     .animation(.easeInOut(duration: 0.15), value: fillFraction > 0.45)
             }
-            .frame(minWidth: 240, minHeight: 56)
+            .frame(minWidth: 240 * uiScale, minHeight: 56 * uiScale)
             .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
@@ -111,7 +118,7 @@ struct WaterFillButton: View {
             )
             .shadow(
                 color: borderColor.opacity(fillFraction * 0.45),
-                radius: 14, y: 5
+                radius: 14 * uiScale, y: 5 * uiScale
             )
         }
         .buttonStyle(.plain)
