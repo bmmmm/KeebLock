@@ -131,9 +131,10 @@ private struct HUDStatsRow: View {
     @ObservedObject var settings: AppSettings = .shared
 
     var body: some View {
-        // Subscribe to the 1 Hz displayTick so the row refreshes when
-        // @ObservationIgnored counters (keystrokeCount etc.) move. The
-        // raw counters don't fire observation tracking themselves.
+        // Subscribe to the throttled displayTick (10-30 Hz CADisplayLink)
+        // so the row refreshes when @ObservationIgnored counters
+        // (keystrokeCount etc.) move. The raw counters don't fire
+        // observation tracking themselves.
         let _ = controller.displayTick
         HStack(spacing: 40) {
             HUDStat(label: "Wipes", value: "\(controller.keystrokeCount)")

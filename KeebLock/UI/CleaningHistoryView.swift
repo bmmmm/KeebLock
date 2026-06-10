@@ -9,6 +9,7 @@ struct CleaningHistoryView: View {
 
     @State private var itemsPerPage: Int = 25
     @State private var currentPage: Int = 0
+    @State private var showClearConfirm = false
     private static let pageSizeOptions = [10, 25, 50, 100]
 
     private var sortedSessions: [CleaningSession] {
@@ -306,7 +307,7 @@ struct CleaningHistoryView: View {
     private var footer: some View {
         HStack(spacing: 12) {
             Button {
-                history.clear()
+                showClearConfirm = true
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
@@ -314,6 +315,19 @@ struct CleaningHistoryView: View {
             }
             .buttonStyle(.bordered)
             .disabled(history.sessions.isEmpty)
+            .help("Delete all recorded sessions")
+            // Irreversible bulk delete — one accidental click on the bare
+            // trash icon used to wipe the entire history with no way back.
+            .confirmationDialog(
+                "Delete all \(history.sessions.count) recorded sessions?",
+                isPresented: $showClearConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete All", role: .destructive) { history.clear() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This cannot be undone. Use Export first if you want to keep the data.")
+            }
 
             if !history.sessions.isEmpty {
                 Button {

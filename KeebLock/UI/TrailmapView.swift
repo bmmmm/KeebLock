@@ -75,6 +75,11 @@ struct TrailmapView: View {
         // during a lock is invisible to the user anyway. The view
         // re-evaluates when it is presented (on user navigation) and
         // reads the current sessionTrail value at that point.
+        //
+        // statsResetPulse IS subscribed: `sessionTrail` is
+        // @ObservationIgnored, so the Reset button's mutation alone would
+        // never refresh this body — the sheet kept showing the old trail.
+        let _ = controller.statsResetPulse
         VStack(spacing: 0) {
             header
             Divider()

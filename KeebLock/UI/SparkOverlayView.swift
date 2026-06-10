@@ -78,11 +78,20 @@ struct SparkOverlayView: View {
     ]
     private static let matrixAlphabet = Array("アイウエカキクケサシスセタチツテ0123456789ABCDEF")
 
+    /// Longest lifetime across all five particle kinds — the drain task
+    /// below sleeps past this after the most recent spawn so every
+    /// particle is guaranteed expired when it prunes.
+    private static let maxParticleLifetime = max(SparkParticle.lifetime, RainDrop.lifetime,
+                                                 MatrixChar.lifetime, BubbleParticle.lifetime,
+                                                 SnowFlake.lifetime)
+
     /// Any particle currently alive across all five effect kinds. Drives
-    /// whether the per-frame TimelineView mounts at all — when the user
-    /// stops typing for 1–2 s the arrays drain and the overlay falls back
-    /// to a plain transparent layout that costs zero ticks until the next
-    /// keystroke spawns more particles.
+    /// whether the per-frame TimelineView mounts at all. Expired particles
+    /// are pruned in two places: each spawn filters its own kind, and the
+    /// `.task(id: lastSpawnAt)` drain clears everything once the last burst
+    /// has fully expired — without that drain, dead particles from the
+    /// final keystroke would keep this true (and the TimelineView ticking
+    /// at full frame rate) for the rest of the lock session.
     private var hasActiveParticles: Bool {
         !sparks.isEmpty
             || !drops.isEmpty
@@ -137,6 +146,23 @@ struct SparkOverlayView: View {
             lastSpawnAt = now
             let size = viewSize.width > 0 ? viewSize : CGSize(width: 1920, height: 1080)
             spawn(in: size)
+        }
+        .task(id: lastSpawnAt) {
+            // Drain pass. Spawns only prune their own particle kind, so
+            // after the last keystroke (or an effect-type switch) expired
+            // particles would otherwise sit in the arrays forever and keep
+            // the TimelineView mounted. Sleep past the longest lifetime —
+            // a newer spawn cancels and restarts this via the changed id —
+            // then drop everything expired, which is everything, so the
+            // overlay falls back to the zero-cost static branch.
+            try? await Task.sleep(for: .seconds(Self.maxParticleLifetime + 0.1))
+            guard !Task.isCancelled else { return }
+            let now = Date()
+            sparks.removeAll  { now.timeIntervalSince($0.born) >= SparkParticle.lifetime }
+            drops.removeAll   { now.timeIntervalSince($0.born) >= RainDrop.lifetime }
+            chars.removeAll   { now.timeIntervalSince($0.born) >= MatrixChar.lifetime }
+            bubbles.removeAll { now.timeIntervalSince($0.born) >= BubbleParticle.lifetime }
+            flakes.removeAll  { now.timeIntervalSince($0.born) >= SnowFlake.lifetime }
         }
     }
 

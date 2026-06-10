@@ -104,6 +104,11 @@ enum CodewordKnowledgeBase {
         }
     }
 
+    /// Decoded once; `entries` and `unavailableWords` both read from this.
+    /// They used to call `loadManifest()` independently, parsing the full
+    /// JSON twice at launch.
+    private static let manifest: Manifest? = loadManifest()
+
     private static func loadManifest() -> Manifest? {
         guard let url = Bundle.main.url(forResource: "codeword_data", withExtension: "json"),
               let data = try? Data(contentsOf: url) else {
@@ -119,7 +124,7 @@ enum CodewordKnowledgeBase {
     }
 
     private static func loadEntries() -> [String: CodewordKnowledge] {
-        guard let manifest = loadManifest() else { return [:] }
+        guard let manifest else { return [:] }
         var out: [String: CodewordKnowledge] = [:]
         for (word, entry) in manifest.data {
             guard let url = URL(string: entry.wikipedia_url) else { continue }
@@ -139,7 +144,7 @@ enum CodewordKnowledgeBase {
     }
 
     private static func loadUnavailable() -> Set<String> {
-        guard let manifest = loadManifest() else { return [] }
+        guard let manifest else { return [] }
         return Set(manifest.unavailable.map { $0.lowercased() })
     }
 }

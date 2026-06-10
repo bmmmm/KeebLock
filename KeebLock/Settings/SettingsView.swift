@@ -592,6 +592,9 @@ struct SettingsView: View {
 
     private var cleanmapSection: some View {
         tintedSection("Cleanmap") {
+            // The count stores are @ObservationIgnored — subscribe to the
+            // reset pulse so a Reset inside the sheet refreshes this row too.
+            let _ = controller.statsResetPulse
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Accumulated wipe data")
@@ -614,6 +617,9 @@ struct SettingsView: View {
 
     private var trailmapSection: some View {
         tintedSection("Trailmap") {
+            // Same rationale as cleanmapSection: sessionTrail is
+            // @ObservationIgnored, the pulse carries the reset signal.
+            let _ = controller.statsResetPulse
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Wipe trail visualisation")

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import os
 
 // Structured logger. When `AppSettings.debugLoggingEnabled` is true, writes to:
 //   - macOS Console (NSLog), and
@@ -31,8 +32,29 @@ enum DebugLog {
         return f
     }()
 
+    /// Lock-protected mirror of the AppSettings values the logger needs.
+    /// `log()` and the rotation check run on background queues (SoundPlayer's
+    /// audioQueue calls log(); rotateIfNeeded runs on ioQueue), where reading
+    /// the @MainActor `AppSettings.shared` directly would be an isolation
+    /// violation. AppSettings pushes updates here from its didSet observers
+    /// (and once at init) via `syncConfig`.
+    private struct Config {
+        var enabled = false
+        var maxLogBytes = 5 * 1024 * 1024
+    }
+    private static let config = OSAllocatedUnfairLock(initialState: Config())
+
     static var isEnabled: Bool {
-        AppSettings.shared.debugLoggingEnabled
+        config.withLock { $0.enabled }
+    }
+
+    /// Called by AppSettings whenever `debugLoggingEnabled` or
+    /// `logFileMaxSizeMB` changes (and once at startup).
+    static func syncConfig(enabled: Bool, maxSizeMB: Int) {
+        config.withLock {
+            $0.enabled = enabled
+            $0.maxLogBytes = maxSizeMB * 1024 * 1024
+        }
     }
 
     /// Writes to NSLog and the log file when the toggle is on. Silent when off.
@@ -119,7 +141,9 @@ enum DebugLog {
     /// retained. Returns silently on any I/O failure — same fail-quiet
     /// principle as `appendLine`.
     private static func rotateIfNeeded() {
-        let maxBytes = AppSettings.shared.logFileMaxSizeMB * 1024 * 1024
+        // Runs on ioQueue — read the cap from the lock-protected mirror,
+        // not from the @MainActor AppSettings.
+        let maxBytes = config.withLock { $0.maxLogBytes }
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
               let size = (attrs[.size] as? NSNumber)?.intValue,
               size > maxBytes else { return }

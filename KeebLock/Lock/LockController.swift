@@ -32,11 +32,12 @@ final class LockController {
     private(set) var currentCodeword: String = ""
     private(set) var isPaused: Bool = false
 
-    /// 1 Hz pulse driven by the existing pause/unlock timer. Views that
-    /// display per-event counters subscribe to this instead of to the
-    /// counters themselves — the counters live as @ObservationIgnored so
-    /// the per-keystroke / per-mousedown mutations don't fire view-update
-    /// cascades through the registrar. Mirrors PerfMetrics.tickSeq.
+    /// Low-rate pulse driven by a CADisplayLink throttled to 10–30 Hz
+    /// (see startDisplayLink). Views that display per-event counters
+    /// subscribe to this instead of to the counters themselves — the
+    /// counters live as @ObservationIgnored so the per-keystroke /
+    /// per-mousedown mutations don't fire view-update cascades through
+    /// the registrar. Mirrors PerfMetrics.tickSeq.
     ///
     /// Per-event mutation of an @Observable property goes through
     /// _$observationRegistrar.withMutation, which synchronously notifies
@@ -50,6 +51,14 @@ final class LockController {
     /// combined load. 1 Hz refresh on counters is more than enough for
     /// readouts that show running totals.
     private(set) var displayTick: Int = 0
+
+    /// Bumped by the reset functions below. The cleanmap / trailmap stores
+    /// (`sessionKeyCounts`, `overallKeyCounts`, `sessionTrail`) are
+    /// @ObservationIgnored for hot-path reasons, so clearing them fires no
+    /// observation event — without this tracked pulse the Cleanmap /
+    /// Trailmap sheets would keep showing the old data after a Reset click
+    /// until something else happened to invalidate them.
+    private(set) var statsResetPulse: Int = 0
 
     /// Per-keycode counts for the *current* lock session. Reset on each
     /// startLock(). Lives in memory only.
@@ -518,17 +527,20 @@ final class LockController {
     /// Clear the current-session cleanmap. Doesn't touch overall.
     func resetSessionCleanmap() {
         sessionKeyCounts = [:]
+        statsResetPulse &+= 1
     }
 
     /// Clear the persistent overall cleanmap and the on-disk blob.
     func resetOverallCleanmap() {
         overallKeyCounts = [:]
         UserDefaults.standard.removeObject(forKey: Self.cleanmapKeyCountsKey)
+        statsResetPulse &+= 1
     }
 
     /// Clear the current-session trailmap.
     func resetSessionTrailmap() {
         sessionTrail = []
+        statsResetPulse &+= 1
     }
 
     // MARK: - In-lock snapshot button (paired with LockOverlayDebug)
@@ -1242,6 +1254,18 @@ final class LockController {
             // some special keys also trigger flagsChanged) are skipped.
             let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             guard Self.modifierKeycodes.contains(keycode) else { return nil }
+            // Caps Lock (57) toggles: macOS emits ONE flagsChanged per
+            // physical press (the lock-state change), not a press/release
+            // pair. Routing it through the pairing logic below classified
+            // every second press as a "release" and dropped its wipe.
+            // Count each event as a press and keep it out of
+            // `pressedModifiers` so it can't desync the pairing set.
+            if keycode == 57 {
+                if !isInWarmup {
+                    recordWipingKeystroke(keycode: keycode, bucket: .control)
+                }
+                return nil
+            }
             if pressedModifiers.contains(keycode) {
                 pressedModifiers.remove(keycode)
                 return nil

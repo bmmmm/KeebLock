@@ -383,12 +383,16 @@ final class AppSettings: ObservableObject {
     /// .old) and starts fresh. Range 1…100 MB; 5 MB covers weeks of
     /// typical use including verbose-perf traces.
     @Published var logFileMaxSizeMB: Int {
-        didSet { defaults.set(logFileMaxSizeMB, forKey: Keys.logMaxSize) }
+        didSet {
+            defaults.set(logFileMaxSizeMB, forKey: Keys.logMaxSize)
+            syncDebugLogConfig()
+        }
     }
 
     @Published var debugLoggingEnabled: Bool {
         didSet {
             defaults.set(debugLoggingEnabled, forKey: Keys.debug)
+            syncDebugLogConfig()
             // Master-toggle off resets all subordinate debug settings so the
             // hidden state can't outlive the visible toggle.
             if !debugLoggingEnabled {
@@ -396,6 +400,14 @@ final class AppSettings: ObservableObject {
                 if lockOverlayDebugLevel != .off { lockOverlayDebugLevel = .off }
             }
         }
+    }
+
+    /// Push the logger-relevant values into DebugLog's lock-protected
+    /// mirror. DebugLog.log() / rotateIfNeeded() run on background queues
+    /// (SoundPlayer's audioQueue, DebugLog's ioQueue), where reading this
+    /// @MainActor class directly would be an isolation violation.
+    private func syncDebugLogConfig() {
+        DebugLog.syncConfig(enabled: debugLoggingEnabled, maxSizeMB: logFileMaxSizeMB)
     }
 
     /// Gates per-event latency sampling in PerfMetrics. Aggregate counters
@@ -415,6 +427,9 @@ final class AppSettings: ObservableObject {
     /// when the live-debug overlay is on so the animation doesn't jitter
     /// the readout. Used by SparkOverlayView in place of `sparkCount`.
     var effectiveSparkCount: Int {
+        // 0 = the user explicitly set the slider to off; the overlay
+        // damping's `max(1, …)` floors must not resurrect the effect.
+        guard sparkCount > 0 else { return 0 }
         switch lockOverlayDebugLevel {
         case .off:      return sparkCount
         case .minimal:  return max(1, sparkCount * 2 / 3)
@@ -460,7 +475,10 @@ final class AppSettings: ObservableObject {
         self.codeword = saved.isEmpty ? Codewords.random() : saved
 
         let dur = d.integer(forKey: Keys.duration)
-        self.durationMinutes = dur > 0 ? dur : 5
+        // Snap to the values the segmented duration picker offers — a
+        // legacy or hand-edited value (e.g. 7) would otherwise render the
+        // picker with no selection.
+        self.durationMinutes = [3, 5, 10].contains(dur) ? dur : 5
         self.autoUnlockEnabled = d.object(forKey: Keys.autoUnlock) as? Bool ?? false
 
         self.soundEnabled = d.object(forKey: Keys.sound) as? Bool ?? true
@@ -503,5 +521,9 @@ final class AppSettings: ObservableObject {
 
         let themeRaw = d.string(forKey: Keys.appTheme) ?? AppTheme.day.rawValue
         self.appTheme = AppTheme(rawValue: themeRaw) ?? .day
+
+        // didSet observers don't fire during init — push the initial
+        // logger config explicitly.
+        syncDebugLogConfig()
     }
 }

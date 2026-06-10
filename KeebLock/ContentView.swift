@@ -421,7 +421,10 @@ struct ContentView: View {
                         }
                     }
                 }
-                .keyboardShortcut("r", modifiers: .command)
+                // ⇧⌘R, not ⌘R — the app menu's "Roll New Codeword" already
+                // owns ⌘R, and two live handlers for the same chord leave
+                // the winner up to SwiftUI's resolution order.
+                .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(isResettingPermission)
             }
             .buttonStyle(.bordered)

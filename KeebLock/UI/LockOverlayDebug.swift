@@ -26,9 +26,9 @@ struct LockOverlayDebug: View {
     @State private var snapshotToast: String?
 
     var body: some View {
-        // Subscribe to displayTick so the 1 Hz pulse drives strip refreshes;
-        // counters live as @ObservationIgnored to keep them off the per-event
-        // observation cascade.
+        // Subscribe to the throttled displayTick (10-30 Hz CADisplayLink)
+        // so it drives strip refreshes; counters live as @ObservationIgnored
+        // to keep them off the per-event observation cascade.
         let _ = controller.displayTick
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {

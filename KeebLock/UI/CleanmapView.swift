@@ -69,6 +69,11 @@ struct CleanmapView: View {
         // counters refresh once when isLocked transitions false on
         // stopLock (isLocked is @Observable; SettingsView's parent
         // re-evaluates the modal sheet), which is the user-visible moment.
+        //
+        // statsResetPulse IS subscribed: the key-count stores are
+        // @ObservationIgnored, so the Reset button's mutation alone would
+        // never refresh this body — the sheet kept showing the old grid.
+        let _ = controller.statsResetPulse
         VStack(spacing: 0) {
             header
             Divider()
@@ -203,7 +208,11 @@ struct CleanmapView: View {
 
     private var mouseSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("MOUSE & SCROLL")
+            // Mouse counters only exist per-session (they are not part of
+            // the persisted cleanmap blob) — make that explicit when the
+            // user has the Overall scope selected so the panel doesn't
+            // read as lifetime totals.
+            sectionLabel(scope == .overall ? "MOUSE & SCROLL — THIS SESSION ONLY" : "MOUSE & SCROLL")
             HStack(spacing: 10) {
                 mouseTile("Left",    controller.leftClickCount,    icon: "cursorarrow")
                 mouseTile("Right",   controller.rightClickCount,   icon: "cursorarrow.click")

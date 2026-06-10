@@ -3,7 +3,9 @@ import Combine
 import SwiftUI
 
 // Live debug overlay shown in the Settings tab when AppSettings.debugLoggingEnabled
-// is true. Refreshes once per second so screens, lock state and counts stay current.
+// is true. Refreshes on the controller's throttled displayTick (10-30 Hz
+// CADisplayLink) plus PerfMetrics' 1 Hz tickSeq, so screens, lock state and
+// counts stay current.
 struct DebugInfoPanel: View {
     @ObservedObject var settings: AppSettings
     var controller: LockController
@@ -12,9 +14,9 @@ struct DebugInfoPanel: View {
     @State private var screens: [NSScreen] = NSScreen.screens
 
     var body: some View {
-        // Subscribe to displayTick so the counter rows refresh at 1 Hz
-        // even though the per-event mutations don't fire observation
-        // tracking themselves.
+        // Subscribe to the throttled displayTick so the counter rows
+        // refresh even though the per-event mutations don't fire
+        // observation tracking themselves.
         let _ = controller.displayTick
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -102,7 +104,10 @@ struct DebugInfoPanel: View {
 
     private var latencyLine: String {
         if perf.eventCallbackSamples == 0 {
-            return settings.verbosePerfEnabled ? "—  (waiting for events)" : "off  (toggle 'verbose perf')"
+            // Latency sampling is always on (only the per-event string ring
+            // is gated on verbose perf) — zero samples just means no lock
+            // session has run yet.
+            return "—  (no events sampled yet — start a lock)"
         }
         let avg = Double(perf.eventCallbackAvgNs) / 1000
         let max = Double(perf.eventCallbackMaxNs) / 1000
