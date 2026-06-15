@@ -14,6 +14,13 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     @Published private(set) var stage: Int = 1
     @Published private(set) var wipedFraction: Double = 0
 
+    /// Last integer percent already pushed to `wipedFraction`. The HUD only
+    /// renders `Int(wipedFraction * 100)`, so publishing every sub-percent
+    /// cell wipe would churn the @Published binding (and re-render the HUD
+    /// stats row) up to ~100×/s during fast typing for no visible change.
+    /// Touched only on the main thread, inside the wipe publish hops.
+    private var lastPublishedPercent: Int = -1
+
     /// True for the no-Metal fallback. The instance is fully constructed
     /// (so LockView can hold a non-optional reference and HUDView can
     /// observe stage/wipedFraction) but skips pipeline setup; draw(),
@@ -78,8 +85,14 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
             frame: NSRect(origin: .zero, size: screen.frame.size),
             device: dev
         )
-        view.isPaused = isPlaceholder
-        view.enableSetNeedsDisplay = false
+        // On-demand rendering. The fragmentWipe shader is static between
+        // wipes (no time uniform — see Shaders.metal), so continuous
+        // rendering at the display refresh rate would redraw bit-identical
+        // frames the entire time the lock sits idle. isPaused stops the
+        // internal timer; draw() now fires only when a wipe/advanceStage
+        // marks the view needsDisplay. Saves the idle GPU spin per screen.
+        view.isPaused = true
+        view.enableSetNeedsDisplay = true
         view.clearColor = MTLClearColorMake(0, 0, 0, 0)
         view.colorPixelFormat = .bgra8Unorm
         view.framebufferOnly = false
@@ -117,8 +130,21 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         stateLock.unlock()
 
         PerfMetrics.shared.recordMainHop()
-        DispatchQueue.main.async { [weak self] in self?.wipedFraction = min(1.0, frac) }
+        let clampedFrac = min(1.0, frac)
+        DispatchQueue.main.async { [weak self] in self?.publishWipe(fraction: clampedFrac) }
         if advance { advanceStage() }
+    }
+
+    /// Main-thread publish hop shared by both wipe paths: requests the
+    /// on-demand redraw (the mask just changed) and pushes `wipedFraction`
+    /// only when the integer percent actually moved.
+    private func publishWipe(fraction: Double) {
+        metalView.needsDisplay = true
+        let pct = Int(fraction * 100)
+        if pct != lastPublishedPercent {
+            lastPublishedPercent = pct
+            wipedFraction = fraction
+        }
     }
 
     /// Clears up to `count` cells inside the key's bounding rectangle
@@ -183,7 +209,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
         if madeProgress {
             PerfMetrics.shared.recordMainHop()
-            DispatchQueue.main.async { [weak self] in self?.wipedFraction = min(1.0, frac) }
+            let clampedFrac = min(1.0, frac)
+            DispatchQueue.main.async { [weak self] in self?.publishWipe(fraction: clampedFrac) }
         }
         if advance { advanceStage() }
     }
@@ -233,7 +260,10 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     // MARK: - MTKViewDelegate
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        // Mask resolution is fixed; nothing to do here.
+        // Mask resolution is fixed, but under on-demand rendering the very
+        // first frame (and any later resize) must be requested explicitly —
+        // otherwise the lock window would come up un-drawn / black.
+        view.needsDisplay = true
     }
 
     func draw(in view: MTKView) {
@@ -295,8 +325,11 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
         stateLock.unlock()
         PerfMetrics.shared.recordMainHop()
         DispatchQueue.main.async { [weak self] in
-            self?.stage += 1
-            self?.wipedFraction = 0
+            guard let self else { return }
+            self.metalView.needsDisplay = true
+            self.stage += 1
+            self.wipedFraction = 0
+            self.lastPublishedPercent = 0
         }
     }
 

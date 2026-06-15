@@ -1442,13 +1442,13 @@ final class LockController {
     /// unlock timer would freeze after `pauseDetectThreshold` seconds of
     /// no-typing even when the user is actively mousing / clicking /
     /// scrolling around the keyboard during cleaning.
-    private func triggerInputFeedback() {
-        lastInputAt = Date()
+    private func triggerInputFeedback(now: Date = Date()) {
+        lastInputAt = now
         if AppSettings.shared.soundEnabled { soundPlayer.play() }
         if AppSettings.shared.effectEnabled {
-            let now = Date().timeIntervalSinceReferenceDate
-            if now - lastSparkTriggerAt >= Self.sparkTriggerMinInterval {
-                lastSparkTriggerAt = now
+            let nowRef = now.timeIntervalSinceReferenceDate
+            if nowRef - lastSparkTriggerAt >= Self.sparkTriggerMinInterval {
+                lastSparkTriggerAt = nowRef
                 sparkTrigger &+= 1
             }
         }
@@ -1533,7 +1533,7 @@ final class LockController {
             // pause detector still needs to see the input.
             lastInputAt = now
         } else {
-            triggerInputFeedback()
+            triggerInputFeedback(now: now)
         }
     }
 

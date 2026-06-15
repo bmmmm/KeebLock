@@ -201,11 +201,13 @@ final class PerfMetrics: ObservableObject {
     /// Append a one-line tag for the current event to the ring buffer.
     /// Includes elapsed-ms relative to session start so timing patterns
     /// are visible at a glance in the snapshot. Cheap when verbose-perf
-    /// is off (single bool check + return).
-    func recordEvent(_ tag: String) {
+    /// is off (single bool check + return). `tag` is autoclosured so
+    /// interpolated call-sites (`"mouseAux btn=\(button)"` etc.) don't
+    /// build the string at all on the hot path when verbose is off.
+    func recordEvent(_ tag: @autoclosure () -> String) {
         guard AppSettings.shared.verbosePerfEnabled else { return }
         let elapsedMs = Self.ticksToNs(mach_absolute_time() &- sessionStartTicks) / 1_000_000
-        let line = "+\(elapsedMs)ms \(tag)"
+        let line = "+\(elapsedMs)ms \(tag())"
         if eventRing.count < eventRingCapacity {
             eventRing.append(line)
         } else {
