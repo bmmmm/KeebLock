@@ -58,8 +58,9 @@ struct TrailmapView: View {
     private var trail: [TrailPoint] { controller.sessionTrail }
 
     /// Trail filtered to keycodes the layout knows about, paired with
-    /// their normalised position. Computed once per render so the two
-    /// Canvas passes (glow + sharp) share one walk.
+    /// their normalised position. `canvas` materialises it once and feeds
+    /// both Canvas passes (glow + sharp); the header/footer access it
+    /// independently, but only for a count/isEmpty on a static Settings view.
     private var plottable: [(timestamp: TimeInterval, normPos: CGPoint)] {
         trail.compactMap { p in
             guard let pos = KeyboardPositionMap.normalizedPosition(for: p.keycode) else {
@@ -235,7 +236,8 @@ struct TrailmapView: View {
     // MARK: - Canvas
 
     private var canvas: some View {
-        ZStack {
+        let points = plottable
+        return ZStack {
             RoundedRectangle(cornerRadius: Radius.md)
                 .fill(Color.black.opacity(0.88))
 
@@ -252,12 +254,12 @@ struct TrailmapView: View {
             // is blurred for a halo/glow, the upper stays sharp so
             // the line cores remain crisp regardless of blur radius.
             Canvas { ctx, size in
-                drawTrail(ctx: ctx, size: size)
+                drawTrail(ctx: ctx, size: size, points: points)
             }
             .blur(radius: blurRadius)
 
             Canvas { ctx, size in
-                drawTrail(ctx: ctx, size: size)
+                drawTrail(ctx: ctx, size: size, points: points)
             }
         }
         .frame(height: 360)
@@ -305,8 +307,8 @@ struct TrailmapView: View {
         }
     }
 
-    private func drawTrail(ctx: GraphicsContext, size: CGSize) {
-        let points = plottable
+    private func drawTrail(ctx: GraphicsContext, size: CGSize,
+                           points: [(timestamp: TimeInterval, normPos: CGPoint)]) {
         guard points.count > 1 else { return }
         let denominator = Double(max(1, points.count - 1))
         let segmentCount = points.count - 1
