@@ -102,9 +102,8 @@ enum CodewordKnowledgeBase {
         }
     }
 
-    /// Decoded once; `entries` and `unavailableWords` both read from this.
-    /// They used to call `loadManifest()` independently, parsing the full
-    /// JSON twice at launch.
+    /// Decoded once; `entries` reads from this. It used to call
+    /// `loadManifest()` independently, parsing the full JSON twice at launch.
     private static let manifest: Manifest? = loadManifest()
 
     private static func loadManifest() -> Manifest? {
