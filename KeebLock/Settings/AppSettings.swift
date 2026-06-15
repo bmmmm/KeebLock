@@ -482,7 +482,11 @@ final class AppSettings: ObservableObject {
         self.autoUnlockEnabled = d.object(forKey: Keys.autoUnlock) as? Bool ?? false
 
         self.soundEnabled = d.object(forKey: Keys.sound) as? Bool ?? true
-        self.soundVolume  = d.object(forKey: Keys.soundVolume) as? Double ?? 0.6
+        let sv = d.object(forKey: Keys.soundVolume) as? Double ?? 0.6
+        // Clamp like every other numeric setting here; SoundPlayer.setVolume
+        // clamps to the same 0…2.0 range, so a legacy/out-of-range persisted
+        // value would otherwise leave the slider and the label disagreeing.
+        self.soundVolume = (0.0...2.0).contains(sv) ? sv : 0.6
         self.soundFileBookmark    = d.data(forKey: Keys.soundFileBookmark)
         self.soundFileDisplayName = d.string(forKey: Keys.soundFileName)
         self.unlockChimeEnabled   = d.object(forKey: Keys.unlockChime) as? Bool ?? true
@@ -525,5 +529,12 @@ final class AppSettings: ObservableObject {
         // didSet observers don't fire during init — push the initial
         // logger config explicitly.
         syncDebugLogConfig()
+
+        // Same reason: the freshly rolled random codeword above never hit its
+        // didSet, so it was never persisted and the app re-rolled the unlock
+        // word on every launch. Persist it once so it stays stable.
+        if saved.isEmpty {
+            defaults.set(codeword, forKey: Keys.codeword)
+        }
     }
 }
