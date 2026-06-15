@@ -56,13 +56,9 @@ enum CodewordKnowledgeBase {
     /// Words we have full data for. Keyed by lowercase word.
     static let entries: [String: CodewordKnowledge] = loadEntries()
 
-    /// Words flagged unavailable in the manifest (no lead image, stub article,
-    /// etc.). The launcher's random-pick filters these out.
-    static let unavailableWords: Set<String> = loadUnavailable()
-
     /// Returns the entry for a codeword. Falls back to a stub when the word
-    /// isn't in the manifest — should be rare since `unavailableWords` keeps
-    /// the random-pick from rolling broken words.
+    /// isn't in the manifest — rare, since `Codewords.available` only offers
+    /// words that have a real entry here.
     static func entry(for word: String) -> CodewordKnowledge {
         let key = word.lowercased()
         if let hit = entries[key] { return hit }
@@ -88,7 +84,9 @@ enum CodewordKnowledgeBase {
 
     private struct Manifest: Decodable {
         let data: [String: Entry]
-        let unavailable: [String]
+        // The manifest also carries an `unavailable` array; we don't decode it
+        // — codeword selection filters on real-entry presence (see
+        // Codewords.available), which is robust even if the lists drift.
 
         struct Entry: Decodable {
             let title: String
@@ -141,10 +139,5 @@ enum CodewordKnowledgeBase {
         }
         DebugLog.log("CodewordKnowledgeBase: loaded \(out.count) entries from manifest")
         return out
-    }
-
-    private static func loadUnavailable() -> Set<String> {
-        guard let manifest else { return [] }
-        return Set(manifest.unavailable.map { $0.lowercased() })
     }
 }
