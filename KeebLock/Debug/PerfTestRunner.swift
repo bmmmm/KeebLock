@@ -37,6 +37,12 @@ enum PerfTestRunner {
     /// in-lock match progress display has room to render.
     private static let testCodeword = "1234567890"
 
+    /// verbosePerfEnabled value saved at run() start. forceTeardown restores
+    /// it before exit(2), since exit() skips run()'s defer chain — otherwise a
+    /// hard-timeout would leave verbose perf persisted in UserDefaults and
+    /// bleed per-event overhead into the developer's normal sessions.
+    private static var savedVerbosePerf = false
+
     static func run(args: PerfTestArgs) async {
         let killFile = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent(killFileName)
@@ -78,6 +84,7 @@ enum PerfTestRunner {
         //    Release latencies.
         let settings = AppSettings.shared
         let savedVerbose = settings.verbosePerfEnabled
+        Self.savedVerbosePerf = savedVerbose
         let forceOff = ProcessInfo.processInfo.environment["KEEBLOCK_PERF_VERBOSE_OFF"] == "1"
         settings.verbosePerfEnabled = !forceOff
         defer { settings.verbosePerfEnabled = savedVerbose }
@@ -211,6 +218,9 @@ enum PerfTestRunner {
             try? data.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
         }
         LockController.shared.stopLock()
+        // exit(2) skips run()'s defer, so restore the verbose flag here or it
+        // stays persisted in UserDefaults for the next launch.
+        AppSettings.shared.verbosePerfEnabled = savedVerbosePerf
         DebugLog.log("perf-test: hard teardown — \(reason)")
         exit(2)
     }
