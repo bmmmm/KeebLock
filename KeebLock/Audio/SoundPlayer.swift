@@ -108,9 +108,16 @@ final class SoundPlayer {
         let v = max(0, min(2.0, volume))
         let nodeVol = Float(min(1.0, v))
         let mixerVol = Float(max(1.0, v))
-        playerNode.volume = nodeVol
-        engine.mainMixerNode.outputVolume = mixerVol
+        // customPlayer (AVAudioPlayer) is touched on the calling main thread,
+        // matching play(). The engine/playerNode parameters are owned by
+        // audioQueue, so hop there to avoid racing an in-flight click or
+        // engine start/stop.
         customPlayer?.volume = nodeVol
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.playerNode.volume = nodeVol
+            self.engine.mainMixerNode.outputVolume = mixerVol
+        }
     }
 
     func setCustomFile(bookmark: Data?) {
@@ -191,7 +198,11 @@ final class SoundPlayer {
     }
 
     func stop() {
-        playerNode.stop()
+        // playerNode lifecycle is owned by audioQueue (see playSynthClick); hop
+        // there so stop() — called from stopLock() on the main thread — can't
+        // race an in-flight click or engine start/stop on that queue. Serialised
+        // on the same queue, this stop lands after any pending playSynthClick.
+        audioQueue.async { [weak self] in self?.playerNode.stop() }
         // Engine itself is left to the idle-timer — within 30 s of the last
         // click it stops on its own, which is cheaper than the explicit
         // teardown/restart cycle if the user immediately starts another
@@ -228,6 +239,11 @@ final class SoundPlayer {
 
     // MARK: - Diagnostics
 
+    // These read live engine state from the main thread while audioQueue may be
+    // starting/stopping the engine. The reads are diagnostic-only (Settings
+    // sound panel) and a momentarily inconsistent value during a rare
+    // start/stop transition is acceptable — not worth a main-thread audioQueue
+    // hop on a 1 Hz-refreshed display.
     var engineLatencyMs: Double {
         engine.outputNode.presentationLatency * 1000
     }
