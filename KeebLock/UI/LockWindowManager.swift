@@ -307,6 +307,16 @@ final class LockWindowManager {
             window.orderFrontRegardless()
             addWindowToAllSpaces(window, snapshot: snapshot)
         }
+        // A display moved into an app's fullscreen space *after* lock-start
+        // would composite the fullscreen primary over the lock (invisible
+        // there) — the same case show() handles once at startup. Yank any
+        // such display back to Desktop reactively too. Merge only displays we
+        // aren't already tracking, so restoreMovedDisplays() still returns the
+        // user to their true pre-lock space rather than a mid-lock one.
+        let newlyMoved = switchDisplaysOutOfFullscreen(snapshot)
+        for moved in newlyMoved where !movedDisplays.contains(where: { $0.displayUUID == moved.displayUUID }) {
+            movedDisplays.append(moved)
+        }
     }
 
     /// Clears one or more pixels on every screen. With `bounds` nil
