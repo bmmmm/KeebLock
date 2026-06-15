@@ -30,7 +30,11 @@ enum KeyboardLayoutLookup {
                 UInt16(kUCKeyActionDisplay),
                 0,                              // no shift/ctrl/etc. modifiers
                 UInt32(LMGetKbdType()),
-                UInt32(kUCKeyTranslateNoDeadKeysBit),
+                // The API wants the MASK (1 << bit), not the bit index. Passing
+                // the bare `…Bit` (== 0) left dead-key handling ON, so dead-key
+                // keycaps (e.g. German ^° / ´`) returned actualLength 0 and fell
+                // back to the static label instead of the real glyph.
+                UInt32(1 << kUCKeyTranslateNoDeadKeysBit),
                 &deadKeyState,
                 4,
                 &actualLength,
