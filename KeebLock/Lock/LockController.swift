@@ -76,6 +76,11 @@ final class LockController {
     /// (the cross-session view was deemed not useful enough to justify
     /// the on-disk footprint).
     @ObservationIgnored private(set) var sessionTrail: [TrailPoint] = []
+    /// Timestamp of the first wipe in the current trail. `sessionTrail` is
+    /// ring-trimmed at trailMaxPoints, so `trail.first` is not the session
+    /// start once a session exceeds the cap — this survives the trim so the
+    /// Trailmap can show the true duration. Reset with the trail.
+    @ObservationIgnored private(set) var sessionTrailStartedAt: TimeInterval?
     @ObservationIgnored private(set) var keystrokeCount: Int = 0
     private(set) var sparkTrigger: Int = 0
     // Keyboard breakdown — all @ObservationIgnored: per-keyDown bumps were
@@ -425,7 +430,16 @@ final class LockController {
         // Per-session cleanmap starts fresh; overall cleanmap accumulates.
         sessionKeyCounts = [:]
         sessionTrail = []
-        pressedModifiers = []
+        sessionTrailStartedAt = nil
+        // Seed from the modifiers physically held at lock-start. A modifier
+        // held while clicking Lock (then released mid-session) would otherwise
+        // arrive as a lone flagsChanged that the empty set mis-pairs as a press
+        // — a phantom wipe plus inverted press/release parity for the rest of
+        // the session. keyState is keycode-exact, so left/right are tracked
+        // independently. Caps lock (57) is a toggle handled separately; exclude it.
+        pressedModifiers = Set(Self.modifierKeycodes.filter { keycode in
+            keycode != 57 && CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keycode))
+        })
         lastScrollAt = nil
         lastSwipeAt = nil
         lastPinchAt = nil
@@ -540,6 +554,7 @@ final class LockController {
     /// Clear the current-session trailmap.
     func resetSessionTrailmap() {
         sessionTrail = []
+        sessionTrailStartedAt = nil
         statsResetPulse &+= 1
     }
 
@@ -1496,6 +1511,7 @@ final class LockController {
 
         sessionKeyCounts[keycode, default: 0] += 1
         overallKeyCounts[keycode, default: 0] += 1
+        if sessionTrailStartedAt == nil { sessionTrailStartedAt = now.timeIntervalSince1970 }
         sessionTrail.append(TrailPoint(keycode: keycode, timestamp: now.timeIntervalSince1970))
         if sessionTrail.count > Self.trailMaxPoints {
             sessionTrail.removeFirst(sessionTrail.count - Self.trailMaxPoints)

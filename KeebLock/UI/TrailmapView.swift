@@ -152,7 +152,9 @@ struct TrailmapView: View {
     }
 
     private var durationLabel: String {
-        guard let first = trail.first?.timestamp,
+        // sessionTrailStartedAt survives the ring-buffer trim; trail.first does
+        // not, so for sessions over the cap it would understate the duration.
+        guard let first = controller.sessionTrailStartedAt ?? trail.first?.timestamp,
               let last  = trail.last?.timestamp,
               last > first else {
             return "—"
