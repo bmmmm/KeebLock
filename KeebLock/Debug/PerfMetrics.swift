@@ -329,6 +329,11 @@ final class PerfMetrics: ObservableObject {
     // MARK: - 1 Hz tick: snapshot rates + memory + p99
 
     private func startRateTimer() {
+        // Never leak a previously-scheduled timer: a second sessionStart()
+        // without an intervening sessionStop() (e.g. the perf-test restart)
+        // would otherwise orphan the old timer on the main runloop, where it
+        // keeps firing and double-resets the rate buckets.
+        rateTimer?.invalidate()
         let timer = Timer(timeInterval: 1, repeats: true) { _ in
             Task { @MainActor in PerfMetrics.shared.tickRates() }
         }
