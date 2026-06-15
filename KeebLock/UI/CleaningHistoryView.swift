@@ -44,9 +44,6 @@ struct CleaningHistoryView: View {
         let cal = Calendar.current
         return history.sessions.filter { cal.isDateInToday($0.startedAt) }.count
     }
-    private var maxKeystrokesInSession: Int {
-        history.sessions.map(\.keystrokeCount).max() ?? 1
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -79,7 +76,7 @@ struct CleaningHistoryView: View {
                 Text("Cleaning History")
                     .font(.title2.weight(.semibold))
                 if let last = history.lastWipe {
-                    Text("Last wipe \(RelativeDateTimeFormatter().localizedString(for: last, relativeTo: Date()))")
+                    Text("Last wipe \(Self.relativeFormatter.localizedString(for: last, relativeTo: Date()))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -186,9 +183,7 @@ struct CleaningHistoryView: View {
         if cal.isDateInToday(date) { return "T" }
         // show date number every 7 days and for the first bar
         if index == 0 || index % 7 == 0 {
-            let f = DateFormatter()
-            f.dateFormat = "d"
-            return f.string(from: date)
+            return Self.chartDayFormatter.string(from: date)
         }
         return ""
     }
@@ -375,9 +370,7 @@ struct CleaningHistoryView: View {
     }
 
     private func timestampStamp() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd-HHmmss"
-        return f.string(from: Date())
+        Self.exportStampFormatter.string(from: Date())
     }
 
     private var paginationControls: some View {
@@ -430,19 +423,46 @@ struct CleaningHistoryView: View {
 
     // MARK: - Formatting
 
-    private func formatTime(_ date: Date) -> String {
+    // Formatters are expensive to construct; these used to be allocated fresh
+    // inside body-derived row/bar builders (per visible row, per chart bar, on
+    // every history publish). Hoisted to shared instances — they are read-only
+    // after setup and reused across renders.
+    private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
-        return f.string(from: date)
+        return f
+    }()
+    private static let dayLabelFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, d MMM"
+        return f
+    }()
+    private static let chartDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d"
+        return f
+    }()
+    private static let exportStampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        return f
+    }()
+    private static let relativeFormatter = RelativeDateTimeFormatter()
+    private static let decimalFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f
+    }()
+
+    private func formatTime(_ date: Date) -> String {
+        Self.timeFormatter.string(from: date)
     }
 
     private func formatDayLabel(_ date: Date) -> String {
         let cal = Calendar.current
         if cal.isDateInToday(date) { return "Today" }
         if cal.isDateInYesterday(date) { return "Yesterday" }
-        let f = DateFormatter()
-        f.dateFormat = "EEEE, d MMM"
-        return f.string(from: date)
+        return Self.dayLabelFormatter.string(from: date)
     }
 
     private func formatDur(_ seconds: Int) -> String {
@@ -453,8 +473,6 @@ struct CleaningHistoryView: View {
     }
 
     private func formatNum(_ n: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f.string(from: NSNumber(value: n)) ?? "\(n)"
+        Self.decimalFormatter.string(from: NSNumber(value: n)) ?? "\(n)"
     }
 }
