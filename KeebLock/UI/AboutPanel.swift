@@ -11,7 +11,25 @@ enum AboutPanel {
     /// the about panel closes it. Stored at file scope so the close path
     /// can detach itself without a separate state machine.
     private static var clickMonitor: Any?
+    private static var closeObserver: NSObjectProtocol?
     private static weak var trackedPanel: NSWindow?
+
+    /// Single teardown path for both the click monitor and the close
+    /// observer. Idempotent. Driven by either a click-to-close or the
+    /// panel's willCloseNotification, so dismissing the panel by any means
+    /// (⌘W, app deactivation, stoplight button) detaches the monitor —
+    /// previously it leaked until the next left-click anywhere.
+    private static func teardown() {
+        if let m = clickMonitor {
+            NSEvent.removeMonitor(m)
+            clickMonitor = nil
+        }
+        if let o = closeObserver {
+            NotificationCenter.default.removeObserver(o)
+            closeObserver = nil
+        }
+        trackedPanel = nil
+    }
 
     static func show() {
         NSApp.activate(ignoringOtherApps: true)
@@ -40,20 +58,19 @@ enum AboutPanel {
             String(describing: type(of: window)).lowercased().contains("about")
         }) else { return }
 
-        if let m = clickMonitor {
-            NSEvent.removeMonitor(m)
-            clickMonitor = nil
-        }
+        teardown()
         trackedPanel = panel
+
+        // Detach if the panel closes by any path other than our click — the
+        // willClose observer is the single teardown trigger in those cases.
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: panel, queue: .main
+        ) { _ in teardown() }
 
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
             guard let target = trackedPanel, event.window === target else { return event }
+            // close() fires willCloseNotification → teardown() detaches us.
             DispatchQueue.main.async { target.close() }
-            if let m = clickMonitor {
-                NSEvent.removeMonitor(m)
-                clickMonitor = nil
-            }
-            trackedPanel = nil
             return event
         }
     }
