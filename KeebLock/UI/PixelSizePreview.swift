@@ -26,8 +26,11 @@ struct PixelSizePreview: View {
     private var grid: some View {
         GeometryReader { geo in
             let w = geo.size.width
-            let cell = w / Double(max(1, cellsX))
-            let visibleRows = max(1, Int(geo.size.height / cell))
+            // A transient zero-width layout pass (first pass, offscreen scroll)
+            // makes `cell` 0; the row count then divides by it and Int(+inf)/Int(NaN)
+            // would trap. Skip drawing until the geometry is real.
+            let cell = w > 0 ? w / Double(max(1, cellsX)) : 0
+            let visibleRows = cell > 0 ? max(1, Int(geo.size.height / cell)) : 0
 
             Canvas { ctx, _ in
                 for x in 0..<cellsX {
