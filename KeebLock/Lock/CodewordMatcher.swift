@@ -2,10 +2,16 @@ import Foundation
 
 struct CodewordMatcher {
     private let target: String
+    private let targetChars: [Character]
+    private let failure: [Int]
     private var buffer: String = ""
 
     init(target: String) {
-        self.target = target.lowercased()
+        let normalized = target.lowercased()
+        self.target = normalized
+        let chars = Array(normalized)
+        self.targetChars = chars
+        self.failure = Self.failureTable(chars)
     }
 
     mutating func reset() {
@@ -29,12 +35,31 @@ struct CodewordMatcher {
 
     /// How many leading characters of `target` match the trailing characters of
     /// the current buffer. Ranges from 0 (no match) to target.count (full match).
+    /// One O(buffer.count) KMP pass over the buffer against a precomputed failure
+    /// table, replacing the former O(L²) suffix/prefix probe. `feed` keeps
+    /// `buffer` trimmed to at most target.count, so `k` can only reach
+    /// targetChars.count on the final character — it never indexes out of bounds.
     var matchProgress: Int {
-        guard !target.isEmpty, !buffer.isEmpty else { return 0 }
-        let maxN = min(buffer.count, target.count)
-        for n in stride(from: maxN, through: 1, by: -1) {
-            if buffer.suffix(n) == target.prefix(n) { return n }
+        guard !targetChars.isEmpty, !buffer.isEmpty else { return 0 }
+        var k = 0
+        for ch in buffer {
+            while k > 0 && ch != targetChars[k] { k = failure[k - 1] }
+            if ch == targetChars[k] { k += 1 }
         }
-        return 0
+        return k
+    }
+
+    /// KMP failure table: failure[i] = length of the longest proper prefix of
+    /// targetChars[0...i] that is also a suffix. Built once per matcher.
+    private static func failureTable(_ chars: [Character]) -> [Int] {
+        guard !chars.isEmpty else { return [] }
+        var table = [Int](repeating: 0, count: chars.count)
+        var k = 0
+        for i in 1..<chars.count {
+            while k > 0 && chars[i] != chars[k] { k = table[k - 1] }
+            if chars[i] == chars[k] { k += 1 }
+            table[i] = k
+        }
+        return table
     }
 }
