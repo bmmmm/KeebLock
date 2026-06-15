@@ -26,6 +26,11 @@ enum Codewords {
         "solfatara", "sinkhole", "escarpment", "fissure",
         "earthquake", "lapilli", "avalanche", "landslide", "mudflow",
         "rockfall", "subsidence", "seiche", "lavaflow", "erosion",
+        "pyroclast", "lavadome", "riftvalley", "horst", "glacier", "iceberg",
+        "moraine", "crevasse", "fjord", "drumlin", "esker", "calving",
+        "permafrost", "karst", "canyon", "stalactite", "stalagmite", "cenote",
+        "polje", "meander", "oxbow", "delta", "hoodoo", "slump",
+        "deflation", "abrasion",
         // Mountain ranges
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
         "apennines", "pamir", "tienshan", "karakoram", "sierra", "vosges",

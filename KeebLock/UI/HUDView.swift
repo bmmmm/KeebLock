@@ -190,7 +190,7 @@ private struct HUDKnowledgeFooter: View {
     // the longest bundled fact at 16-pt body without truncation.
     private static let cardWidth: CGFloat = 540
     private static let imageHeight: CGFloat = 160
-    private static let factLineCount = 4
+    private static let factLineCount = 6
 
     private var currentEntry: CodewordKnowledge {
         cachedEntry ?? CodewordKnowledgeBase.entry(for: controller.currentCodeword)

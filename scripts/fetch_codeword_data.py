@@ -70,6 +70,12 @@ WORDS_BY_THEME: dict[str, list[str]] = {
         "solfatara", "sinkhole", "escarpment", "fissure",
         "earthquake", "lapilli", "avalanche", "landslide", "mudflow",
         "rockfall", "subsidence", "seiche", "lavaflow", "erosion",
+        # Expansion batch — volcanic / tectonic / glacial / karst / cave / fluvial / mass-wasting
+        "pyroclast", "lavadome", "riftvalley", "horst", "glacier", "iceberg",
+        "moraine", "crevasse", "fjord", "drumlin", "esker", "calving",
+        "permafrost", "karst", "canyon", "stalactite", "stalagmite", "cenote",
+        "polje", "meander", "oxbow", "delta", "hoodoo", "slump",
+        "deflation", "abrasion",
     ],
     "ranges": [
         "andes", "alps", "atlas", "himalaya", "caucasus", "carpathians",
@@ -121,6 +127,17 @@ SLUG_OVERRIDES: dict[str, str] = {
     "taunus":     "Taunus",
     "sudetes":    "Sudetes",
     "kunlun":     "Kunlun Mountains",
+    "horst":      "Horst (geology)",
+    "calving":    "Ice calving",
+    "oxbow":      "Oxbow lake",
+    "delta":      "River delta",
+    "hoodoo":     "Hoodoo (geology)",
+    "slump":      "Slump (geology)",
+    "deflation":  "Deflation (geology)",
+    "abrasion":   "Abrasion (geology)",
+    "pyroclast":  "Pyroclastic flow",
+    "lavadome":   "Lava dome",
+    "riftvalley": "Rift valley",
 }
 
 
