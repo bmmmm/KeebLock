@@ -9,7 +9,6 @@ struct HUDView: View {
     var controller: LockController
     @ObservedObject var renderer: WipeRenderer
     @ObservedObject var settings: AppSettings = .shared
-    let screenIndex: Int
 
     var body: some View {
         // Spacing trimmed (22 → 16), title & codeword shrunk so the whole

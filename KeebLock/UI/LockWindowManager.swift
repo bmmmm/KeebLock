@@ -177,8 +177,7 @@ final class LockWindowManager {
 
             let view = LockView(
                 controller: controller,
-                renderer: renderer,
-                screenIndex: index
+                renderer: renderer
             )
             let hosting = NSHostingView(rootView: view)
             hosting.wantsLayer = true

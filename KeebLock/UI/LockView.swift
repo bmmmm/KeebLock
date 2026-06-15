@@ -9,7 +9,6 @@ struct LockView: View {
     // unrelated invalidation.
     @ObservedObject private var settings: AppSettings = .shared
     let renderer: WipeRenderer
-    let screenIndex: Int
 
     // Fixed once when the view is created, not re-rolled on every body
     // re-evaluation. Computing Double.random() inside body would pick a new
@@ -31,8 +30,7 @@ struct LockView: View {
 
             HUDView(
                 controller: controller,
-                renderer: renderer,
-                screenIndex: screenIndex
+                renderer: renderer
             )
             .padding(36)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Radius.xl))
