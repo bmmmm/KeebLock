@@ -44,6 +44,15 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .keebLockOpenSettings)) { _ in
             selectedTab = 1
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // AX can be revoked in System Settings while we're backgrounded; the
+            // one-shot poller stopped once granted and won't catch that. Re-check
+            // on focus regain so the launcher's granted-state UI can't go stale,
+            // and re-arm polling if it was revoked.
+            let granted = AccessibilityPermission.isGranted
+            if granted != accessibilityGranted { accessibilityGranted = granted }
+            if !granted { startPermissionPolling() }
+        }
     }
 
     /// Polls the Accessibility permission once per second only while it is
