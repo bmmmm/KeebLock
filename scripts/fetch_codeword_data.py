@@ -166,15 +166,49 @@ def wiki_html(title: str) -> str:
 
 # ---------- Fact extraction ----------
 
+# Wikipedia's REST HTML encodes exponents and chemical formulae with <sup>/<sub>
+# (e.g. "6×10<sup>5</sup> m<sup>3</sup>/s", "SiO<sub>2</sub>"). The parser used
+# to list <sup> under SKIP_TAGS, which silently deleted every exponent — "6×10⁵"
+# collapsed to "6×10", a fabricated magnitude that then got baked into prose.
+# We now transliterate sup/sub runs to the matching Unicode code points; citation
+# markers (<sup class="mw-ref reference">[1]</sup>) are still dropped.
+_SUPERSCRIPT = {
+    "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶",
+    "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "−": "⁻", "=": "⁼",
+    "(": "⁽", ")": "⁾", "a": "ᵃ", "b": "ᵇ", "c": "ᶜ", "d": "ᵈ", "e": "ᵉ",
+    "f": "ᶠ", "g": "ᵍ", "h": "ʰ", "i": "ⁱ", "j": "ʲ", "k": "ᵏ", "l": "ˡ",
+    "m": "ᵐ", "n": "ⁿ", "o": "ᵒ", "p": "ᵖ", "r": "ʳ", "s": "ˢ", "t": "ᵗ",
+    "u": "ᵘ", "v": "ᵛ", "w": "ʷ", "x": "ˣ", "y": "ʸ", "z": "ᶻ",
+}
+_SUBSCRIPT = {
+    "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆",
+    "7": "₇", "8": "₈", "9": "₉", "+": "₊", "-": "₋", "−": "₋", "=": "₌",
+    "(": "₍", ")": "₎",
+}
+
+
+def _to_script(text: str, mapping: dict[str, str]) -> str:
+    """Transliterate a <sup>/<sub> run to Unicode super/subscript.
+
+    Falls back to the raw text when any character is outside the mapping
+    (rare), so an exotic exponent degrades to plain text rather than corrupt.
+    """
+    text = text.strip()
+    if text and all(ch in mapping for ch in text):
+        return "".join(mapping[ch] for ch in text)
+    return text
+
+
 class _ParagraphCollector(HTMLParser):
     """Collects text from top-level <p> tags inside the main article body.
 
     Skips paragraphs inside <table>, <figure>, <aside>, <ol class="references">,
-    drops citation markers like [1][2], and ignores stub paragraphs (<120 chars
-    after cleanup) so we get substantive sentences not fragments.
+    drops citation markers like [1][2], transliterates <sup>/<sub> to Unicode,
+    and ignores stub paragraphs (<80 chars after cleanup) so we get substantive
+    sentences not fragments.
     """
 
-    SKIP_TAGS = {"table", "figure", "aside", "div", "sup"}
+    SKIP_TAGS = {"table", "figure", "aside", "div"}
 
     def __init__(self) -> None:
         super().__init__()
@@ -182,11 +216,34 @@ class _ParagraphCollector(HTMLParser):
         self._in_p = False
         self._current: list[str] = []
         self._skip_depth = 0
+        self._script: list[str] | None = None    # buffers <sup>/<sub> text
+        self._script_map: dict[str, str] = {}
+        self._sup_is_ref = False                  # current <sup> is a citation
+
+    @staticmethod
+    def _is_reference(attrs_dict: dict) -> bool:
+        cls = attrs_dict.get("class") or ""
+        typeof = attrs_dict.get("typeof") or ""
+        return "reference" in cls or "mw-ref" in cls or "mw:Extension/ref" in typeof
 
     def handle_starttag(self, tag: str, attrs):
         if tag == "p" and self._skip_depth == 0:
             self._in_p = True
             self._current = []
+        elif tag == "sup":
+            if self._is_reference(dict(attrs)):
+                self._skip_depth += 1
+                self._sup_is_ref = True
+            elif self._in_p and self._skip_depth == 0:
+                self._script = []
+                self._script_map = _SUPERSCRIPT
+                self._sup_is_ref = False
+            else:
+                self._sup_is_ref = False
+        elif tag == "sub":
+            if self._in_p and self._skip_depth == 0:
+                self._script = []
+                self._script_map = _SUBSCRIPT
         elif tag in self.SKIP_TAGS:
             self._skip_depth += 1
         elif tag == "ol":
@@ -203,11 +260,28 @@ class _ParagraphCollector(HTMLParser):
             if len(text) >= 80:
                 self.paragraphs.append(text)
             self._current = []
+            self._script = None
+            self._sup_is_ref = False
+        elif tag == "sup":
+            if self._sup_is_ref:
+                self._skip_depth = max(0, self._skip_depth - 1)
+                self._sup_is_ref = False
+            elif self._script is not None:
+                self._current.append(_to_script("".join(self._script), self._script_map))
+                self._script = None
+        elif tag == "sub":
+            if self._script is not None:
+                self._current.append(_to_script("".join(self._script), self._script_map))
+                self._script = None
         elif tag in self.SKIP_TAGS or tag == "ol":
             self._skip_depth = max(0, self._skip_depth - 1)
 
     def handle_data(self, data: str):
-        if self._in_p and self._skip_depth == 0:
+        if self._skip_depth > 0:
+            return
+        if self._script is not None:
+            self._script.append(data)
+        elif self._in_p:
             self._current.append(data)
 
 
@@ -487,13 +561,21 @@ def main() -> int:
     data: dict[str, dict] = {}
     unavailable: list[str] = []
 
-    # Default behaviour preserves the previous manifest so re-running the
-    # script never destroys hand-curated or already-attributed entries.
-    # `--force` opts out of that and rebuilds from scratch.
-    if not args.force and MANIFEST_PATH.exists():
+    # The Did-You-Know corpus is agent-authored, not fetched. fetch_word()
+    # only rebuilds Wikipedia-derived fields, so without this a --force run
+    # (or re-fetching any single word) would silently drop did_you_know.
+    # Keep it keyed by word across every mode. See CLAUDE.md → data pipeline.
+    prev_dyk: dict[str, list[str]] = {}
+    if MANIFEST_PATH.exists():
         prev = json.loads(MANIFEST_PATH.read_text())
-        data.update(prev.get("data", {}))
-        unavailable = list(prev.get("unavailable", []))
+        prev_dyk = {w: e["did_you_know"] for w, e in prev.get("data", {}).items()
+                    if e.get("did_you_know")}
+        # Default behaviour preserves the previous manifest so re-running the
+        # script never destroys hand-curated or already-attributed entries.
+        # `--force` opts out of that and rebuilds from scratch.
+        if not args.force:
+            data.update(prev.get("data", {}))
+            unavailable = list(prev.get("unavailable", []))
 
     for theme, words in WORDS_BY_THEME.items():
         print(f"\n=== {theme} ({len(words)} words) ===", flush=True)
@@ -529,6 +611,8 @@ def main() -> int:
                     del data[word]
             else:
                 entry["theme"] = theme
+                if prev_dyk.get(word):
+                    entry["did_you_know"] = prev_dyk[word]
                 data[word] = entry
                 if word in unavailable:
                     unavailable.remove(word)
