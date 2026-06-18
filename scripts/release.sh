@@ -7,6 +7,10 @@
 # Usage:
 #   scripts/release.sh 0.1.0
 #   scripts/release.sh 0.1.0 --notes "Custom release notes"
+#   RELEASE_LOGIN=<tea-login> scripts/release.sh 0.1.0   # author as a specific login
+#
+# Repo, host, and authoring identity are derived from `origin`; RELEASE_LOGIN
+# overrides the tea login (defaults to tea's configured default login).
 #
 # Default release notes include the install instructions for Apple-Silicon
 # Macs without notarisation (xattr workaround).
@@ -58,6 +62,28 @@ if ! command -v tea >/dev/null 2>&1; then
     echo "error: tea (forgejo/gitea cli) not found — install it first" >&2
     exit 1
 fi
+
+# --- Resolve repo, host, and publishing login from the real remote -----------
+# Tracked source carries no hardcoded org/host: derive owner/repo and host from
+# origin so this works for any fork and never leaks the internal URL into
+# committed source or into public (mirrored) release notes.
+OWNER_REPO="$(git remote get-url origin | sed -E 's#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')"
+REMOTE_HOST="$(git remote get-url origin | sed -E 's#^[a-z]+://##; s#^[^@/]*@##; s#[:/].*##')"
+if [ -z "$OWNER_REPO" ] || [ -z "$REMOTE_HOST" ]; then
+    echo "error: could not derive owner/repo + host from 'git remote get-url origin'" >&2
+    exit 1
+fi
+# A release is a deliberate, public-facing action — pin the authoring identity
+# explicitly instead of inheriting tea's global default silently (the default
+# can be a bot account used for automation). Override with RELEASE_LOGIN=<name>.
+RELEASE_LOGIN="${RELEASE_LOGIN:-$(tea login default 2>/dev/null | awk -F': ' '/Default Login/ {print $2}')}"
+if [ -z "$RELEASE_LOGIN" ]; then
+    echo "error: no tea login resolved — set one (tea login default <name>) or pass RELEASE_LOGIN=<name>" >&2
+    exit 1
+fi
+RELEASE_USER="$(tea logins list 2>/dev/null | awk -v l="$RELEASE_LOGIN" -F'│' '$2 ~ l {gsub(/ /,"",$5); print $5}')"
+echo "==> Release target: $OWNER_REPO on $REMOTE_HOST"
+echo "    authoring as tea login '$RELEASE_LOGIN'${RELEASE_USER:+ (user $RELEASE_USER)} — override with RELEASE_LOGIN=<name>"
 
 # --- Build Release with version pinned ---------------------------------------
 # Build BEFORE tagging: the version is pinned via the VERSION env var, not the
@@ -169,8 +195,7 @@ $AUTHENTICITY_BLOCK
 
 ### Source
 
-- https://github.com/bmmmm/KeebLock (mirror)
-- https://git.home/your-org/KeebLock  (origin, internal)
+- https://github.com/bmmmm/KeebLock
 EOF
 )"
 fi
@@ -185,12 +210,14 @@ fi
 ZIP_ABS="$(pwd)/$ZIP"
 echo "==> Publishing release on Forgejo"
 ( cd "$HOME" && tea releases create "$TAG" \
-      --repo your-org/KeebLock \
+      --repo "$OWNER_REPO" \
+      --login "$RELEASE_LOGIN" \
       --title "KeebLock $VERSION" \
       --note "$NOTES" )
-( cd "$HOME" && tea releases assets create "$TAG" "$ZIP_ABS" --repo your-org/KeebLock )
+( cd "$HOME" && tea releases assets create "$TAG" "$ZIP_ABS" \
+      --repo "$OWNER_REPO" --login "$RELEASE_LOGIN" )
 
 echo
 echo "==> Done."
-echo "    Forgejo: http://git.home/your-org/KeebLock/releases/tag/$TAG"
+echo "    Forgejo: https://$REMOTE_HOST/$OWNER_REPO/releases/tag/$TAG"
 echo "    GitHub mirror sync usually within minutes."
