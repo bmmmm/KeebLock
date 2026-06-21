@@ -14,14 +14,6 @@
 #
 # Default release notes include the install instructions for Apple-Silicon
 # Macs without notarisation (xattr workaround).
-#
-# MUTUALLY EXCLUSIVE WITH CI: once .forgejo/workflows/release.yml is active and
-# a self-hosted runner is online, the `git push origin "$TAG"` below ALSO
-# triggers that workflow, which builds + publishes the same release via
-# actions/forgejo-release. Running this script then double-publishes (this
-# script via `tea`, the workflow via the action). Use ONE path until release.sh
-# is reduced to a tag-pusher (issue #8 reconciliation) — this script is the
-# offline/no-runner fallback; the CI workflow is the canonical path once proven.
 
 set -euo pipefail
 
