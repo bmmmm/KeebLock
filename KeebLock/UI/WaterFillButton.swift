@@ -17,7 +17,8 @@ private struct WaterShape: Shape {
         let clampedFraction = min(fillFraction, 1.0)
         let waterY = rect.height * (1.0 - clampedFraction)
         // Amplitude fades out as water nears the top
-        let amplitude: CGFloat = 5.5 * max(0, 1.0 - (clampedFraction - 0.85) / 0.15)
+        let fade = min(1.0, max(0, (1.0 - clampedFraction) / 0.15))
+        let amplitude: CGFloat = 5.5 * fade
 
         path.move(to: CGPoint(x: 0, y: rect.height))
         path.addLine(to: CGPoint(x: 0, y: waterY))
@@ -83,6 +84,11 @@ struct WaterFillButton: View {
                 fillFraction = 1.0
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                guard !disabled else {
+                    withAnimation(.none) { fillFraction = 0 }
+                    filling = false
+                    return
+                }
                 action()
                 withAnimation(.none) { fillFraction = 0 }
                 filling = false

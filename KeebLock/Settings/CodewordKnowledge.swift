@@ -9,7 +9,7 @@ struct CodewordKnowledge {
     let title: String           // canonical Wikipedia title (e.g. "Mount Vesuvius")
     let summary: String         // first-paragraph extract
     let facts: [String]         // ~10 substantive paragraphs
-    /// Short hand-curated "Did you know?" snippets — five per entry,
+    /// Short hand-curated "Did you know?" snippets — 6 per entry,
     /// designed for rotating display on the lock HUD. Falls back to
     /// `facts` when empty (older bundle versions or stub fallbacks).
     let didYouKnow: [String]
@@ -94,7 +94,7 @@ enum CodewordKnowledgeBase {
             let facts: [String]
             // Optional in the schema so older bundles (without the DYK
             // pipeline output) decode without errors. Newer bundles ship
-            // five short snippets per entry under "did_you_know".
+            // 6 short snippets per entry under "did_you_know".
             let did_you_know: [String]?
             let theme: String
             let wikipedia_url: String

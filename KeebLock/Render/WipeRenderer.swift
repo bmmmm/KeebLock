@@ -115,6 +115,12 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     // MARK: - Public API
 
     func wipeRandomCell() {
+        // Wipe entry points run on the main-serialized keystroke hot path;
+        // `recordMainHop()` and the @Published mutations below assume it.
+        // This class is `nonisolated`, so the invariant rests on call-site
+        // discipline — assert it (debug-only, stripped in release) so an
+        // accidental off-main caller is caught instead of racing silently.
+        dispatchPrecondition(condition: .onQueue(.main))
         stateLock.lock()
         guard let idx = remainingIndices.popLast() else {
             stateLock.unlock()
@@ -162,6 +168,8 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
     func wipeAtNormalizedPosition(_ pos: CGPoint,
                                   count requestedCount: Int,
                                   bounds: CGRect) {
+        // Same main-thread invariant as wipeRandomCell() — see there.
+        dispatchPrecondition(condition: .onQueue(.main))
         let count = max(1, requestedCount)
         stateLock.lock()
         let w = maskDims.w

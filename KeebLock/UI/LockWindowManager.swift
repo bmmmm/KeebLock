@@ -139,14 +139,23 @@ final class LockWindowManager {
 
     var windowCount: Int { windows.count }
 
+    /// `rebuild` distinguishes a same-session window rebuild (e.g. display
+    /// arrangement changed mid-lock) from a fresh lock. On a rebuild we must
+    /// NOT restore + re-capture moved-display state: restoreMovedDisplays()
+    /// issues an *animated* CGS space switch that may not have committed in
+    /// CGS topology by the time capture() re-runs, so the new snapshot would
+    /// see Desktop, movedDisplays would end up empty, and at true unlock the
+    /// user would not be returned to their original fullscreen app. Preserve
+    /// the existing movedDisplays across a rebuild instead.
     func show(
         controller: LockController,
         fixedBg: SIMD4<Float>? = nil,
         fixedPixel: SIMD4<Float>? = nil,
         cellsPerAxis: Int,
-        stageThreshold: Double
+        stageThreshold: Double,
+        rebuild: Bool = false
     ) {
-        hide()
+        hide(forRebuild: rebuild)
 
         savedPresentationOptions = NSApp.presentationOptions
         // .disableProcessSwitching blocks the ⌘-Tab app switcher so the lock
@@ -250,22 +259,42 @@ final class LockWindowManager {
         // not the lock. Switching the display's active space animates
         // the view change exactly like ⌃← would. Capture the originals
         // so `hide()` can restore the user back to where they were.
-        movedDisplays = switchDisplaysOutOfFullscreen(snapshot)
+        //
+        // On a rebuild movedDisplays was preserved across hide(forRebuild:)
+        // and the displays are still parked on Desktop, so a fresh capture
+        // would see nothing to move and lose the original-space records.
+        // Re-pin coverage instead (refreshSpaceCoverage merges only genuinely
+        // new fullscreen displays without clobbering the preserved originals).
+        if rebuild {
+            refreshSpaceCoverage()
+        } else {
+            movedDisplays = switchDisplaysOutOfFullscreen(snapshot)
+        }
 
         DebugLog.log("show: \(windows.count) window(s) ordered front (level=screenSaver, key=screen[\(mainScreen.flatMap(NSScreen.screens.firstIndex(of:)) ?? -1)])")
         logSpacesDiagnostic(snapshot)
         logFullscreenApps()
     }
 
-    func hide() {
-        DebugLog.log("hide: \(windows.count) window(s)")
+    /// `forRebuild` is set when `show()` is tearing the windows down only to
+    /// immediately re-create them for a new screen set. In that case we must
+    /// keep `movedDisplays` intact and NOT restore the displays' original
+    /// spaces — the lock is still up, and an animated restore here would race
+    /// the snapshot capture in the upcoming show(), losing the records needed
+    /// to return the user to their fullscreen app at true unlock.
+    func hide(forRebuild: Bool = false) {
+        DebugLog.log("hide: \(windows.count) window(s)\(forRebuild ? " (rebuild)" : "")")
 
         // 0) Symmetric counterpart to switchDisplaysOutOfFullscreen — put
         // each display we yanked off a fullscreen back on the original
         // space. Done before window teardown so the macOS-driven Space
         // animation slides the lock window off as the user returns,
         // instead of flashing an empty Desktop after the lock vanishes.
-        restoreMovedDisplays()
+        // Skipped on a rebuild: the lock stays up and movedDisplays must
+        // survive for the eventual real unlock.
+        if !forRebuild {
+            restoreMovedDisplays()
+        }
 
         // 1) Stop Metal display links so draw() stops being scheduled.
         for renderer in renderers { renderer.stop() }

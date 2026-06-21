@@ -26,12 +26,6 @@ struct CleaningSession: Codable, Identifiable {
     // ignores unknown keys by default, so old data still loads — the next
     // save() drops the field for good. No explicit migration required.
 
-    var dateString: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH:mm"
-        return f.string(from: startedAt)
-    }
-
     var durationString: String {
         let m = durationSeconds / 60
         let s = durationSeconds % 60
@@ -82,9 +76,11 @@ final class CleaningHistory: ObservableObject {
         } catch {
             // Schema-incompatible blob. Silently overwriting on the next
             // save() destroys any chance of recovery — archive the bad
-            // bytes under a timestamped key so a future migration (or a
+            // bytes under a single fixed key so a future migration (or a
             // user-supplied script) can salvage them, then start fresh.
-            let archiveKey = "\(storageKey).corrupt-\(Int(Date().timeIntervalSince1970))"
+            // Overwriting the same key keeps at most one archive, so a
+            // repeatedly-failing load can't bloat the prefs plist.
+            let archiveKey = "\(storageKey).corrupt"
             UserDefaults.standard.set(data, forKey: archiveKey)
             UserDefaults.standard.removeObject(forKey: storageKey)
             DebugLog.log("CleaningHistory: decode failed (\(error.localizedDescription)) — archived bad blob to \(archiveKey), starting fresh")

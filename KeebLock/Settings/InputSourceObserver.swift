@@ -5,6 +5,7 @@ import Foundation
 /// Watches the macOS keyboard input source so the launcher can show "we see
 /// your layout" feedback. Updates live when the user switches via ⌃⌥Space or
 /// the menu-bar input switcher.
+@MainActor
 final class InputSourceObserver: ObservableObject {
     static let shared = InputSourceObserver()
 
@@ -18,7 +19,13 @@ final class InputSourceObserver: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refresh()
+            // queue: .main guarantees the closure runs on the main thread, but
+            // the Notification API surface is nonisolated so the compiler can't
+            // see that. assumeIsolated lets us call the @MainActor refresh()
+            // without an async hop.
+            MainActor.assumeIsolated {
+                self?.refresh()
+            }
         }
     }
 

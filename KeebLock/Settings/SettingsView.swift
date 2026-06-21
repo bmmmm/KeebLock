@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var showTrailmap = false
     @State private var showHistory = false
     @State private var snapshotMessage: String?
+    @State private var snapshotMessageToken = 0
     @State private var copiedCommand: String?
     @State private var codewordEditing = false
     @FocusState private var codewordFocused: Bool
@@ -575,7 +576,7 @@ struct SettingsView: View {
         tintedSection("Codeword knowledge") {
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Show on launcher and lock screen", isOn: $settings.showCodewordKnowledge)
-                Text("Curated geology summary plus 10 facts per codeword. Hover the ghost icons on the launcher, or read them rotating in the lock screen.")
+                Text("Curated geology summary plus hand-picked facts per codeword. Hover the ghost icons on the launcher, or read the did-you-know snippets rotating in the lock screen.")
                     .font(fCaption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -835,7 +836,7 @@ struct SettingsView: View {
                     Button("Save snapshot") {
                         let snap = DebugLog.snapshot()
                         DebugLog.writeForced(snap)
-                        snapshotMessage = "Snapshot appended to log."
+                        showSnapshotMessage("Snapshot appended to log.")
                     }
                     .buttonStyle(.bordered)
 
@@ -843,7 +844,7 @@ struct SettingsView: View {
                         let snap = DebugLog.snapshot()
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(snap, forType: .string)
-                        snapshotMessage = "Copied to clipboard."
+                        showSnapshotMessage("Copied to clipboard.")
                     }
                     .buttonStyle(.bordered)
 
@@ -886,6 +887,19 @@ struct SettingsView: View {
     }
 
     // MARK: - Actions
+
+    /// Show a transient confirmation under the debug buttons, then auto-clear
+    /// it after ~2s. Mirrors the `copiedCommand` pattern; a generation token
+    /// guards against an older timer wiping a newer message.
+    private func showSnapshotMessage(_ message: String) {
+        snapshotMessage = message
+        snapshotMessageToken += 1
+        let token = snapshotMessageToken
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            if snapshotMessageToken == token { snapshotMessage = nil }
+        }
+    }
 
     private func pickSoundFile() {
         let panel = NSOpenPanel()

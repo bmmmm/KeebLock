@@ -715,7 +715,7 @@ final class LockController {
 
     private func startTimer() {
         let timer = Timer(timeInterval: 1, repeats: true) { _ in
-            Task { @MainActor in LockController.shared.tick() }
+            Task { @MainActor [weak self] in self?.tick() }
         }
         RunLoop.main.add(timer, forMode: .common)
         unlockTimer = timer
@@ -979,7 +979,8 @@ final class LockController {
             fixedBg: AppSettings.shared.backgroundSIMD,
             fixedPixel: AppSettings.shared.pixelSIMD,
             cellsPerAxis: AppSettings.shared.cellsPerAxis,
-            stageThreshold: AppSettings.shared.stageAdvanceThreshold
+            stageThreshold: AppSettings.shared.stageAdvanceThreshold,
+            rebuild: true
         )
         // Re-anchor the display link to the (possibly new) main screen.
         stopDisplayLink()
@@ -1313,8 +1314,8 @@ final class LockController {
             // with both Command and Option held, checking BOTH our tracked
             // modifier set (robust — flagsChanged populates it even in warmup)
             // and the event's own flags. Not counted as a wipe.
-            let escKeycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-            if escKeycode == 53 {
+            let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+            if keycode == 53 {
                 let cmdHeld = pressedModifiers.contains(54) || pressedModifiers.contains(55)
                 let optHeld = pressedModifiers.contains(58) || pressedModifiers.contains(61)
                 let flagsHaveBoth = event.flags.contains([.maskCommand, .maskAlternate])
@@ -1341,7 +1342,6 @@ final class LockController {
                 if AppSettings.shared.verbosePerfEnabled {
                     checkAnyEventCursorJump(event.location, eventLabel: "keyDown")
                 }
-                let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
                 var length = 0
                 var unicode = [UniChar](repeating: 0, count: 4)
                 event.keyboardGetUnicodeString(maxStringLength: 4,

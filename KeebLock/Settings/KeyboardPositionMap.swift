@@ -147,34 +147,77 @@ struct KeyMapping {
 /// return nil — the wipe is then skipped entirely (no random
 /// fallback) so unmapped strokes don't pollute the cleanup pattern.
 enum KeyboardPositionMap {
+    /// A single key's normalised geometry on the keyboard. The edges
+    /// (`xMin/xMax/yMin/yMax`) are the raw per-row-normalised values in
+    /// [0,1], x left→right and y top→bottom; `bounds` is the same rect
+    /// pre-assembled for callers that want a `CGRect`. `rowIndex`/`rowCount`
+    /// are exposed so a caller can reproduce the row-band arithmetic
+    /// (`rowIndex * height/rowCount`) bit-for-bit rather than scaling the
+    /// normalised y edges, which rounds differently.
+    struct LayoutRect {
+        let key: KeyboardKey
+        let xMin: CGFloat
+        let xMax: CGFloat
+        let yMin: CGFloat
+        let yMax: CGFloat
+        let rowIndex: Int
+        let rowCount: Int
+
+        var bounds: CGRect {
+            CGRect(x: xMin, y: yMin, width: xMax - xMin, height: yMax - yMin)
+        }
+    }
+
+    /// Walks every key in the layout once, computing each key's normalised
+    /// bounding edges (per-row width normalisation, rows stacked top→bottom).
+    /// This is the single source of truth for the keyboard coordinate maths —
+    /// callers scale the normalised edges into their own coordinate space.
+    /// Rows with zero total width are skipped.
+    static func forEachKey(_ body: (LayoutRect) -> Void) {
+        let rowCount = KeyboardLayout.rows.count
+        guard rowCount > 0 else { return }
+        for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
+            let totalWidth = row.reduce(CGFloat(0)) { $0 + $1.width }
+            guard totalWidth > 0 else { continue }
+            let yMin = CGFloat(rowIdx) / CGFloat(rowCount)
+            let yMax = CGFloat(rowIdx + 1) / CGFloat(rowCount)
+            var cursor: CGFloat = 0
+            for key in row {
+                let keyStart = cursor
+                cursor += key.width
+                let keyEnd = cursor
+                body(LayoutRect(
+                    key: key,
+                    xMin: keyStart / totalWidth,
+                    xMax: keyEnd / totalWidth,
+                    yMin: yMin,
+                    yMax: yMax,
+                    rowIndex: rowIdx,
+                    rowCount: rowCount
+                ))
+            }
+        }
+    }
+
     /// Cached lookup table built once, keyed by hardware keycode.
     private static let table: [UInt16: KeyMapping] = {
         var map: [UInt16: KeyMapping] = [:]
-        let rowCount = KeyboardLayout.rows.count
-        for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
-            let totalWidth = row.reduce(0.0) { $0 + Double($1.width) }
-            guard totalWidth > 0 else { continue }
-            let yMin = Double(rowIdx) / Double(rowCount)
-            let yMax = Double(rowIdx + 1) / Double(rowCount)
-            var cursor: Double = 0
-            for key in row {
-                let keyStart = cursor
-                cursor += Double(key.width)
-                let keyEnd = cursor
-                guard let code = key.code else { continue }
-                let xMin = keyStart / totalWidth
-                let xMax = keyEnd / totalWidth
-                map[code] = KeyMapping(
-                    position: CGPoint(x: (xMin + xMax) / 2.0, y: (yMin + yMax) / 2.0),
-                    widthUnits: Double(key.width),
-                    bounds: CGRect(
-                        x: xMin,
-                        y: yMin,
-                        width: xMax - xMin,
-                        height: yMax - yMin
-                    )
+        forEachKey { entry in
+            guard let code = entry.key.code else { return }
+            let xMin = Double(entry.xMin)
+            let xMax = Double(entry.xMax)
+            let yMin = Double(entry.yMin)
+            let yMax = Double(entry.yMax)
+            map[code] = KeyMapping(
+                position: CGPoint(x: (xMin + xMax) / 2.0, y: (yMin + yMax) / 2.0),
+                widthUnits: Double(entry.key.width),
+                bounds: CGRect(
+                    x: xMin,
+                    y: yMin,
+                    width: xMax - xMin,
+                    height: yMax - yMin
                 )
-            }
+            )
         }
         return map
     }()

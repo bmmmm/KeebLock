@@ -18,6 +18,10 @@ final class SoundPlayer {
     private var clickBuffer: AVAudioPCMBuffer?
 
     private var customPlayer: AVAudioPlayer?
+    /// Main-thread mirror of `playerNode.volume`. The node value is owned by
+    /// `audioQueue` (written in setVolume), so off-queue callers that seed a
+    /// freshly-built AVAudioPlayer read this instead of touching the node.
+    private var nodeVolume: Float = 1.0
     /// Security-scoped URL for the currently-loaded custom file. Held for
     /// the lifetime of `customPlayer` — released on swap or deinit.
     /// Releasing earlier (via `defer` inside `setCustomFile`) leaves
@@ -113,6 +117,7 @@ final class SoundPlayer {
         // audioQueue, so hop there to avoid racing an in-flight click or
         // engine start/stop.
         customPlayer?.volume = nodeVol
+        nodeVolume = nodeVol
         audioQueue.async { [weak self] in
             guard let self else { return }
             self.playerNode.volume = nodeVol
@@ -159,7 +164,7 @@ final class SoundPlayer {
         do {
             let p = try AVAudioPlayer(contentsOf: url)
             p.prepareToPlay()
-            p.volume = playerNode.volume
+            p.volume = nodeVolume
             customPlayer = p
             // Scope held until next setCustomFile() / deinit — matches the
             // lifetime of the AVAudioPlayer's open file.
@@ -306,7 +311,7 @@ final class SoundPlayer {
         do {
             let p = try AVAudioPlayer(contentsOf: url)
             p.prepareToPlay()
-            p.volume = playerNode.volume
+            p.volume = nodeVolume
             customPlayer = p
             customScopedURL = url
             p.play()

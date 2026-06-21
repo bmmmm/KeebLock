@@ -268,44 +268,40 @@ struct TrailmapView: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
     }
 
-    /// Renders the keyboard layout as a faint backdrop. Each row is stretched
-    /// to fill the full width and normalised by its own unit total — identical
-    /// to `KeyboardPositionMap`'s coordinate maths — so the trail (which reads
-    /// from that map) aligns key-for-key on top of it.
+    /// Renders the keyboard layout as a faint backdrop. Geometry comes from
+    /// `KeyboardPositionMap.forEachKey` — the same per-row normalisation that
+    /// places the trail points — so the backdrop aligns key-for-key with the
+    /// trail. We only scale the shared normalised edges into pixel space and
+    /// inset each tile by `gap`; the formula itself lives in the map.
     private func drawKeyboard(ctx: GraphicsContext, size: CGSize) {
-        let rowCount = KeyboardLayout.rows.count
-        guard rowCount > 0 else { return }
-        let rowHeight = size.height / CGFloat(rowCount)
         let gap: CGFloat = 2
 
-        for (rowIdx, row) in KeyboardLayout.rows.enumerated() {
-            let totalWidth = row.reduce(CGFloat(0)) { $0 + $1.width }
-            guard totalWidth > 0 else { continue }
-            let yMin = CGFloat(rowIdx) * rowHeight
-            var cursor: CGFloat = 0
+        KeyboardPositionMap.forEachKey { entry in
+            // X comes straight from the shared normalised edges (same
+            // divide-then-scale the trail uses). Y is recomputed from the row
+            // band so the tile heights stay bit-identical to the previous
+            // hand-rolled `rowIdx * rowHeight` form.
+            let rowHeight = size.height / CGFloat(entry.rowCount)
+            let xMin = entry.xMin * size.width
+            let xMax = entry.xMax * size.width
+            let yMin = CGFloat(entry.rowIndex) * rowHeight
 
-            for key in row {
-                let xMin = cursor / totalWidth * size.width
-                cursor += key.width
-                let xMax = cursor / totalWidth * size.width
+            let rect = CGRect(x: xMin + gap, y: yMin + gap,
+                              width: (xMax - xMin) - gap * 2,
+                              height: rowHeight - gap * 2)
+            guard rect.width > 0, rect.height > 0 else { return }
 
-                let rect = CGRect(x: xMin + gap, y: yMin + gap,
-                                  width: (xMax - xMin) - gap * 2,
-                                  height: rowHeight - gap * 2)
-                guard rect.width > 0, rect.height > 0 else { continue }
+            let shape = Path(roundedRect: rect, cornerRadius: 3)
+            ctx.fill(shape, with: .color(.white.opacity(0.045)))
+            ctx.stroke(shape, with: .color(.white.opacity(0.12)), lineWidth: 1)
 
-                let shape = Path(roundedRect: rect, cornerRadius: 3)
-                ctx.fill(shape, with: .color(.white.opacity(0.045)))
-                ctx.stroke(shape, with: .color(.white.opacity(0.12)), lineWidth: 1)
-
-                guard key.code != nil else { continue }
-                let fontSize = min(10, rect.height * 0.4)
-                var label = ctx.resolve(
-                    Text(resolvedLabel(for: key)).font(.system(size: fontSize, weight: .medium))
-                )
-                label.shading = .color(.white.opacity(0.22))
-                ctx.draw(label, at: CGPoint(x: rect.midX, y: rect.midY))
-            }
+            guard entry.key.code != nil else { return }
+            let fontSize = min(10, rect.height * 0.4)
+            var label = ctx.resolve(
+                Text(resolvedLabel(for: entry.key)).font(.system(size: fontSize, weight: .medium))
+            )
+            label.shading = .color(.white.opacity(0.22))
+            ctx.draw(label, at: CGPoint(x: rect.midX, y: rect.midY))
         }
     }
 

@@ -44,6 +44,12 @@ struct CleaningHistoryView: View {
         let cal = Calendar.current
         return history.sessions.filter { cal.isDateInToday($0.startedAt) }.count
     }
+    // Hoisted out of sessionRow's GeometryReader — used to scale every row's
+    // mini duration bar. Computing it per row (and per geometry pass) was a
+    // full-history scan on each visible row.
+    private var maxDurationSeconds: Int {
+        max(1, history.sessions.map(\.durationSeconds).max() ?? 1)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -195,7 +201,7 @@ struct CleaningHistoryView: View {
             ForEach(grouped, id: \.day) { group in
                 Section {
                     ForEach(group.sessions) { session in
-                        sessionRow(session)
+                        sessionRow(session, maxDurationSeconds: maxDurationSeconds)
                         if session.id != group.sessions.last?.id {
                             Divider()
                                 .padding(.leading, 24)
@@ -225,7 +231,7 @@ struct CleaningHistoryView: View {
         .background(.regularMaterial)
     }
 
-    private func sessionRow(_ session: CleaningSession) -> some View {
+    private func sessionRow(_ session: CleaningSession, maxDurationSeconds: Int) -> some View {
         HStack(spacing: 0) {
             // Time
             Text(formatTime(session.startedAt))
@@ -240,8 +246,7 @@ struct CleaningHistoryView: View {
                     .font(.system(.caption, design: .monospaced).weight(.medium))
                     .foregroundStyle(.primary)
                 GeometryReader { g in
-                    let maxD = Double(history.sessions.map(\.durationSeconds).max() ?? 1)
-                    let f = min(1, Double(session.durationSeconds) / maxD)
+                    let f = min(1, Double(session.durationSeconds) / Double(maxDurationSeconds))
                     RoundedRectangle(cornerRadius: Radius.xs)
                         .fill(settings.appTheme.color.opacity(0.45))
                         .frame(width: max(4, g.size.width * f), height: 3)
