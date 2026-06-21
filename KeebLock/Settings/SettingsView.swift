@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var snapshotMessageToken = 0
     @State private var copiedCommand: String?
     @State private var codewordEditing = false
+    @State private var codewordBeforeEdit = ""
     @FocusState private var codewordFocused: Bool
 
     // MARK: - Scaled fonts
@@ -148,6 +149,7 @@ struct SettingsView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 } else {
                     Button {
+                        codewordBeforeEdit = settings.codeword
                         withAnimation(.spring(response: 0.3)) { codewordEditing = true }
                         codewordFocused = true
                     } label: {
@@ -182,6 +184,7 @@ struct SettingsView: View {
                 Text("Letters and numbers only")
                     .font(fCaption2)
                     .foregroundStyle(.secondary)
+                    .transition(.opacity)
             }
 
             HStack {
@@ -244,10 +247,13 @@ struct SettingsView: View {
     }
 
     /// End codeword editing (Return or focus loss). An empty field would arm an
-    /// unmatchable lock, so fall back to a fresh suggestion rather than persist "".
+    /// unmatchable lock, so restore the value the user started editing from rather
+    /// than persist "" — clearing and bailing out reads as "cancel", not "surprise
+    /// me with a random word". Fall back to a fresh suggestion only if the pre-edit
+    /// value was itself empty (shouldn't happen — the lock can't arm empty).
     private func commitCodeword() {
         if settings.codeword.isEmpty {
-            settings.codeword = Codewords.random()
+            settings.codeword = codewordBeforeEdit.isEmpty ? Codewords.random() : codewordBeforeEdit
         }
         withAnimation(.spring(response: 0.3)) { codewordEditing = false }
     }
