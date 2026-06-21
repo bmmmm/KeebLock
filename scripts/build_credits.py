@@ -37,7 +37,8 @@ def md_link(text: str | None, url: str | None) -> str:
         return label.replace("|", "\\|") or "—"
     if not label:
         label = url
-    return f"[{label.replace('|', '\\|')}]({url})"
+    escaped = label.replace("|", "\\|")
+    return f"[{escaped}]({url})"
 
 
 def main() -> int:

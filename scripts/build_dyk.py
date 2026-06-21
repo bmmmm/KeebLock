@@ -31,9 +31,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = REPO_ROOT / "KeebLock" / "Resources" / "codeword_data.json"
 
-DYK_COUNT = 5     # snippets per codeword
+# Match the shipped agent-authored corpus budget (6 snippets/word, ~410 chars).
+DYK_COUNT = 6     # snippets per codeword
 MIN_LEN = 60      # min sentence length, chars (skip stubs)
-MAX_LEN = 280     # max sentence length, chars (HUD-readable)
+MAX_LEN = 410     # max sentence length, chars (HUD-readable)
 
 SUPERLATIVES = re.compile(
     r"\b(only|first|last|largest|smallest|highest|lowest|tallest|"
@@ -66,9 +67,11 @@ LEAD_DEF = re.compile(
 )
 
 # Parenthesised IPA pronunciation blocks like "(/vəˈsuːviəs/ və-SOO-vee-əs)" —
-# pure visual noise on a HUD. Detect by stress markers + unusual phonemes.
+# pure visual noise on a HUD. Detect by stress markers + unusual phonemes only;
+# the bare slash is excluded so unit parentheticals like "(251 lb/cu ft)" or
+# "(≈10–40 km/h)" survive as legitimate quantitative facts.
 IPA_PARENS = re.compile(
-    r"\s*\([^)]*[/ˈˌɑəɛɪɔʊθðŋʃʒːæɒɜɝɚɹ][^)]*\)"
+    r"\s*\([^)]*[ˈˌɑəɛɪɔʊθðŋʃʒːæɒɜɝɚɹ][^)]*\)"
 )
 
 

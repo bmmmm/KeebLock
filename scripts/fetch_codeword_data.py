@@ -235,15 +235,20 @@ class _ParagraphCollector(HTMLParser):
                 self._skip_depth += 1
                 self._sup_is_ref = True
             elif self._in_p and self._skip_depth == 0:
-                self._script = []
-                self._script_map = _SUPERSCRIPT
+                # A nested sup/sub must not reset an already-active buffer,
+                # or the outer run is lost. Keep the outer mapping and let the
+                # inner text accumulate into the same buffer.
+                if self._script is None:
+                    self._script = []
+                    self._script_map = _SUPERSCRIPT
                 self._sup_is_ref = False
             else:
                 self._sup_is_ref = False
         elif tag == "sub":
             if self._in_p and self._skip_depth == 0:
-                self._script = []
-                self._script_map = _SUBSCRIPT
+                if self._script is None:
+                    self._script = []
+                    self._script_map = _SUBSCRIPT
         elif tag in self.SKIP_TAGS:
             self._skip_depth += 1
         elif tag == "ol":
@@ -459,8 +464,22 @@ def fetch_attribution_only(image_source_url: str | None) -> dict | None:
 
 # ---------- Per-word fetch ----------
 
+class TransientFetchError(Exception):
+    """A recoverable network/API failure during fetch_word().
+
+    Distinct from a None return, which means "this word has no usable
+    Wikipedia substance". main() keeps any pre-existing manifest entry on a
+    transient error so a single network blip can't destroy agent-authored
+    did_you_know on an incremental run.
+    """
+
+
 def fetch_word(word: str, force: bool) -> dict | None:
-    """Returns the manifest entry on success, None on unavailable."""
+    """Returns the manifest entry on success, None on genuine no-data.
+
+    Raises TransientFetchError on a recoverable network/API failure so the
+    caller can keep an existing entry instead of treating it as unavailable.
+    """
     title = SLUG_OVERRIDES.get(word, word.capitalize())
     print(f"  [{word}] → {title}", flush=True)
 
@@ -468,7 +487,7 @@ def fetch_word(word: str, force: bool) -> dict | None:
         summary = wiki_summary(title)
     except Exception as e:
         print(f"      summary fetch failed: {e}", flush=True)
-        return None
+        raise TransientFetchError(f"summary fetch failed: {e}") from e
 
     extract = (summary.get("extract") or "").strip()
     if len(extract) < 80:
@@ -491,7 +510,7 @@ def fetch_word(word: str, force: bool) -> dict | None:
             print(f"      image fetch/resize failed: {e}", flush=True)
             if image_target.exists():
                 image_target.unlink()
-            return None
+            raise TransientFetchError(f"image fetch/resize failed: {e}") from e
 
     # Attribution lookup is best-effort: a missing Commons response should
     # not invalidate the whole entry, but downstream tooling (CREDITS.md
@@ -518,7 +537,7 @@ def fetch_word(word: str, force: bool) -> dict | None:
         # entry with an image but no facts.
         if image_target.exists():
             image_target.unlink()
-        return None
+        raise TransientFetchError(f"html fetch failed: {e}") from e
 
     facts = extract_facts(html, limit=10)
     # Need at least 6 facts so the in-app rotation has variety. Below that,
@@ -591,6 +610,9 @@ def main() -> int:
             # Anything missing → backfill the cheap path (attribution-only)
             # if we have an image_source_url, else fall through to full fetch.
             if not args.force and existing is not None and image_target.exists():
+                # Reflect a theme move in WORDS_BY_THEME even on the cheap paths
+                # that skip a full re-fetch.
+                existing["theme"] = theme
                 if existing.get("image_attribution") is not None:
                     print(f"  [{word}] cached (complete)", flush=True)
                     continue
@@ -603,7 +625,19 @@ def main() -> int:
                 time.sleep(0.2)
                 continue
 
-            entry = fetch_word(word, force=args.force)
+            try:
+                entry = fetch_word(word, force=args.force)
+            except TransientFetchError as e:
+                # A network/API blip is not "no data". Keep any existing entry
+                # (and its agent-authored did_you_know) untouched rather than
+                # deleting it and marking the word unavailable.
+                if existing is not None:
+                    print(f"  [{word}] transient fetch error — keeping existing entry: {e}", flush=True)
+                else:
+                    print(f"  [{word}] transient fetch error — no existing entry to keep: {e}", flush=True)
+                time.sleep(0.2)
+                continue
+
             if entry is None:
                 if word not in unavailable:
                     unavailable.append(word)
@@ -625,6 +659,7 @@ def main() -> int:
     obsolete_unavail = sorted(set(unavailable) - valid_words)
     for w in obsolete_data:
         del data[w]
+        (IMAGES_DIR / f"{w}.jpg").unlink(missing_ok=True)
     unavailable = [w for w in unavailable if w in valid_words]
     if obsolete_data or obsolete_unavail:
         print(f"\nDropped obsolete: data={obsolete_data}, unavailable={obsolete_unavail}")

@@ -29,7 +29,7 @@ def swift_words() -> set[str]:
     if not m:
         print(f"check_codewords: could not locate `all` array in {SWIFT}", file=sys.stderr)
         sys.exit(2)
-    return set(re.findall(r'"([a-z]+)"', m.group(1)))
+    return set(re.findall(r'"([a-z0-9-]+)"', m.group(1)))
 
 
 def manifest_words() -> set[str]:
