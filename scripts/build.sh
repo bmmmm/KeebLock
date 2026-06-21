@@ -21,6 +21,9 @@
 # Output is filtered to errors, warnings, and the final BUILD line. The
 # script's exit code reflects xcodebuild's exit code.
 
+# No `set -e` on purpose: xcodebuild's exit status is captured manually
+# (status=$?) so the build log can be filtered and cleaned up before exiting
+# with that status. A global `set -e` would abort before that handling runs.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -84,7 +87,17 @@ xcodebuild \
 status=$?
 
 if [ "$FILTER" = "1" ]; then
-    grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" "$LOG" | tail -40 || true
+    filtered="$(grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" "$LOG" | tail -40)"
+    if [ -n "$filtered" ]; then
+        printf '%s\n' "$filtered"
+    fi
+    # Surface silent failures: if xcodebuild failed but produced no matching
+    # line (crash/launch/toolchain failure), dump the raw log tail so the
+    # diagnostic isn't lost when the log is removed below.
+    if [ "$status" -ne 0 ] && [ -z "$filtered" ]; then
+        echo "build.sh: xcodebuild failed with no error/warning line — raw log tail:" >&2
+        tail -40 "$LOG" >&2
+    fi
 else
     cat "$LOG"
 fi

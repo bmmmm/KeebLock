@@ -49,6 +49,16 @@ echo "Source:      $APP_SRC"
 echo "Destination: $DEST"
 echo ""
 
+# Verify we can write to /Applications before any destructive step. Without
+# this the script would quit the running instance and rm -rf the old bundle,
+# then fail the copy with a raw errno — leaving the user with no app at all.
+if [[ ! -w "/Applications" ]]; then
+    echo "error: no write permission for /Applications." >&2
+    echo "  Re-run with elevated privileges:  sudo scripts/install.sh" >&2
+    echo "  Or install into your home folder:  ditto \"$APP_SRC\" ~/Applications/$APP_NAME" >&2
+    exit 1
+fi
+
 if [[ -d "$DEST" ]]; then
     echo "KeebLock is already installed."
     if [[ "$ASSUME_YES" -eq 1 ]]; then

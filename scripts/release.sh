@@ -103,7 +103,11 @@ fi
 # --- Tag + push (only after a successful build) ------------------------------
 echo "==> Tagging $TAG"
 git tag -a "$TAG" -m "Release $VERSION"
-git push origin "$TAG"
+git push origin "$TAG" || {
+    git tag -d "$TAG"
+    echo "error: push of $TAG failed; removed local tag — safe to retry" >&2
+    exit 1
+}
 
 # --- Package -----------------------------------------------------------------
 echo "==> Packaging $ZIP"
@@ -215,7 +219,16 @@ echo "==> Publishing release on Forgejo"
       --title "KeebLock $VERSION" \
       --note "$NOTES" )
 ( cd "$HOME" && tea releases assets create "$TAG" "$ZIP_ABS" \
-      --repo "$OWNER_REPO" --login "$RELEASE_LOGIN" )
+      --repo "$OWNER_REPO" --login "$RELEASE_LOGIN" ) || {
+    echo "error: release $TAG was created but the asset upload failed." >&2
+    echo "       The release is published WITHOUT $ZIP — fix before the mirror propagates it." >&2
+    echo "       Retry only the upload:" >&2
+    echo "         (cd \"\$HOME\" && tea releases assets create \"$TAG\" \"$ZIP_ABS\" --repo \"$OWNER_REPO\" --login \"$RELEASE_LOGIN\")" >&2
+    echo "       Or delete the release + tag and start over:" >&2
+    echo "         (cd \"\$HOME\" && tea releases delete \"$TAG\" --repo \"$OWNER_REPO\" --login \"$RELEASE_LOGIN\")" >&2
+    echo "         git push origin :refs/tags/$TAG && git tag -d $TAG" >&2
+    exit 1
+}
 
 echo
 echo "==> Done."

@@ -47,7 +47,15 @@ fi
 
 # --- 2. Remove UserDefaults --------------------------------------------------
 echo "→ Removing settings (UserDefaults)..."
-defaults delete "$BUNDLE_ID" 2>/dev/null && echo "   removed" || echo "   (nothing to remove)"
+if defaults domains 2>/dev/null | tr ', ' '\n\n' | grep -qxF "$BUNDLE_ID"; then
+    if defaults delete "$BUNDLE_ID" 2>/dev/null; then
+        echo "   removed"
+    else
+        echo "   WARNING: failed to remove UserDefaults domain $BUNDLE_ID — remove manually with: defaults delete $BUNDLE_ID"
+    fi
+else
+    echo "   (nothing to remove)"
+fi
 
 # --- 3. Remove log files -----------------------------------------------------
 if [[ -d "$LOG_DIR" ]]; then
