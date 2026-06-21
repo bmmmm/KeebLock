@@ -1,0 +1,180 @@
+# .forgejo/workflows/release.yml
+#
+# Fires on tag push (v*). Builds the macOS Release on a self-hosted Apple
+# Silicon runner, packages the .app into a .zip, extracts the codesign
+# identity, writes release notes, and publishes via actions/forgejo-release.
+#
+# Runner prerequisites (operator setup — NOT handled here):
+#   1. Register an act_runner on an Apple Silicon Mac with labels:
+#        self-hosted,macos
+#      Registration command (replace placeholders):
+#        act_runner register \
+#          --instance https://YOUR_FORGEJO_HOST \
+#          --token    <runner-registration-token-from-repo-settings> \
+#          --name     keeblock-mac \
+#          --labels   "self-hosted,macos"
+#   2. Xcode installed on that Mac, with a valid Personal Team signing
+#      certificate in the default keychain.
+#   3. The repo's "Actions" tab must show the runner as online before
+#      the first tag push.
+#
+# Forgejo's push-mirror takes care of propagating the tag + release asset
+# to GitHub automatically — no GitHub-specific step needed here.
+#
+# UNTESTED until a runner exists: this workflow has never executed. The first
+# real v* tag push is its first test — do that with a throwaway tag (see #8).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: [self-hosted, macos]
+
+    steps:
+      # fetch-depth:0 is required so git rev-list --count HEAD (used by
+      # build.sh for CFBundleVersion) returns the real commit count, not 1.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # forge.ref_name is the tag name, e.g. "v0.1.0". Strip the leading "v"
+      # so VERSION=0.1.0 matches what MARKETING_VERSION expects in xcodebuild.
+      - name: Derive version from tag
+        id: version
+        run: |
+          TAG="${{ forge.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"       >> "$FORGEJO_OUTPUT"
+          echo "version=$VERSION" >> "$FORGEJO_OUTPUT"
+
+      - name: Build Release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}" \
+            scripts/build.sh release
+
+      - name: Verify .app exists
+        run: |
+          APP="build/DerivedData/Build/Products/Release/KeebLock.app"
+          if [ ! -d "$APP" ]; then
+            echo "error: build did not produce $APP" >&2
+            exit 1
+          fi
+
+      - name: Package .zip
+        id: package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="build/DerivedData/Build/Products/Release/KeebLock.app"
+          ZIP="KeebLock-${VERSION}.zip"
+          # ditto preserves macOS metadata and extended attributes so the
+          # extracted bundle is a valid signed .app on the user's machine.
+          ditto -c -k --keepParent "$APP" "$ZIP"
+          SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
+          SIZE_KB="$(du -k "$ZIP" | awk '{print $1}')"
+          echo "zip=$ZIP"        >> "$FORGEJO_OUTPUT"
+          echo "sha=$SHA"        >> "$FORGEJO_OUTPUT"
+          echo "size_kb=$SIZE_KB" >> "$FORGEJO_OUTPUT"
+          echo "zip_path=$(pwd)/$ZIP" >> "$FORGEJO_OUTPUT"
+
+      - name: Extract codesign identity
+        id: codesign
+        run: |
+          APP="build/DerivedData/Build/Products/Release/KeebLock.app"
+          CS_OUT="$(codesign -dv --verbose=4 "$APP" 2>&1)"
+          TEAM_ID="$(printf '%s\n' "$CS_OUT" | awk -F= '/^TeamIdentifier=/ {print $2}')"
+          CD_HASH="$(printf '%s\n' "$CS_OUT" | awk -F= '/^CDHash=/ {print $2}')"
+          if [ -z "$TEAM_ID" ] || [ -z "$CD_HASH" ]; then
+            echo "error: codesign did not yield TeamIdentifier and/or CDHash" >&2
+            printf '%s\n' "$CS_OUT" | sed 's/^/  /' >&2
+            exit 1
+          fi
+          echo "team_id=$TEAM_ID" >> "$FORGEJO_OUTPUT"
+          echo "cd_hash=$CD_HASH" >> "$FORGEJO_OUTPUT"
+
+      - name: Write release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          ZIP="${{ steps.package.outputs.zip }}"
+          SHA="${{ steps.package.outputs.sha }}"
+          TEAM_ID="${{ steps.codesign.outputs.team_id }}"
+          CD_HASH="${{ steps.codesign.outputs.cd_hash }}"
+
+          NOTES_FILE="$(mktemp)"
+          cat > "$NOTES_FILE" << EOF
+          **KeebLock ${VERSION}** — locks the keyboard while you clean it.
+
+          ### Install
+
+          1. Download \`${ZIP}\` and unzip — you get \`KeebLock.app\`.
+          2. Move \`KeebLock.app\` into \`/Applications\`.
+          3. The app is signed with a Personal Team certificate (no Apple Developer
+             ID Notarisation), so Gatekeeper will refuse to launch it on first try.
+             To clear the quarantine flag once:
+
+                 xattr -dr com.apple.quarantine /Applications/KeebLock.app
+
+             Then right-click → **Open** → **Open** to confirm. After that the app
+             launches normally.
+          4. Grant Accessibility permission when KeebLock asks (System Settings →
+             Privacy & Security → Accessibility).
+
+          ### Verify download
+
+          \`\`\`
+          shasum -a 256 ${ZIP}
+          # ${SHA}  ${ZIP}
+          \`\`\`
+
+          ### Authenticity
+
+          This release is signed with bmmmm's Apple Personal Team. To confirm your
+          copy is genuine (not a re-host), run:
+
+          \`\`\`
+          codesign -dv --verbose=4 /Applications/KeebLock.app 2>&1 | grep -E '^(TeamIdentifier|CDHash)='
+          \`\`\`
+
+          Expected output for **${TAG}**:
+
+          \`\`\`
+          TeamIdentifier=${TEAM_ID}
+          CDHash=${CD_HASH}
+          \`\`\`
+
+          \`TeamIdentifier\` is constant across every official KeebLock release —
+          forging it requires bmmmm's Apple signing cert. \`CDHash\` is unique to
+          this build. Both values are also surfaced in the launcher footer of the
+          app itself for an in-GUI side-by-side check.
+
+          ### Source
+
+          - https://github.com/bmmmm/KeebLock
+          EOF
+
+          echo "file=$NOTES_FILE" >> "$FORGEJO_OUTPUT"
+
+      - name: Stage asset for upload
+        run: |
+          mkdir -p dist/release
+          cp "${{ steps.package.outputs.zip }}" dist/release/
+
+      # actions/forgejo-release with direction:upload creates the release if it
+      # does not exist, then uploads everything in release-dir as an asset.
+      # forge.token is automatically injected by the runner — no PAT needed.
+      # Source: https://code.forgejo.org/actions/forgejo-release (action.yml v2.13.1)
+      - name: Publish release
+        uses: actions/forgejo-release@v2.13.1
+        with:
+          direction: upload
+          tag: ${{ steps.version.outputs.tag }}
+          title: KeebLock ${{ steps.version.outputs.version }}
+          release-notes-file: ${{ steps.notes.outputs.file }}
+          release-dir: dist/release
+          token: ${{ forge.token }}
