@@ -54,7 +54,11 @@ struct PerfTestArgs {
                 return String(arg.dropFirst(prefix.count))
             }
             if arg == key, i + 1 < argv.count {
-                return argv[i + 1]
+                let next = argv[i + 1]
+                // A following token that looks like a flag means the value was
+                // forgotten; treat it as missing so the omission surfaces
+                // instead of silently swallowing the next flag.
+                return next.hasPrefix("--") ? nil : next
             }
         }
         return nil

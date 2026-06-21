@@ -43,6 +43,12 @@ enum PerfTestRunner {
     /// bleed per-event overhead into the developer's normal sessions.
     private static var savedVerbosePerf = false
 
+    /// Set once when either teardown path commits. Both run main-serialized,
+    /// so checking-then-setting here is race-free. Guards against the
+    /// hard-timeout firing during the normal path's final drain and
+    /// re-encoding a zeroed snapshot over the real JSON / exiting early.
+    private static var tornDown = false
+
     static func run(args: PerfTestArgs) async {
         let killFile = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent(killFileName)
@@ -149,10 +155,12 @@ enum PerfTestRunner {
             harness: harness
         )
 
-        // 10) Tear down — stop the lock cleanly, cancel the timer, exit.
+        // 10) Tear down — claim the teardown, cancel the timer first so it
+        //     can't fire during the final drain, stop the lock cleanly, exit.
+        Self.tornDown = true
+        timeoutTimer.cancel()
         controller.stopLock()
         try? await Task.sleep(nanoseconds: 200_000_000)
-        timeoutTimer.cancel()
         DebugLog.log("perf-test: done — exiting")
         NSApp.terminate(nil)
     }
@@ -205,6 +213,14 @@ enum PerfTestRunner {
     private static func forceTeardown(outputPath: String,
                                       args: PerfTestArgs,
                                       reason: String) {
+        // The normal path may have already torn down and written the real
+        // snapshot during its final drain — bail before clobbering it with
+        // a zeroed one and pre-empting the pending NSApp.terminate.
+        guard !tornDown else {
+            DebugLog.log("perf-test: hard teardown skipped — already torn down (\(reason))")
+            return
+        }
+        tornDown = true
         let snapshot = PerfMetrics.shared.perfTestSnapshot(
             suite: args.suite.rawValue,
             mode: args.mode.rawValue,

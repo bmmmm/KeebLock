@@ -12,6 +12,7 @@ struct DebugInfoPanel: View {
     @ObservedObject private var perf: PerfMetrics = .shared
 
     @State private var screens: [NSScreen] = NSScreen.screens
+    @State private var frontmostApp: String = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
 
     var body: some View {
         // Subscribe to the throttled displayTick so the counter rows
@@ -29,7 +30,7 @@ struct DebugInfoPanel: View {
             // App + system
             row("App",          appVersion())
             row("macOS",        ProcessInfo.processInfo.operatingSystemVersionString + " · " + DebugLog.machineArch())
-            row("Frontmost",    NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")
+            row("Frontmost",    frontmostApp)
 
             Divider().padding(.vertical, 2)
 
@@ -88,6 +89,11 @@ struct DebugInfoPanel: View {
         // already drives the per-second figures; no separate timer needed.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
             screens = NSScreen.screens
+        }
+        // Frontmost-app name changes via this notification, so the synchronous
+        // cross-process query stays off the per-frame body render.
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)) { _ in
+            frontmostApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
         }
     }
 

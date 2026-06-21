@@ -370,9 +370,22 @@ final class PerfMetrics: ObservableObject {
     }
 
     private static func p99(of ring: [UInt64]) -> UInt64 {
-        guard !ring.isEmpty else { return 0 }
-        let sorted = ring.sorted()
-        let idx = max(0, min(sorted.count - 1, Int(Double(sorted.count) * 0.99)))
+        Self.percentile(of: ring.sorted(), frac: 0.99)
+    }
+
+    /// Nearest-rank percentile over an already-sorted ascending array.
+    /// Undersample guard: a fraction `frac` needs at least `1/(1-frac)`
+    /// samples before the nearest-rank index can land below the maximum
+    /// (n=2 → p99 index 1 == max; n=50 → p999 index 49 == max). Below that
+    /// threshold the percentile is indistinguishable from `max`, so we
+    /// return `max` deliberately rather than passing it off as a meaningful
+    /// p99/p999. The large-n path (count ≥ threshold) is the plain
+    /// nearest-rank index, unchanged.
+    private static func percentile(of sorted: [UInt64], frac: Double) -> UInt64 {
+        guard let last = sorted.last else { return 0 }
+        let threshold = Int((1.0 / (1.0 - frac)).rounded(.up))
+        guard sorted.count >= threshold else { return last }
+        let idx = Swift.max(0, Swift.min(sorted.count - 1, Int(Double(sorted.count) * frac)))
         return sorted[idx]
     }
 
@@ -482,7 +495,12 @@ final class PerfMetrics: ObservableObject {
                           cellsPerAxis: Int,
                           screenCount: Int,
                           wipeMode: String) -> PerfTestSnapshot {
-        let sorted = latencyRing.sorted()
+        // Sort the combined ring once and reuse it for both the histogram
+        // and the combined latencyStats below — latencyStats now takes a
+        // pre-sorted array, so the same sorted copy serves both consumers
+        // instead of sorting the same data twice at snapshot time.
+        let sortedCombined = latencyRing.sorted()
+        let sorted = sortedCombined
         // Bin edges in µs — chosen to expose the regime transitions:
         // sub-100µs = healthy, 100-500µs = busy, 500-1000µs = strained,
         // 1-5ms = budget risk, 5-50ms = the tap WILL get disabled.
@@ -514,19 +532,19 @@ final class PerfMetrics: ObservableObject {
                 totalEventsRequested: totalEventsRequested
             ),
             latencyUs: Self.latencyStats(
-                ring: latencyRing,
+                sorted: sortedCombined,
                 avgNs: eventCallbackAvgNs,
                 maxNs: eventCallbackMaxNs,
                 samples: eventCallbackSamples
             ),
             keyLatencyUs: Self.latencyStats(
-                ring: keyLatencyRing,
+                sorted: keyLatencyRing.sorted(),
                 avgNs: keyCallbackAvgNs,
                 maxNs: keyCallbackMaxNs,
                 samples: keyCallbackSamples
             ),
             mouseLatencyUs: Self.latencyStats(
-                ring: mouseLatencyRing,
+                sorted: mouseLatencyRing.sorted(),
                 avgNs: mouseCallbackAvgNs,
                 maxNs: mouseCallbackMaxNs,
                 samples: mouseCallbackSamples
@@ -551,15 +569,17 @@ final class PerfMetrics: ObservableObject {
         )
     }
 
-    private static func latencyStats(ring: [UInt64],
+    /// `sorted` must be the latency ring already sorted ascending — the
+    /// caller sorts once and reuses it (the combined ring also feeds the
+    /// histogram). Percentiles go through `percentile(of:frac:)`, which
+    /// carries the undersample guard: for small n a requested p99/p999
+    /// returns `max` deliberately instead of masquerading as a percentile.
+    private static func latencyStats(sorted: [UInt64],
                                      avgNs: UInt64,
                                      maxNs: UInt64,
                                      samples: Int) -> PerfTestSnapshot.LatencyStats {
-        let sorted = ring.sorted()
         let percentileUs = { (frac: Double) -> Int in
-            guard !sorted.isEmpty else { return 0 }
-            let idx = Swift.max(0, Swift.min(sorted.count - 1, Int(Double(sorted.count) * frac)))
-            return Int(sorted[idx] / 1000)
+            Int(Self.percentile(of: sorted, frac: frac) / 1000)
         }
         return .init(
             avg: Int(avgNs / 1000),
