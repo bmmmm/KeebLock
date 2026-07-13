@@ -43,3 +43,8 @@ tmp/
 
 # Release artifacts produced by scripts/release.sh
 KeebLock-*.zip
+
+# Python (scripts/tests/, uv-managed)
+__pycache__/
+.pytest_cache/
+.venv/

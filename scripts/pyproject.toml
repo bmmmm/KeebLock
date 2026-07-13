@@ -1,0 +1,15 @@
+[project]
+name = "keeblock-data-pipeline-tests"
+version = "0.1.0"
+description = "Test suite for KeebLock's data-pipeline scripts (fetch/build/check)"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+package = false
