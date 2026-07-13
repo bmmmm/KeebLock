@@ -189,6 +189,25 @@ mouse buttons, scroll, swipes, pinch, rotate), and a Wikipedia-derived
   must be removed manually — macOS does not let apps revoke their own
   TCC entries.
 
+## Known limitations
+
+Two inherent macOS behaviours that KeebLock cannot fix at the app layer.
+Neither ever traps you — `⌘⌥Esc` reaches the system directly in both cases.
+
+- **Secure-input bypass.** If another process holds secure event input
+  (typically a focused password field) when the lock arms, keyboard events
+  never reach a session-level event tap: keystrokes are neither swallowed
+  nor counted toward the codeword until focus leaves the secure field. If
+  the lock seems keyboard-inert right after starting, click away from any
+  password prompt.
+- **Tap-timeout leak.** If the app's main thread stalls long enough for
+  the WindowServer watchdog to disable the event tap
+  (`kCGEventTapDisabledByTimeout`), keystrokes during that brief window
+  pass through to the focused app before the tap re-enables — exactly the
+  input the lock exists to swallow. The hot path is kept fast and the tap
+  re-enables immediately to minimise the window, but it cannot be
+  eliminated.
+
 ## Codeword data
 
 103 single-word entries grouped by theme (predominantly minerals and

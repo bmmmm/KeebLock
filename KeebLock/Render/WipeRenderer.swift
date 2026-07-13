@@ -23,9 +23,11 @@ final class WipeRenderer: NSObject, ObservableObject, MTKViewDelegate {
 
     /// True for the no-Metal fallback. The instance is fully constructed
     /// (so LockView can hold a non-optional reference and HUDView can
-    /// observe stage/wipedFraction) but skips pipeline setup; draw(),
-    /// wipe*, and stop() short-circuit. The lock window falls back to a
-    /// SwiftUI Color so the user still sees an opaque cover.
+    /// observe stage/wipedFraction) but skips pipeline setup; draw() and
+    /// stop() short-circuit, while the wipe* paths intentionally still
+    /// drive stage/wipedFraction so the HUD keeps working. The lock window
+    /// falls back to a SwiftUI Color so the user still sees an opaque
+    /// cover.
     let isPlaceholder: Bool
 
     private let device: MTLDevice?

@@ -36,27 +36,29 @@ either workaround because Xcode itself owns the account session; only
 the CLI needs both.
 
 **Auto-versioning:** `scripts/build.sh` derives `MARKETING_VERSION` from the
-latest git tag (`v0.1.0` → `0.1.0`) and `CFBundleVersion` from
+latest git tag (`v0.2.0` → `0.2.0`) and `CFBundleVersion` from
 `git rev-list --count HEAD`. Both are passed to `xcodebuild` as command-line
 settings — pbxproj stays untouched. Override with `VERSION=… BUILD=…` env
 vars (release.sh does that to pin a build to a tag exactly). Without git,
 falls back to `0.0.0-dev` / `1`. **Don't bump the version in pbxproj
 manually** — let the script do it.
 
-There are no automated tests yet. Verify the lock by building, installing,
-and exercising it manually — single-monitor and multi-monitor.
+Automated tests: `scripts/build.sh test` runs the KeebLockTests unit-test
+target (Swift Testing); `cd scripts && uv run pytest` covers the data-pipeline
+scripts. The lock kernel's GUI behavior is still verified manually — build,
+install, and exercise single-monitor and multi-monitor.
 
 ## Releasing
 
 ```sh
-scripts/release.sh 0.1.0
+scripts/release.sh 0.2.0
 ```
 
 What it does:
 1. Sanity-check working tree (clean, on `main`).
-2. Tag `v0.1.0` and push to Forgejo.
+2. Tag `v0.2.0` and push to Forgejo.
 3. Run Release build with the version pinned.
-4. Package `KeebLock.app` into `KeebLock-0.1.0.zip` (preserves codesign).
+4. Package `KeebLock.app` into `KeebLock-0.2.0.zip` (preserves codesign).
 5. `tea releases create` on Forgejo with the .zip as asset, default install
    notes (incl. `xattr` quarantine workaround for non-notarised binaries).
 6. Forgejo's push mirror syncs the tag + release to GitHub within minutes.
