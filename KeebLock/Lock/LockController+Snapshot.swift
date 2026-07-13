@@ -66,7 +66,8 @@ extension LockController {
     /// so a jump that lands BETWEEN keystrokes without an intervening
     /// mouseMoved (the live symptom we're chasing) is still caught.
     /// Auto-snapshots the surrounding event ring on detection, throttled
-    /// to ~1/s so a settled-in jump can't fire dozens of redundant ones.
+    /// to at most one per 0.5 s so a settled-in jump can't fire dozens of
+    /// redundant ones.
     ///
     /// Threshold: 500 px. The earlier 300 px tripped on legitimate user
     /// motion now that mouseMoved is passed through — bursts of motion
