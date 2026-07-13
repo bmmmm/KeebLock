@@ -17,6 +17,7 @@
 #   scripts/build.sh clean       # remove local DerivedData
 #   scripts/build.sh full        # Debug build with full xcodebuild log
 #   scripts/build.sh release     # Release configuration (used by release.sh)
+#   scripts/build.sh test        # run the KeebLockTests unit-test target
 #
 # Output is filtered to errors, warnings, and the final BUILD line. The
 # script's exit code reflects xcodebuild's exit code.
@@ -42,6 +43,7 @@ CONFIGURATION="Debug"
 case "$ACTION" in
     full)    FILTER=0; ACTION="build" ;;
     release) ACTION="build"; CONFIGURATION="Release" ;;
+    test)    ;; # xcodebuild's own `test` action; filter adds test-result lines
 esac
 
 # --- Codeword/manifest consistency guard -------------------------------------
@@ -87,7 +89,7 @@ xcodebuild \
 status=$?
 
 if [ "$FILTER" = "1" ]; then
-    filtered="$(grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" "$LOG" | tail -40)"
+    filtered="$(grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)|TEST (SUCCEEDED|FAILED)|Test [Ss]uite .* (started|passed|failed)|Test case .* failed|Executed [0-9]+ test" "$LOG" | tail -40)"
     if [ -n "$filtered" ]; then
         printf '%s\n' "$filtered"
     fi

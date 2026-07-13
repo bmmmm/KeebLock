@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		809D9D022FA93E90006FF1D3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 809D9CD42FA93E8F006FF1D3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 809D9CDB2FA93E8F006FF1D3;
+			remoteInfo = KeebLock;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		809D9CDC2FA93E8F006FF1D3 /* KeebLock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeebLock.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		809D9CFA2FA93E90006FF1D3 /* KeebLockTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeebLockTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = KeebLock;
 			sourceTree = "<group>";
 		};
+		809D9CFB2FA93E90006FF1D3 /* KeebLockTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KeebLockTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		809D9CD92FA93E8F006FF1D3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		809D9CFE2FA93E90006FF1D3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				809D9CDE2FA93E8F006FF1D3 /* KeebLock */,
+				809D9CFB2FA93E90006FF1D3 /* KeebLockTests */,
 				809D9CDD2FA93E8F006FF1D3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				809D9CDC2FA93E8F006FF1D3 /* KeebLock.app */,
+				809D9CFA2FA93E90006FF1D3 /* KeebLockTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,6 +96,28 @@
 			productReference = 809D9CDC2FA93E8F006FF1D3 /* KeebLock.app */;
 			productType = "com.apple.product-type.application";
 		};
+		809D9CFC2FA93E90006FF1D3 /* KeebLockTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 809D9CFF2FA93E90006FF1D3 /* Build configuration list for PBXNativeTarget "KeebLockTests" */;
+			buildPhases = (
+				809D9CFD2FA93E90006FF1D3 /* Sources */,
+				809D9CFE2FA93E90006FF1D3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				809D9D032FA93E90006FF1D3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				809D9CFB2FA93E90006FF1D3 /* KeebLockTests */,
+			);
+			name = KeebLockTests;
+			packageProductDependencies = (
+			);
+			productName = KeebLockTests;
+			productReference = 809D9CFA2FA93E90006FF1D3 /* KeebLockTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -83,6 +130,10 @@
 				TargetAttributes = {
 					809D9CDB2FA93E8F006FF1D3 = {
 						CreatedOnToolsVersion = 26.4.1;
+					};
+					809D9CFC2FA93E90006FF1D3 = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = 809D9CDB2FA93E8F006FF1D3;
 					};
 				};
 			};
@@ -101,6 +152,7 @@
 			projectRoot = "";
 			targets = (
 				809D9CDB2FA93E8F006FF1D3 /* KeebLock */,
+				809D9CFC2FA93E90006FF1D3 /* KeebLockTests */,
 			);
 		};
 /* End PBXProject section */
@@ -145,7 +197,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		809D9CFD2FA93E90006FF1D3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		809D9D032FA93E90006FF1D3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 809D9CDB2FA93E8F006FF1D3 /* KeebLock */;
+			targetProxy = 809D9D022FA93E90006FF1D3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		809D9CE52FA93E90006FF1D3 /* Debug */ = {
@@ -352,6 +419,48 @@
 			};
 			name = Release;
 		};
+		809D9D002FA93E90006FF1D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6A6T65F25F;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = bmako101.KeebLockTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeebLock.app/Contents/MacOS/KeebLock";
+			};
+			name = Debug;
+		};
+		809D9D012FA93E90006FF1D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6A6T65F25F;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = bmako101.KeebLockTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeebLock.app/Contents/MacOS/KeebLock";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -369,6 +478,15 @@
 			buildConfigurations = (
 				809D9CE82FA93E90006FF1D3 /* Debug */,
 				809D9CE92FA93E90006FF1D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		809D9CFF2FA93E90006FF1D3 /* Build configuration list for PBXNativeTarget "KeebLockTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				809D9D002FA93E90006FF1D3 /* Debug */,
+				809D9D012FA93E90006FF1D3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
