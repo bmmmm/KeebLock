@@ -1,5 +1,24 @@
 import AppKit
 
+/// Pure String↔UInt16 dict transform for the cleanmap blob. UserDefaults/JSON
+/// only support String keys, but the runtime counters are keyed by keycode
+/// (`UInt16`) — extracted out of `LockController` so it's testable without
+/// spinning up the full `@MainActor` singleton.
+enum CleanmapCodec {
+    /// Drops entries whose key isn't a valid `UInt16` — defensive against
+    /// hand-edited or corrupted prefs data.
+    static func decode(_ dict: [String: Int]) -> [UInt16: Int] {
+        Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
+            guard let code = UInt16(key) else { return nil }
+            return (code, val)
+        })
+    }
+
+    static func encode(_ dict: [UInt16: Int]) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: dict.map { (String($0.key), $0.value) })
+    }
+}
+
 extension LockController {
     // MARK: - Cleanmap persistence
 
@@ -35,10 +54,7 @@ extension LockController {
         if let data = UserDefaults.standard.data(forKey: Self.cleanmapKeyCountsKey),
            let dict = try? JSONDecoder().decode([String: Int].self, from: data) {
             PerfMetrics.shared.recordJSONDecode()
-            overallKeyCounts = Dictionary(uniqueKeysWithValues: dict.compactMap { key, val -> (UInt16, Int)? in
-                guard let code = UInt16(key) else { return nil }
-                return (code, val)
-            })
+            overallKeyCounts = CleanmapCodec.decode(dict)
         }
         // One-shot rename migration: pre-rename data lived under
         // `heatmapOverallKeyCounts`. Fold (additive) into the new key
@@ -84,9 +100,7 @@ extension LockController {
     /// drains first and this final snapshot lands last — a late async write
     /// carrying an older snapshot can no longer regress the persisted counts.
     func saveOverallKeyCounts() {
-        let stringDict = Dictionary(uniqueKeysWithValues:
-            overallKeyCounts.map { (String($0.key), $0.value) }
-        )
+        let stringDict = CleanmapCodec.encode(overallKeyCounts)
         guard let data = try? JSONEncoder().encode(stringDict) else { return }
         PerfMetrics.shared.recordJSONEncode()
         Self.cleanmapSaveQueue.sync {
@@ -108,9 +122,7 @@ extension LockController {
         let snapshot = overallKeyCounts
         let key = Self.cleanmapKeyCountsKey
         Self.cleanmapSaveQueue.async {
-            let stringDict = Dictionary(uniqueKeysWithValues:
-                snapshot.map { (String($0.key), $0.value) }
-            )
+            let stringDict = CleanmapCodec.encode(snapshot)
             guard let data = try? JSONEncoder().encode(stringDict) else { return }
             UserDefaults.standard.set(data, forKey: key)
             Task { @MainActor in
