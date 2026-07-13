@@ -14,10 +14,6 @@ struct CodewordMatcher {
         self.failure = Self.failureTable(chars)
     }
 
-    mutating func reset() {
-        buffer.removeAll(keepingCapacity: true)
-    }
-
     /// Append a character; returns true if the buffer's tail equals the target.
     mutating func feed(_ char: Character) -> Bool {
         guard !target.isEmpty else { return false }

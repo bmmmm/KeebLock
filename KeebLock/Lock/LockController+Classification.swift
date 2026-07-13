@@ -60,6 +60,16 @@ extension LockController {
         20: 98,  // REWIND          → F7
     ]
 
+    /// Sentinel keycode for NX_SYSDEFINED media/system keys with no F-key
+    /// projection (Mission Control, Launchpad, Dictation, Do-Not-Disturb, …).
+    /// Real hardware keycodes top out at 126 (KeyboardLayout) / 179
+    /// (KeyboardPositionMap's alias table), so `.max` can't collide with an
+    /// actual physical key when it lands in sessionKeyCounts/overallKeyCounts/
+    /// sessionTrail — KeyboardPositionMap.mapping(for:) safely returns nil for
+    /// it, and every consumer already treats nil as "no visual position"
+    /// (skipped, not a crash).
+    static let unmappedMediaKeycode: UInt16 = .max
+
     /// Hard-coded US-ANSI keycode → ASCII character map. Used as a fallback
     /// when the active keyboard layout produces non-ASCII characters
     /// (Greek, Cyrillic, Arabic, Hebrew, …) — without it those users would
@@ -116,10 +126,17 @@ extension LockController {
     /// wipe": bumps the counters, records the perf event, appends to
     /// the trail, throttle-saves the cleanmap, dispatches the wipe to
     /// the renderers, and fires audio/spark feedback.
+    ///
+    /// `skipWipe` keeps every bookkeeping step but skips the on-screen
+    /// `dispatchWipe` call — for callers that have no physical key
+    /// position to project the wipe onto (e.g. unmapped NX_SYSDEFINED
+    /// codes) but still want counters/cleanmap/trail/fact-rotation to
+    /// stay in sync with the regular wiping-keystroke path.
     func recordWipingKeystroke(keycode: UInt16,
                                bucket: KeyBucket,
                                eventLabel: String = "key",
-                               suppressFeedback: Bool = false) {
+                               suppressFeedback: Bool = false,
+                               skipWipe: Bool = false) {
         keystrokeCount += 1
         let now = Date()
         // Tag-only by default; expanded to include keycode + normalised
@@ -177,7 +194,9 @@ extension LockController {
             wipesSinceLastCleanmapSave = 0
         }
         PerfMetrics.shared.recordWipe()
-        dispatchWipe(for: keycode)
+        if !skipWipe {
+            dispatchWipe(for: keycode)
+        }
         if suppressFeedback {
             // Audio/sparks skipped (final unlock keystroke), but the
             // pause detector still needs to see the input.

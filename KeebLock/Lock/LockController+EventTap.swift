@@ -90,6 +90,16 @@ extension LockController {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.isLocked else { return }
             self.stopLock()
+            // stopLock() defers windowManager.hide() to the next run-loop turn
+            // (see its comment) to avoid tearing down AppKit windows from
+            // inside the CGEventTap callback stack. This closure is already
+            // running on its own dispatched turn, off that stack, so hide the
+            // lock windows synchronously here — otherwise runModal() below
+            // blocks with the .screenSaver-level lock window still up, and
+            // the alert starts occluded behind it. hide() is idempotent, so
+            // stopLock()'s own deferred hide() call is a harmless no-op once
+            // it runs.
+            self.windowManager.hide()
             let alert = NSAlert()
             alert.messageText = "KeebLock unlocked itself"
             alert.informativeText = "The keyboard hook stopped working — most likely Accessibility "
@@ -316,10 +326,12 @@ extension LockController {
                     // actually pressed regardless of fnState. Unmapped
                     // NX_KEYTYPE codes (Mission Control, Launchpad,
                     // Dictation, Do-Not-Disturb on modern Apple
-                    // keyboards) keep the bookkeeping consistent with
-                    // the regular keyDown path: keystrokeCount AND the
-                    // bucket counter both bump, only the wipe is
-                    // skipped because we have no F-key projection.
+                    // keyboards) route through the same
+                    // recordWipingKeystroke bookkeeping as every other
+                    // wiping keystroke — counters, cleanmap, trail, fact
+                    // rotation — via the unmappedMediaKeycode sentinel;
+                    // only the visual wipe is skipped (skipWipe: true)
+                    // because there's no F-key position to project onto.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
                     if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
                         recordWipingKeystroke(
@@ -328,15 +340,12 @@ extension LockController {
                             eventLabel: "mediaKey nx=\(nxKeycode)"
                         )
                     } else {
-                        keystrokeCount += 1
-                        mediaKeyCount += 1
-                        lastInputAt = Date()
-                        if AppSettings.shared.verbosePerfEnabled {
-                            PerfMetrics.shared.recordEvent("mediaKey nx=\(nxKeycode) unmapped")
-                        } else {
-                            PerfMetrics.shared.recordEvent("mediaKey")
-                        }
-                        triggerInputFeedback()
+                        recordWipingKeystroke(
+                            keycode: Self.unmappedMediaKeycode,
+                            bucket: .media,
+                            eventLabel: "mediaKey nx=\(nxKeycode) unmapped",
+                            skipWipe: true
+                        )
                     }
                 }
                 return nil
