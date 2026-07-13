@@ -39,10 +39,15 @@ final class CleaningHistory: ObservableObject {
 
     @Published private(set) var sessions: [CleaningSession] = []
 
+    private let defaults: UserDefaults
     private let storageKey = "cleaningHistory"
     private let maxKeep = 100
 
-    private init() {
+    /// `defaults` is injectable so tests can exercise the corrupt-blob
+    /// recovery path against a throwaway `UserDefaults(suiteName:)` instance
+    /// instead of polluting `.standard`. Production keeps the singleton.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         load()
         // One-time migration: re-encode and overwrite so any legacy `codeword`
         // field still embedded in the persisted JSON blob is dropped on disk
@@ -70,7 +75,7 @@ final class CleaningHistory: ObservableObject {
     var lastWipe: Date? { sessions.first?.startedAt }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
+        guard let data = defaults.data(forKey: storageKey) else { return }
         do {
             sessions = try JSONDecoder().decode([CleaningSession].self, from: data)
         } catch {
@@ -81,14 +86,14 @@ final class CleaningHistory: ObservableObject {
             // Overwriting the same key keeps at most one archive, so a
             // repeatedly-failing load can't bloat the prefs plist.
             let archiveKey = "\(storageKey).corrupt"
-            UserDefaults.standard.set(data, forKey: archiveKey)
-            UserDefaults.standard.removeObject(forKey: storageKey)
+            defaults.set(data, forKey: archiveKey)
+            defaults.removeObject(forKey: storageKey)
             DebugLog.log("CleaningHistory: decode failed (\(error.localizedDescription)) — archived bad blob to \(archiveKey), starting fresh")
         }
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(sessions) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        defaults.set(data, forKey: storageKey)
     }
 }

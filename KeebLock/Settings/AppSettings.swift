@@ -440,7 +440,7 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Storage
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
     private enum Keys {
         static let codeword           = "codeword"
@@ -468,8 +468,12 @@ final class AppSettings: ObservableObject {
         static let appTheme           = "appTheme"
     }
 
-    private init() {
-        let d = UserDefaults.standard
+    /// `defaults` is injectable so tests can exercise the clamping/migration
+    /// logic below against a throwaway `UserDefaults(suiteName:)` instance
+    /// instead of polluting `.standard`. Production keeps the singleton.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let d = defaults
 
         let saved = d.string(forKey: Keys.codeword) ?? ""
         self.codeword = saved.isEmpty ? Codewords.random() : saved
