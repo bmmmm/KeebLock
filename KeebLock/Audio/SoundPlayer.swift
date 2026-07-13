@@ -34,6 +34,9 @@ final class SoundPlayer {
     /// file lives on a USB volume that got unmounted mid-session).
     private var customBookmark: Data?
 
+    /// Token for the `.AVAudioEngineConfigurationChange` observer, removed in deinit.
+    private var configChangeObserver: NSObjectProtocol?
+
     private var lastPlayTime: TimeInterval = -.infinity
     // 100 ms throttle. macOS 26+ tightened CoreAudio's HALC scheduler
     // tolerance: 50 ms produced overload warnings, 80 ms still hit
@@ -83,6 +86,19 @@ final class SoundPlayer {
         // activity via idleTimer.
         engine.attach(playerNode)
         engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+
+        // Switching the audio output device (headphone plug/unplug, default-output
+        // change, USB DAC unmount) posts this notification and stops the engine,
+        // invalidating the node graph. Reconnect and restart on audioQueue so the
+        // engine-mutation invariant holds — the notification itself can land on
+        // an arbitrary thread.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: nil
+        ) { [weak self] _ in
+            self?.audioQueue.async { self?.handleConfigurationChange() }
+        }
     }
 
     /// Pre-warm the engine so the first keystroke of a session doesn't pay
@@ -224,6 +240,9 @@ final class SoundPlayer {
 
     deinit {
         idleTimer?.cancel()
+        if let configChangeObserver {
+            NotificationCenter.default.removeObserver(configChangeObserver)
+        }
         customScopedURL?.stopAccessingSecurityScopedResource()
     }
 
@@ -314,8 +333,12 @@ final class SoundPlayer {
             p.volume = nodeVolume
             customPlayer = p
             customScopedURL = url
-            p.play()
-            DebugLog.log("SoundPlayer: customPlayer recovered after re-resolve")
+            if p.play() {
+                DebugLog.log("SoundPlayer: customPlayer recovered after re-resolve")
+            } else {
+                DebugLog.log("SoundPlayer: customPlayer recovered but play() failed — falling back to synth")
+                fallbackToSynth()
+            }
         } catch {
             url.stopAccessingSecurityScopedResource()
             DebugLog.log("SoundPlayer: AVAudioPlayer re-init failed: \(error.localizedDescription) — falling back to synth")
@@ -340,6 +363,20 @@ final class SoundPlayer {
         } catch {
             DebugLog.log("SoundPlayer: AVAudioEngine start failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Must be called on `audioQueue`. The node graph is invalidated by a
+    /// configuration-change (the engine also stops itself), so reconnect
+    /// unconditionally. Only restart the engine if it was actually active —
+    /// `idleTimer` is non-nil exactly while activity keeps the engine warm,
+    /// so its presence is a proxy for "should still be running".
+    private func handleConfigurationChange() {
+        dispatchPrecondition(condition: .onQueue(audioQueue))
+        guard let format else { return }
+        engine.disconnectNodeOutput(playerNode)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        guard idleTimer != nil else { return }
+        ensureEngineRunning()
     }
 
     /// Must be called on `audioQueue`. (Re)arms a one-shot timer that stops
