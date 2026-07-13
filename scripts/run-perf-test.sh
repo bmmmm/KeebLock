@@ -86,19 +86,35 @@ run_one() {
     # mousekeymix takes ~10 s of injection + warmup/teardown overhead, so
     # a 60 s shell timeout leaves headroom even when the harness has to
     # write its own snapshot from the hard-timeout path.
+    #
+    # `open -W`'s own pid ($open_pid below) is NOT KeebLock — LaunchServices
+    # launches the app as a separate process and `open -W` merely waits on
+    # it. Signaling $open_pid (what both `gtimeout open` and a naive
+    # watchdog would do) only kills `open`, leaving a hung KeebLock — and
+    # its active CGEventTap — running in the background. The watchdog below
+    # resolves the real app pid via its command line, which carries
+    # --output="$output" (unique per run), and signals that instead.
     local timeout_secs=60
-    if command -v gtimeout >/dev/null 2>&1; then
-        gtimeout "$timeout_secs" open -W -na "$APP_BUNDLE" ${VERBOSE_ENV[@]+"${VERBOSE_ENV[@]}"} --args \
-            --perf-test="$suite" --mode="$mode" --output="$output" || true
-    else
-        open -W -na "$APP_BUNDLE" ${VERBOSE_ENV[@]+"${VERBOSE_ENV[@]}"} --args \
-            --perf-test="$suite" --mode="$mode" --output="$output" &
-        local pid=$!
-        ( sleep "$timeout_secs"; kill -TERM "$pid" 2>/dev/null; sleep 2; kill -KILL "$pid" 2>/dev/null ) &
-        local watchdog=$!
-        wait "$pid" 2>/dev/null || true
-        kill "$watchdog" 2>/dev/null || true
-    fi
+    open -W -na "$APP_BUNDLE" ${VERBOSE_ENV[@]+"${VERBOSE_ENV[@]}"} --args \
+        --perf-test="$suite" --mode="$mode" --output="$output" &
+    local open_pid=$!
+    (
+        sleep "$timeout_secs"
+        local app_pid
+        app_pid="$(pgrep -n -f "KeebLock.*--output=$output" 2>/dev/null || true)"
+        if [ -n "$app_pid" ]; then
+            kill -TERM "$app_pid" 2>/dev/null || true
+            sleep 2
+            kill -KILL "$app_pid" 2>/dev/null || true
+        else
+            # Couldn't resolve the app pid — fall back to killing `open`
+            # itself so the harness doesn't hang forever either way.
+            kill -TERM "$open_pid" 2>/dev/null || true
+        fi
+    ) &
+    local watchdog=$!
+    wait "$open_pid" 2>/dev/null || true
+    kill "$watchdog" 2>/dev/null || true
 
     if [ ! -f "$output" ]; then
         echo "error: no output file produced at $output" >&2
