@@ -91,6 +91,12 @@ enum DebugLog {
     /// per-keystroke logging path off the disk write entirely.
     private static let ioQueue = DispatchQueue(label: "de.6bm.KeebLock.debuglog", qos: .utility)
 
+    /// Kept open across appends instead of open/seek/close per line — all
+    /// access is already serialized on `ioQueue`, so a shared handle is
+    /// race-free. Closed and re-opened on rotation and whenever the file
+    /// goes missing out from under us (e.g. deleted externally).
+    private static var openHandle: FileHandle?
+
     private static func appendLine(_ line: String) {
         let payload = line + "\n"
         guard let data = payload.data(using: .utf8) else { return }
@@ -102,25 +108,36 @@ enum DebugLog {
             }
 
             do {
-                if FileManager.default.fileExists(atPath: logURL.path) {
-                    let handle = try FileHandle(forWritingTo: logURL)
-                    defer { try? handle.close() }
-                    try handle.seekToEnd()
-                    try handle.write(contentsOf: data)
+                if openHandle == nil {
+                    if !FileManager.default.fileExists(atPath: logURL.path) {
+                        try Data().write(to: logURL)
+                        restrictPermissions(logURL)
+                        permissionsTightenedThisLaunch = true
+                    }
+                    openHandle = try FileHandle(forWritingTo: logURL)
+                    try openHandle?.seekToEnd()
                     if !permissionsTightenedThisLaunch {
                         restrictPermissions(logURL)
                         permissionsTightenedThisLaunch = true
                     }
-                } else {
-                    try data.write(to: logURL)
-                    restrictPermissions(logURL)
-                    permissionsTightenedThisLaunch = true
                 }
+                try openHandle?.write(contentsOf: data)
             } catch {
                 // Debug logging must never crash the app. Failures still show in
                 // NSLog (the line above), so we lose nothing by swallowing here.
+                // Drop the handle so the next append retries from scratch.
+                try? openHandle?.close()
+                openHandle = nil
             }
         }
+    }
+
+    /// Closes the persistent handle so rotation can safely rename the file
+    /// out from under us; the next `appendLine` reopens against the fresh
+    /// (post-rotation) `logURL` path.
+    private static func closeHandle() {
+        try? openHandle?.close()
+        openHandle = nil
     }
 
     /// Tighten the file mode to 0600 — the default umask gives 0644
@@ -149,6 +166,10 @@ enum DebugLog {
               size > maxBytes else { return }
         let backup = logsDirectory.appendingPathComponent("keeblock.log.old")
         try? FileManager.default.removeItem(at: backup)
+        // Release the persistent handle before the rename — otherwise it
+        // would keep writing into the now-renamed backup file's inode
+        // instead of the fresh `logURL` this rotation creates.
+        closeHandle()
         do {
             try FileManager.default.moveItem(at: logURL, to: backup)
             restrictPermissions(backup)

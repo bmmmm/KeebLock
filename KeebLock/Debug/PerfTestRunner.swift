@@ -132,8 +132,7 @@ enum PerfTestRunner {
         // 7) Run the chosen harness. Both modes are async-friendly — they
         //    yield the MainActor between injections so the event tap's
         //    callback (which runs on this same actor) can drain.
-        PerfMetrics.shared.reset()  // discard warmup-window noise
-        PerfMetrics.shared.sessionStart()  // restart timing window
+        PerfMetrics.shared.sessionStart()  // discards warmup-window noise + restarts timing window
         let harnessStart = Date()
         let harness = PerfTestHarness(
             suite: args.suite,
