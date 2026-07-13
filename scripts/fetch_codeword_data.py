@@ -5,7 +5,7 @@ One-shot fetcher for KeebLock codeword data.
 For every word in `WORDS_BY_THEME` below, queries the English Wikipedia REST
 API for a summary + lead image, then the page HTML for ~8–10 substantial
 fact paragraphs. Images are downloaded into Resources/CodewordImages/ and
-resized to 1200px wide via macOS `sips`. The JSON manifest goes to
+resized to 800px wide via macOS `sips`. The JSON manifest goes to
 Resources/codeword_data.json.
 
 Words for which Wikipedia returns no extract or no lead image land in the
@@ -671,7 +671,7 @@ def main() -> int:
         "data": dict(sorted(data.items())),
         "unavailable": sorted(set(unavailable)),
     }
-    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"\n=== Done ===")
     print(f"  Available:    {len(data)}")

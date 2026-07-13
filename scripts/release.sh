@@ -109,12 +109,31 @@ git push origin "$TAG" || {
     exit 1
 }
 
+# From here on $TAG is public on Forgejo with no release attached yet. A
+# plain re-run won't work — the "tag already exists locally" guard above
+# blocks it — so any failure below needs explicit recovery guidance, same
+# as the asset-upload failure further down.
+print_post_tag_recovery_hint() {
+    echo "       Tag $TAG is already pushed to Forgejo with no release published yet." >&2
+    echo "       Fix the issue above, then either:" >&2
+    echo "         a) unwind and start over:" >&2
+    echo "              git push origin :refs/tags/$TAG && git tag -d $TAG" >&2
+    echo "            and re-run: scripts/release.sh $VERSION" >&2
+    echo "         b) or resume by hand from the built app at:" >&2
+    echo "              $APP" >&2
+    echo "            (package with ditto, then publish via 'tea releases create $TAG ...')" >&2
+}
+
 # --- Package -----------------------------------------------------------------
 echo "==> Packaging $ZIP"
 rm -f "$ZIP"
 # `ditto -c -k --keepParent` preserves macOS metadata + extended attributes;
 # downloaders extracting via Finder/`unzip` get a working signed bundle.
-ditto -c -k --keepParent "$APP" "$ZIP"
+ditto -c -k --keepParent "$APP" "$ZIP" || {
+    echo "error: ditto failed to package $ZIP" >&2
+    print_post_tag_recovery_hint
+    exit 1
+}
 SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
 SIZE_KB="$(du -k "$ZIP" | awk '{print $1}')"
 
@@ -128,13 +147,19 @@ echo "    sha:   $SHA"
 # verified codesign identity proves the binary was produced with bmmmm's
 # Apple cert. Both values get embedded in the release notes so users can
 # compare them with what `codesign -dv` reports against their installed copy.
-CS_OUT="$(codesign -dv --verbose=4 "$APP" 2>&1)"
+if ! CS_OUT="$(codesign -dv --verbose=4 "$APP" 2>&1)"; then
+    echo "error: codesign failed on $APP" >&2
+    printf '%s\n' "$CS_OUT" | sed 's/^/         /' >&2
+    print_post_tag_recovery_hint
+    exit 1
+fi
 TEAM_ID="$(printf '%s\n' "$CS_OUT" | awk -F= '/^TeamIdentifier=/ {print $2}')"
 CD_HASH="$(printf '%s\n' "$CS_OUT" | awk -F= '/^CDHash=/ {print $2}')"
 if [ -z "$TEAM_ID" ] || [ -z "$CD_HASH" ]; then
     echo "error: codesign did not yield TeamIdentifier and/or CDHash for $APP" >&2
     echo "       output was:" >&2
     printf '%s\n' "$CS_OUT" | sed 's/^/         /' >&2
+    print_post_tag_recovery_hint
     exit 1
 fi
 echo "    team:  $TEAM_ID"
