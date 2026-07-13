@@ -14,10 +14,14 @@ The heuristic favours sentences that:
 and penalises sentences starting with a pronoun ("It …", "They …") because
 those lose meaning without their preceding context.
 
+The shipped corpus is agent-authored, not this script's output (see
+CLAUDE.md > Data pipeline) — a bare run overwrites it with thinner heuristic
+snippets, so it requires --force or --keep as an explicit confirmation.
+
 Usage (from repo root):
-    python3 scripts/build_dyk.py            # rebuild DYK for every entry
-    python3 scripts/build_dyk.py --only foo,bar
-    python3 scripts/build_dyk.py --keep     # don't overwrite existing arrays
+    python3 scripts/build_dyk.py --force        # rebuild DYK for every entry
+    python3 scripts/build_dyk.py --force --only foo,bar
+    python3 scripts/build_dyk.py --keep         # only fill entries missing did_you_know
 """
 
 from __future__ import annotations
@@ -136,6 +140,9 @@ def main() -> int:
     ap.add_argument("--only", help="Comma-separated subset of codewords")
     ap.add_argument("--keep", action="store_true",
                     help="Skip entries that already have a did_you_know array")
+    ap.add_argument("--force", action="store_true",
+                    help="Confirm overwriting existing did_you_know arrays. "
+                         "Required unless --keep is also passed.")
     args = ap.parse_args()
 
     only_set: set[str] | None = None
@@ -145,6 +152,17 @@ def main() -> int:
     if not MANIFEST.exists():
         print(f"error: manifest not found at {MANIFEST}", file=sys.stderr)
         print(f"hint: run scripts/fetch_codeword_data.py first", file=sys.stderr)
+        return 1
+
+    if not args.force and not args.keep:
+        print("warning: this overwrites did_you_know for every codeword in the "
+              "manifest.", file=sys.stderr)
+        print("         The shipped corpus is agent-authored (6 richer, grounded "
+              "snippets/word) — this script is only the offline/no-API fallback "
+              "and its heuristic output is thinner. See CLAUDE.md > Data pipeline.",
+              file=sys.stderr)
+        print("         Re-run with --force to overwrite anyway, or --keep to "
+              "only fill entries that don't have did_you_know yet.", file=sys.stderr)
         return 1
 
     manifest = json.loads(MANIFEST.read_text())
@@ -166,7 +184,7 @@ def main() -> int:
         rebuilt += 1
         print(f"  [{word}] {len(dyk)} items")
 
-    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"\n=== Done ===")
     print(f"  Rebuilt:          {rebuilt}")

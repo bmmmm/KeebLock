@@ -14,6 +14,9 @@
 #   scripts/uninstall.sh             # interactive
 #   scripts/uninstall.sh --yes       # skip confirmation (CI/scripting)
 
+# No `set -e`: every step below reports its own success/failure and keeps
+# going so a locked log file or a missing app bundle doesn't abort the rest
+# of the cleanup — the final summary already tells the user what's left.
 set -uo pipefail
 
 BUNDLE_ID="bmako101.KeebLock"
@@ -60,8 +63,11 @@ fi
 # --- 3. Remove log files -----------------------------------------------------
 if [[ -d "$LOG_DIR" ]]; then
     echo "→ Removing log files ($LOG_DIR)..."
-    rm -rf "$LOG_DIR"
-    echo "   removed"
+    if rm -rf "$LOG_DIR" 2>/dev/null; then
+        echo "   removed"
+    else
+        echo "   WARNING: failed to remove $LOG_DIR — remove manually with: rm -rf \"$LOG_DIR\""
+    fi
 else
     echo "→ No log files found."
 fi
@@ -69,9 +75,13 @@ fi
 # --- 4. Remove app bundle ----------------------------------------------------
 if [[ -d "$APP_PATH" ]]; then
     echo "→ Moving KeebLock.app to Trash..."
-    osascript -e "tell application \"Finder\" to delete POSIX file \"$APP_PATH\"" 2>/dev/null \
-        || { rm -rf "$APP_PATH"; echo "   (removed directly — Finder not available)"; }
-    echo "   done"
+    if osascript -e "tell application \"Finder\" to delete POSIX file \"$APP_PATH\"" 2>/dev/null; then
+        echo "   done"
+    elif rm -rf "$APP_PATH" 2>/dev/null; then
+        echo "   removed directly — Finder not available"
+    else
+        echo "   WARNING: failed to remove $APP_PATH — remove manually with: rm -rf \"$APP_PATH\""
+    fi
 else
     echo "→ KeebLock.app not found in /Applications (already removed?)."
 fi

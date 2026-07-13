@@ -123,7 +123,7 @@ def main() -> int:
     lines.append("")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text("\n".join(lines))
+    OUTPUT.write_text("\n".join(lines), encoding="utf-8")
 
     rel = OUTPUT.relative_to(REPO_ROOT)
     print(f"Wrote {rel} ({len(rows)} entries, {len(missing)} missing)")
