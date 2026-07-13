@@ -84,7 +84,7 @@ struct WaterFillButton: View {
 
     private func buttonContent(phase: Double) -> some View {
         let disabledNow = isDisabled()
-        Button {
+        return Button {
             guard !filling, !disabledNow else { return }
             filling = true
             withAnimation(.easeInOut(duration: 0.65)) {
