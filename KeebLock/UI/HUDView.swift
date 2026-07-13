@@ -223,6 +223,11 @@ private struct HUDKnowledgeFooter: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     if !displayFacts.isEmpty {
+                        // .animation(value:) on the container (not the Text
+                        // itself) is what makes the `.id(factIndex)` swap
+                        // below actually crossfade — a modifier attached
+                        // inside the .id() boundary starts fresh with every
+                        // new identity and never animates its own insertion.
                         VStack(alignment: .leading, spacing: 6) {
                             SectionEyebrow("DID YOU KNOW?")
                             Text(displayFacts[factIndex])
@@ -238,6 +243,7 @@ private struct HUDKnowledgeFooter: View {
                                 .id(factIndex)
                                 .transition(.opacity)
                         }
+                        .animation(.easeInOut(duration: 0.35), value: factIndex)
                     }
                 }
                 .padding(20)
