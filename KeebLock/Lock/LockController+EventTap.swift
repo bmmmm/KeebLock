@@ -333,7 +333,7 @@ extension LockController {
                     // only the visual wipe is skipped (skipWipe: true)
                     // because there's no F-key position to project onto.
                     let nxKeycode = (nsEvent.data1 >> 16) & 0xFFFF
-                    if let fKeycode = Self.nxToFnKeycode[nxKeycode] {
+                    if let fKeycode = KeyClassifier.nxToFnKeycode[nxKeycode] {
                         recordWipingKeystroke(
                             keycode: fKeycode,
                             bucket: .media,
@@ -341,7 +341,7 @@ extension LockController {
                         )
                     } else {
                         recordWipingKeystroke(
-                            keycode: Self.unmappedMediaKeycode,
+                            keycode: KeyClassifier.unmappedMediaKeycode,
                             bucket: .media,
                             eventLabel: "mediaKey nx=\(nxKeycode) unmapped",
                             skipWipe: true
