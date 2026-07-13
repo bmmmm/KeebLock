@@ -4,6 +4,11 @@ import SwiftUI
 
 extension Notification.Name {
     static let keebLockOpenSettings = Notification.Name("KeebLock.openSettings")
+    /// Posted by `LockController.attemptStartLock` after every lock attempt,
+    /// from both the launcher's Start button and the ⌘S menu command — lets
+    /// the launcher re-sync its AX-permission banner regardless of which
+    /// entry point triggered the attempt.
+    static let keebLockLockAttempted = Notification.Name("KeebLock.lockAttempted")
 }
 
 struct ContentView: View {
@@ -53,6 +58,9 @@ struct ContentView: View {
             if granted != accessibilityGranted { accessibilityGranted = granted }
             if !granted { startPermissionPolling() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .keebLockLockAttempted)) { _ in
+            resyncAccessibilityState()
+        }
     }
 
     /// Polls the Accessibility permission once per second only while it is
@@ -93,6 +101,10 @@ struct ContentView: View {
                     .font(.system(size: 19 * uiScale, weight: .regular))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
+
+                if !settings.hasSeenIntro {
+                    introCard
+                }
 
                 if !accessibilityGranted {
                     accessibilityBanner
@@ -404,6 +416,36 @@ struct ContentView: View {
         }
     }
 
+    /// First-run explainer. The core interaction model — codeword-to-unlock,
+    /// ⌘⌥Esc as the safety net — otherwise lives only in the README, so a
+    /// first-time user who skips straight to Start Cleaning has no in-app clue
+    /// how to get back out. Dismissible by hand; also retired automatically
+    /// on the first completed unlock (`LockController.stopLock`).
+    private var introCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                Label("How KeebLock works", systemImage: "info.circle.fill")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(settings.appTheme.color)
+                Spacer()
+                Button {
+                    settings.hasSeenIntro = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
+            }
+            Text("Starting a session locks your keyboard behind a full-screen HUD. Type the codeword shown below to unlock — or press ⌘⌥Esc anytime as the safety net.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(settings.appTheme.color.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.md))
+    }
+
     private var accessibilityBanner: some View {
         VStack(spacing: 10) {
             Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
@@ -453,18 +495,22 @@ struct ContentView: View {
 
     private func start() {
         guard accessibilityGranted else { return }
-        controller.startLock(codeword: settings.codeword, durationMinutes: settings.durationMinutes)
-        // The permission may have been revoked in System Settings since our
-        // poller decided "granted" and stopped — installEventTap would have
-        // failed silently inside startLock. Re-check synchronously so the
-        // banner reappears and polling resumes instead of pretending we're
-        // ready when we aren't.
-        if !controller.isLocked {
-            let nowGranted = AccessibilityPermission.isGranted
-            if accessibilityGranted != nowGranted {
-                accessibilityGranted = nowGranted
-            }
-            if !nowGranted { startPermissionPolling() }
+        controller.attemptStartLock(codeword: settings.codeword, durationMinutes: settings.durationMinutes)
+    }
+
+    /// The permission may have been revoked in System Settings since our
+    /// poller decided "granted" and stopped — installEventTap would then
+    /// have failed silently inside startLock. Re-check synchronously so the
+    /// banner reappears and polling resumes instead of pretending we're
+    /// ready when we aren't. Runs after every lock attempt via
+    /// `.keebLockLockAttempted`, regardless of whether it came from this
+    /// view's Start button or the ⌘S menu command.
+    private func resyncAccessibilityState() {
+        guard !controller.isLocked else { return }
+        let nowGranted = AccessibilityPermission.isGranted
+        if accessibilityGranted != nowGranted {
+            accessibilityGranted = nowGranted
         }
+        if !nowGranted { startPermissionPolling() }
     }
 }

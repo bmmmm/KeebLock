@@ -377,9 +377,29 @@ final class LockController {
         startTimer()
     }
 
+    /// Shared entry point for both places a lock can be started (the
+    /// launcher's Start button and the ⌘S menu command) so a permission
+    /// change while the app stayed foregrounded is caught the same way
+    /// regardless of path. `startLock` itself already guards against a
+    /// missing/revoked accessibility permission and refuses to arm the
+    /// tap — this just posts `.keebLockLockAttempted` afterwards so any
+    /// observer (the launcher's AX banner) can re-check and re-sync its
+    /// own state, which the menu path otherwise has no way to trigger.
+    func attemptStartLock(codeword: String, durationMinutes: Int) {
+        startLock(codeword: codeword, durationMinutes: durationMinutes)
+        NotificationCenter.default.post(name: .keebLockLockAttempted, object: nil)
+    }
+
     func stopLock() {
         guard isLocked, !isStopping else { return }
         isStopping = true
+        // First completed unlock — codeword match, ⌘⌥Esc escape hatch, and
+        // auto-unlock timer all converge here. Any of them means the user
+        // has now experienced the mechanism the launcher's first-run card
+        // explains, so retire it for good.
+        if !AppSettings.shared.hasSeenIntro {
+            AppSettings.shared.hasSeenIntro = true
+        }
         // Real elapsed time. The previous `totalSeconds - remainingSeconds`
         // expression read 0 whenever auto-unlock was off, because the
         // timer never decrements `remainingSeconds` in that mode — so

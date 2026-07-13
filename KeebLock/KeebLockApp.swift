@@ -130,7 +130,13 @@ struct KeebLockApp: App {
                 Divider()
 
                 Button("Start Cleaning") {
-                    lockController.startLock(
+                    // Routed through attemptStartLock (not startLock directly) so
+                    // this path re-syncs the launcher's AX banner exactly like the
+                    // Start button does — startLock itself already refuses to arm
+                    // the tap without permission, but without the shared helper
+                    // this menu path would leave the banner stale if AX was
+                    // revoked while the app stayed foregrounded.
+                    lockController.attemptStartLock(
                         codeword: settings.codeword,
                         durationMinutes: settings.durationMinutes
                     )

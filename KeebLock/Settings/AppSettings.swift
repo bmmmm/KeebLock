@@ -126,6 +126,16 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showCodewordProgress, forKey: Keys.codewordProgress) }
     }
 
+    // MARK: - Onboarding
+
+    /// Drives the first-run explainer card in the launcher. Starts `false`
+    /// so new installs see the card; flips permanently to `true` once the
+    /// user dismisses it manually or completes their first unlock (set by
+    /// `LockController.stopLock()`).
+    @Published var hasSeenIntro: Bool {
+        didSet { defaults.set(hasSeenIntro, forKey: Keys.hasSeenIntro) }
+    }
+
     // MARK: - Debug
 
     /// Cap for `keeblock.log`. When the file exceeds this size the next
@@ -211,6 +221,7 @@ final class AppSettings: ObservableObject {
         static let pixelColor         = "pixelColorPreset"
         static let knowledge          = "showCodewordKnowledge"
         static let codewordProgress   = "showCodewordProgress"
+        static let hasSeenIntro       = "hasSeenIntro"
         static let debug              = "debugLoggingEnabled"
         static let logMaxSize         = "logFileMaxSizeMB"
         static let verbosePerf        = "verbosePerfEnabled"
@@ -269,6 +280,7 @@ final class AppSettings: ObservableObject {
 
         self.showCodewordKnowledge = d.object(forKey: Keys.knowledge)    as? Bool ?? true
         self.showCodewordProgress  = d.object(forKey: Keys.codewordProgress) as? Bool ?? true
+        self.hasSeenIntro          = d.object(forKey: Keys.hasSeenIntro) as? Bool ?? false
         let mb = d.object(forKey: Keys.logMaxSize) as? Int ?? 5
         self.logFileMaxSizeMB = (1...100).contains(mb) ? mb : 5
         self.debugLoggingEnabled   = d.object(forKey: Keys.debug)        as? Bool ?? false

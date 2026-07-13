@@ -241,4 +241,21 @@ struct AppSettingsTests {
             #expect(AppSettings(defaults: d).codeword == "existingword")
         }
     }
+
+    // MARK: - hasSeenIntro
+
+    @Test func hasSeenIntroDefaultsToFalse() {
+        withDefaults { d in
+            #expect(AppSettings(defaults: d).hasSeenIntro == false)
+        }
+    }
+
+    @Test func hasSeenIntroPersistsOnceSet() {
+        withDefaults { d in
+            let settings = AppSettings(defaults: d)
+            settings.hasSeenIntro = true
+            #expect(d.bool(forKey: "hasSeenIntro") == true)
+            #expect(AppSettings(defaults: d).hasSeenIntro == true)
+        }
+    }
 }
