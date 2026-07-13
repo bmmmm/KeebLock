@@ -43,6 +43,11 @@ vars (release.sh does that to pin a build to a tag exactly). Without git,
 falls back to `0.0.0-dev` / `1`. **Don't bump the version in pbxproj
 manually** — let the script do it.
 
+**Metal Toolchain:** an Xcode update can silently drop the Metal Toolchain
+component; every build then fails with "cannot execute tool 'metal'". Fix:
+`xcodebuild -downloadComponent MetalToolchain` (~700 MB download), as the
+error message itself suggests. Happened after the 26.4 update (2026-07-13).
+
 Automated tests: `scripts/build.sh test` runs the KeebLockTests unit-test
 target (Swift Testing); `cd scripts && uv run pytest` covers the data-pipeline
 scripts. The lock kernel's GUI behavior is still verified manually — build,
