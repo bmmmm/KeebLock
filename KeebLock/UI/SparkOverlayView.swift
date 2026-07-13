@@ -130,6 +130,23 @@ struct SparkOverlayView: View {
             }
         )
         .onPreferenceChange(SparkViewSizeKey.self) { viewSize = $0 }
+        .onChange(of: settings.screenEffect) { old, _ in
+            // Switching effect type mid-lock left the previous kind's
+            // particles sitting in their array — the Canvas switch only
+            // draws the *current* effect, but hasActiveParticles still
+            // counted them, and continued typing kept restarting the
+            // `.task(id: lastSpawnAt)` drain (via new spawns of the new
+            // effect) before it ever got to prune the stale ones. Clear
+            // the abandoned kind immediately instead of waiting on a drain
+            // that may never fire.
+            switch old {
+            case .sparks:  sparks.removeAll()
+            case .rain:    drops.removeAll()
+            case .matrix:  chars.removeAll()
+            case .bubbles: bubbles.removeAll()
+            case .snow:    flakes.removeAll()
+            }
+        }
         .onChange(of: triggerCount) { _, _ in
             guard settings.effectEnabled else { return }
             // Time-based debounce: cap spawn rate at ~60 Hz. The previous

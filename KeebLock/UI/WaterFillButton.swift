@@ -41,7 +41,13 @@ private struct WaterShape: Shape {
 
 struct WaterFillButton: View {
     let action: () -> Void
-    var disabled: Bool = false
+    /// Closure instead of a plain `Bool` — the DispatchQueue.main.asyncAfter
+    /// completion below re-checks this after the 0.85s fill to abort a
+    /// tap that got disabled mid-fill. A `Bool` param is captured by value
+    /// into the View struct at tap time and can never observe a later
+    /// flip; a closure over the caller's live state (e.g. an @Observable
+    /// controller) reads current state on every call.
+    var isDisabled: () -> Bool = { false }
     /// Accent the water gradient + border derive from — pass the active theme
     /// color so the Start CTA follows the theme instead of hardcoding blue
     /// (which clashed with Coffee / Sakura / Sleepy).
@@ -77,14 +83,15 @@ struct WaterFillButton: View {
     }
 
     private func buttonContent(phase: Double) -> some View {
+        let disabledNow = isDisabled()
         Button {
-            guard !filling, !disabled else { return }
+            guard !filling, !disabledNow else { return }
             filling = true
             withAnimation(.easeInOut(duration: 0.65)) {
                 fillFraction = 1.0
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
-                guard !disabled else {
+                guard !isDisabled() else {
                     withAnimation(.none) { fillFraction = 0 }
                     filling = false
                     return
@@ -118,7 +125,7 @@ struct WaterFillButton: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .strokeBorder(
-                        borderColor.opacity(disabled ? 0.2 : 0.65),
+                        borderColor.opacity(disabledNow ? 0.2 : 0.65),
                         lineWidth: 1.5
                     )
             )
@@ -128,6 +135,6 @@ struct WaterFillButton: View {
             )
         }
         .buttonStyle(.plain)
-        .opacity(disabled ? 0.45 : 1.0)
+        .opacity(disabledNow ? 0.45 : 1.0)
     }
 }

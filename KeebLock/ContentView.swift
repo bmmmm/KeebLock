@@ -138,7 +138,11 @@ struct ContentView: View {
 
                 vibesPanel
 
-                WaterFillButton(action: start, disabled: controller.isLocked || !accessibilityGranted, accent: settings.appTheme.color)
+                WaterFillButton(
+                    action: start,
+                    isDisabled: { controller.isLocked || !accessibilityGranted },
+                    accent: settings.appTheme.color
+                )
                     .keyboardShortcut(.return, modifiers: [])
 
                 shortcutHints

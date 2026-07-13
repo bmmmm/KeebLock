@@ -51,7 +51,16 @@ struct CleanmapView: View {
             .sorted { $0.count > $1.count }
     }
 
-    private var maxCount: Int { rows.first?.count ?? 1 }
+    /// Max over *merged* tile counts, not raw per-keycode counts — rows.first
+    /// is pre-alias-merge, so a tile that sums canonical + aliased keycodes
+    /// (e.g. F3 + Stage Manager) could exceed it and push fractions past 1.0.
+    private var maxCount: Int {
+        let tileCounts = KeyboardLayout.rows
+            .flatMap { $0 }
+            .compactMap { $0.code }
+            .map { tileCount(for: $0) }
+        return max(tileCounts.max() ?? 1, 1)
+    }
     private var totalWipes: Int { keyCounts.values.reduce(0, +) }
     private var distinctKeys: Int { keyCounts.count }
 
@@ -345,6 +354,11 @@ private struct KeyStat: Identifiable {
 
 private struct HeatBar: View {
     let fraction: Double
+
+    /// Clamped to 0...1 — an unclamped fraction can overshoot the container
+    /// width and blow out the ZStack/GeometryReader layout.
+    private var clampedFraction: Double { min(max(fraction, 0), 1) }
+
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
@@ -352,7 +366,7 @@ private struct HeatBar: View {
                     .fill(Color.primary.opacity(0.06))
                 RoundedRectangle(cornerRadius: Radius.xs)
                     .fill(color)
-                    .frame(width: geo.size.width * fraction)
+                    .frame(width: geo.size.width * clampedFraction)
             }
         }
     }
