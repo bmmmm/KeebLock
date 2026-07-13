@@ -35,7 +35,11 @@ final class PerfMetrics: ObservableObject {
 
     // MARK: - Event-tap callback latency (ns) — plain, refreshed at 1 Hz
     private(set) var eventCallbackMaxNs: UInt64 = 0
-    private(set) var eventCallbackAvgNs: UInt64 = 0
+    /// Derived lazily from `eventCallbackTotalNs` / `eventCallbackSamples` at
+    /// read time — no per-event division on the tap-callback hot path.
+    var eventCallbackAvgNs: UInt64 {
+        eventCallbackSamples > 0 ? eventCallbackTotalNs / UInt64(eventCallbackSamples) : 0
+    }
     private(set) var eventCallbackP99Ns: UInt64 = 0
     private(set) var eventCallbackSamples: Int = 0
 
@@ -46,11 +50,17 @@ final class PerfMetrics: ObservableObject {
     // for "MainActor saturation under mixed load" (hypothesis A for the
     // cursor-flicker symptom).
     private(set) var keyCallbackMaxNs: UInt64 = 0
-    private(set) var keyCallbackAvgNs: UInt64 = 0
+    /// Same lazy-derivation as `eventCallbackAvgNs`.
+    var keyCallbackAvgNs: UInt64 {
+        keyCallbackSamples > 0 ? keyCallbackTotalNs / UInt64(keyCallbackSamples) : 0
+    }
     private(set) var keyCallbackP99Ns: UInt64 = 0
     private(set) var keyCallbackSamples: Int = 0
     private(set) var mouseCallbackMaxNs: UInt64 = 0
-    private(set) var mouseCallbackAvgNs: UInt64 = 0
+    /// Same lazy-derivation as `eventCallbackAvgNs`.
+    var mouseCallbackAvgNs: UInt64 {
+        mouseCallbackSamples > 0 ? mouseCallbackTotalNs / UInt64(mouseCallbackSamples) : 0
+    }
     private(set) var mouseCallbackP99Ns: UInt64 = 0
     private(set) var mouseCallbackSamples: Int = 0
 
@@ -156,7 +166,6 @@ final class PerfMetrics: ObservableObject {
     /// Settings always reflect the current run.
     func reset() {
         eventCallbackMaxNs = 0
-        eventCallbackAvgNs = 0
         eventCallbackP99Ns = 0
         eventCallbackSamples = 0
         eventCallbackTotalNs = 0
@@ -164,14 +173,12 @@ final class PerfMetrics: ObservableObject {
         latencyRingHead = 0
 
         keyCallbackMaxNs = 0
-        keyCallbackAvgNs = 0
         keyCallbackP99Ns = 0
         keyCallbackSamples = 0
         keyCallbackTotalNs = 0
         keyLatencyRing.removeAll(keepingCapacity: true)
         keyLatencyRingHead = 0
         mouseCallbackMaxNs = 0
-        mouseCallbackAvgNs = 0
         mouseCallbackP99Ns = 0
         mouseCallbackSamples = 0
         mouseCallbackTotalNs = 0
@@ -249,7 +256,6 @@ final class PerfMetrics: ObservableObject {
         eventCallbackSamples &+= 1
         if ns > eventCallbackMaxNs { eventCallbackMaxNs = ns }
         eventCallbackTotalNs &+= ns
-        eventCallbackAvgNs = eventCallbackTotalNs / UInt64(eventCallbackSamples)
         if latencyRing.count < latencyRingCapacity {
             latencyRing.append(ns)
         } else {
@@ -272,7 +278,6 @@ final class PerfMetrics: ObservableObject {
         keyCallbackSamples &+= 1
         if ns > keyCallbackMaxNs { keyCallbackMaxNs = ns }
         keyCallbackTotalNs &+= ns
-        keyCallbackAvgNs = keyCallbackTotalNs / UInt64(keyCallbackSamples)
         if keyLatencyRing.count < latencyRingCapacity {
             keyLatencyRing.append(ns)
         } else {
@@ -285,7 +290,6 @@ final class PerfMetrics: ObservableObject {
         mouseCallbackSamples &+= 1
         if ns > mouseCallbackMaxNs { mouseCallbackMaxNs = ns }
         mouseCallbackTotalNs &+= ns
-        mouseCallbackAvgNs = mouseCallbackTotalNs / UInt64(mouseCallbackSamples)
         if mouseLatencyRing.count < latencyRingCapacity {
             mouseLatencyRing.append(ns)
         } else {
