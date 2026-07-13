@@ -124,6 +124,22 @@ print_post_tag_recovery_hint() {
     echo "            (package with ditto, then publish via 'tea releases create $TAG ...')" >&2
 }
 
+# --- License-compliance guard ------------------------------------------------
+# CREDITS.md carries the attribution required by the 63 share-alike codeword
+# images; it lands in the bundle only implicitly via Xcode's synchronized-
+# folder resource copy (it appears nowhere in pbxproj). A future membership
+# exception, rename, or ignore rule could silently drop it — fail the release
+# instead of shipping an unlicensed redistribution.
+if [ ! -f "$APP/Contents/Resources/CREDITS.md" ]; then
+    echo "error: CREDITS.md missing from $APP/Contents/Resources" >&2
+    echo "       The codeword-image attribution file must ship in the bundle" >&2
+    echo "       (license requirement for the share-alike images). Check that" >&2
+    echo "       KeebLock/Resources/CodewordImages/CREDITS.md exists and is" >&2
+    echo "       still picked up by the resource copy, then rebuild." >&2
+    print_post_tag_recovery_hint
+    exit 1
+fi
+
 # --- Package -----------------------------------------------------------------
 echo "==> Packaging $ZIP"
 rm -f "$ZIP"
