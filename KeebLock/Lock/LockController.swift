@@ -1,0 +1,492 @@
+import AppKit
+import Combine
+import Observation
+
+/// One wipe in the temporal trail rendered by `TrailmapView`. Stored
+/// as keycode + Unix timestamp so the view can both place the point
+/// (via `KeyboardPositionMap`) and colour it by age.
+struct TrailPoint: Codable {
+    let keycode: UInt16
+    let timestamp: TimeInterval
+}
+
+@Observable
+final class LockController {
+    @MainActor static let shared = LockController()
+
+    var isLocked: Bool = false
+    var remainingSeconds: Int = 0
+    var totalSeconds: Int = 0
+    var currentCodeword: String = ""
+    var isPaused: Bool = false
+
+    /// Low-rate pulse driven by a CADisplayLink throttled to 10–30 Hz
+    /// (see startDisplayLink). Views that display per-event counters
+    /// subscribe to this instead of to the counters themselves — the
+    /// counters live as @ObservationIgnored so the per-keystroke /
+    /// per-mousedown mutations don't fire view-update cascades through
+    /// the registrar. Mirrors PerfMetrics.tickSeq.
+    ///
+    /// Per-event mutation of an @Observable property goes through
+    /// _$observationRegistrar.withMutation, which synchronously notifies
+    /// every access tracker registered for that keyPath. With 8-10
+    /// observable mutations per keyDown (counters + bucket + dict +
+    /// trail + spark + codewordMatchProgress) and multiple views
+    /// observing (HUDView, LockOverlayDebug, CleanmapView, TrailmapView),
+    /// the keyDown callback was driving a downstream body-eval storm
+    /// that pushed mouse-callback p99 latency from ~20 µs to ~2.2 ms in
+    /// the mousekeymix perf test — the MainActor saturated under
+    /// combined load. 1 Hz refresh on counters is more than enough for
+    /// readouts that show running totals.
+    var displayTick: Int = 0
+
+    /// Bumped by the reset functions below. The cleanmap / trailmap stores
+    /// (`sessionKeyCounts`, `overallKeyCounts`, `sessionTrail`) are
+    /// @ObservationIgnored for hot-path reasons, so clearing them fires no
+    /// observation event — without this tracked pulse the Cleanmap /
+    /// Trailmap sheets would keep showing the old data after a Reset click
+    /// until something else happened to invalidate them.
+    var statsResetPulse: Int = 0
+
+    /// Per-keycode counts for the *current* lock session. Reset on each
+    /// startLock(). Lives in memory only.
+    @ObservationIgnored var sessionKeyCounts: [UInt16: Int] = [:]
+    /// Per-keycode counts accumulated across every lock session on this
+    /// machine. Persisted to UserDefaults on each stopLock and re-loaded
+    /// on launch. The user can clear it via the Cleanmap view's Reset
+    /// button. Privacy-trade-off acknowledged: this is keystroke-pattern
+    /// data and stays on-disk, scoped to this user's UserDefaults — never
+    /// leaves the machine.
+    @ObservationIgnored var overallKeyCounts: [UInt16: Int] = [:]
+    /// Ordered sequence of (keycode, timestamp) pairs for the *current*
+    /// lock session — drives the Trailmap view's polyline rendering.
+    /// Reset on each startLock(). Lives in memory only; not persisted
+    /// (the cross-session view was deemed not useful enough to justify
+    /// the on-disk footprint).
+    @ObservationIgnored var sessionTrail: [TrailPoint] = []
+    /// Timestamp of the first wipe in the current trail. `sessionTrail` is
+    /// ring-trimmed at trailMaxPoints, so `trail.first` is not the session
+    /// start once a session exceeds the cap — this survives the trim so the
+    /// Trailmap can show the true duration. Reset with the trail.
+    @ObservationIgnored var sessionTrailStartedAt: TimeInterval?
+    @ObservationIgnored var keystrokeCount: Int = 0
+    var sparkTrigger: Int = 0
+    // Keyboard breakdown — all @ObservationIgnored: per-keyDown bumps were
+    // multiplying the per-event publish count under the hot path. Views
+    // refresh on displayTick.
+    @ObservationIgnored var letterCount: Int = 0
+    @ObservationIgnored var numberCount: Int = 0
+    /// Punctuation, !@#$%&, all printable non-letter / non-number chars.
+    @ObservationIgnored var symbolCount: Int = 0
+    /// Esc, Tab, Return, Space, Backspace, Delete, Arrows, Home/End/PgUp/PgDn.
+    @ObservationIgnored var controlKeyCount: Int = 0
+    /// F1–F20.
+    @ObservationIgnored var functionKeyCount: Int = 0
+    /// Brightness, Volume, Play/Next/Prev — emitted by NX_SYSDEFINED subtype 8.
+    @ObservationIgnored var mediaKeyCount: Int = 0
+    // Mouse breakdown — also off the observation path. Same rationale.
+    @ObservationIgnored var leftClickCount: Int = 0
+    @ObservationIgnored var rightClickCount: Int = 0
+    @ObservationIgnored var middleClickCount: Int = 0
+    @ObservationIgnored var backClickCount: Int = 0
+    @ObservationIgnored var forwardClickCount: Int = 0
+    @ObservationIgnored var scrollCount: Int = 0
+    // Gestures
+    /// Discrete 3/4-finger trackpad swipes — counts both NSEventType.swipe
+    /// (31) when the tap sees it AND `activeSpaceDidChange` notifications
+    /// (which is how 4-finger swipes manifest on macOS 26+ where the OS
+    /// dispatches the gesture above our event tap). Debounced across both
+    /// paths so a swipe that triggers a Space change counts once, not twice.
+    @ObservationIgnored var swipeCount: Int = 0
+    /// 2-finger pinch (NSEventType.magnify = 30) plus double-tap zoom
+    /// (NSEventType.smartMagnify = 32). Magnify streams during a pinch, so
+    /// debounced; smartMagnify is discrete and counted directly.
+    @ObservationIgnored var pinchCount: Int = 0
+    /// 2-finger rotation attempts. NSEventType.rotate = 18, debounced.
+    @ObservationIgnored var rotateCount: Int = 0
+
+    var codewordMatchProgress: Int = 0
+
+    /// Bumps each time the in-lock "snapshot" button (rendered by
+    /// LockOverlayDebug at the top-right) is clicked. The overlay
+    /// watches this for changes to flash a "SAVED" toast — the actual
+    /// snapshot write happens synchronously in triggerInlineSnapshot().
+    var snapshotPulse: Int = 0
+
+    /// Monotonically increasing counter; HUDView modulos by `currentEntry.facts.count`
+    /// to pick which fact to show. Lives here (not per-HUDView) so multi-monitor
+    /// users see the same fact on every screen instead of each window
+    /// independently rolling its own.
+    var factRotationTick: Int = 0
+    @ObservationIgnored var lastFactRotationKeystroke: Int = 0
+    static let factRotationStride = 30
+
+    var soundDiagnostic: String { soundPlayer.engineStatus + " · \(String(format: "%.1f", soundPlayer.engineLatencyMs)) ms latency · \(soundPlayer.engineSampleRate) Hz" }
+
+    var eventTapInstalled: Bool { eventTap != nil }
+    var spaceObserverInstalled: Bool { spaceObserver != nil }
+    var lockWindowCount: Int { windowManager.windowCount }
+    /// Per-screen wipe-renderer state for diagnostic snapshots; empty
+    /// when no lock is active.
+    var screenWipeStates: [WipeRenderer.State] { windowManager.screenStates() }
+
+    // @ObservationIgnored: these are internal state, never read from a
+    // SwiftUI body. Without the annotation, mutating them through the
+    // event-tap callback would still post observation tracking events
+    // even though no view reads them — pure cost, no benefit.
+    @ObservationIgnored var eventTap: CFMachPort?
+    @ObservationIgnored var runLoopSource: CFRunLoopSource?
+    @ObservationIgnored var matcher = CodewordMatcher(target: "")
+    @ObservationIgnored var unlockTimer: Timer?
+    /// Drives the displayTick at the screen's native refresh rate so view
+    /// re-evals batch into frames the system was already going to render —
+    /// no separate MainActor preemption window like a Timer would create.
+    @ObservationIgnored var displayLink: CADisplayLink?
+    @ObservationIgnored var displayLinkBridge: DisplayLinkBridge?
+    @ObservationIgnored var lastInputAt: Date?
+    /// Modifier keycodes currently held. flagsChanged fires once on
+    /// press and once on release for the same keycode; tracking the
+    /// set lets us count press only.
+    @ObservationIgnored var pressedModifiers: Set<UInt16> = []
+    @ObservationIgnored var lastScrollAt: Date?
+    @ObservationIgnored var lastSwipeAt: Date?
+    @ObservationIgnored var lastPinchAt: Date?
+    @ObservationIgnored var lastRotateAt: Date?
+    @ObservationIgnored var spaceObserver: NSObjectProtocol?
+    /// Watches for display arrangement changes (monitor hot-plug/unplug,
+    /// resolution or primary-display change) so we can rebuild the lock
+    /// surface across the new screen set while locked.
+    @ObservationIgnored var screenObserver: NSObjectProtocol?
+    /// Coalesces the burst of `didChangeScreenParameters` notifications a
+    /// single hot-plug emits into one rebuild.
+    @ObservationIgnored var screenChangeWork: DispatchWorkItem?
+    /// Cursor location at the most recent keyDown, captured from
+    /// `CGEvent.location`. Used purely by the verbose-perf event-ring
+    /// log so we can see if the cursor jumps between two consecutive
+    /// keystrokes during a burst — the "Mauszeiger springt nach
+    /// schnellem Tippen" symptom we're chasing.
+    @ObservationIgnored var lastKeyDownCursor: CGPoint = .zero
+    /// Counter to sample 1-in-N mouseMoved events into the verbose-perf
+    /// event ring. Without sampling, mouseMoved at 60-120 Hz would push
+    /// every keyDown out of the 80-entry ring within a second.
+    @ObservationIgnored var mouseMovedSampleCount: Int = 0
+    /// Cursor position from the most recent mouseMoved/dragged event,
+    /// used by the auto-snapshot jump detector. Different from
+    /// `lastKeyDownCursor` because we want to track every mouse update,
+    /// not just keystroke samples.
+    /// Throttle for the auto-snapshot trigger. Without it a single jump
+    /// can fire dozens of snapshots as the cursor settles into its new
+    /// position — we only want one per discrete jump event.
+    @ObservationIgnored var lastAutoSnapshotAt: TimeInterval = 0
+    /// Unified cursor tracker across ALL events (keyDown, mouseMoved,
+    /// clicks). The original mouseMoved-only tracker missed jumps that
+    /// happen between consecutive keystrokes without an intervening
+    /// mouseMoved — which is exactly the live symptom we're chasing.
+    /// `event.location` is set on every CGEvent regardless of type, so
+    /// this fires on whichever event-type arrives next.
+    @ObservationIgnored var lastAnyEventCursor: CGPoint = .zero
+    @ObservationIgnored var lastAnyEventAt: TimeInterval = 0
+
+    /// 60 Hz gate on sparkTrigger increments. The visual effect already
+    /// rate-limits spawn() inside SparkOverlayView to 60 Hz, but the
+    /// upstream sparkTrigger mutation drives a LockView → SparkOverlayView
+    /// body re-eval *per keystroke* — capping the bump at 60 Hz collapses
+    /// that cascade for autorepeat / perf-test bursts without altering
+    /// the visible effect (normal typing stays well under 60 Hz).
+    @ObservationIgnored var lastSparkTriggerAt: TimeInterval = 0
+    static let sparkTriggerMinInterval: TimeInterval = 1.0 / 60.0
+
+    @ObservationIgnored let pauseDetectThreshold: TimeInterval = 30
+    /// Window after lockStartedAt during which non-keyboard events are still
+    /// swallowed by the tap but not counted/sounded/sparked. Eats the burst
+    /// from `windowManager.show()` activating the lock window — Magic Mouse
+    /// emits a `.gesture` stream the moment the cursor crosses the new
+    /// window, and `activeSpaceDidChange` may fire from the AppKit promotion
+    /// itself. 0.7 s is the longest of those bursts I've measured.
+    @ObservationIgnored let warmupGracePeriod: TimeInterval = 0.7
+    @ObservationIgnored let windowManager = LockWindowManager()
+    @ObservationIgnored let soundPlayer = SoundPlayer()
+
+    /// FIFO cap for the session trail. 5 000 wipes is roughly 15-20
+    /// minutes of brisk typing, well past the visual density at which
+    /// the polyline becomes unreadable. Memory cost is
+    /// `count * (UInt16 + Double)` — about 50 KB at the cap.
+    static let trailMaxPoints = 5000
+
+    @ObservationIgnored var lockStartedAt: Date?
+    /// Set synchronously at the top of `stopLock()` so a re-entry from a
+    /// different code path (e.g. timer auto-unlock firing between codeword
+    /// match and the deferred `isLocked = false`) doesn't run the teardown
+    /// sequence twice — which would otherwise double-play the unlock chime
+    /// and double-record the session.
+    @ObservationIgnored var isStopping: Bool = false
+    /// Counter for the throttled overall-cleanmap save during an active
+    /// session. Incremented per wipe; flushed every Nth or on
+    /// `applicationWillTerminate`. Without periodic flush a crash mid-
+    /// session loses every wipe accumulated since the last
+    /// `stopLock()` save.
+    @ObservationIgnored var wipesSinceLastCleanmapSave: Int = 0
+    @ObservationIgnored var bag = Set<AnyCancellable>()
+
+    private init() {
+        loadOverallKeyCounts()
+
+        // Pipe sound settings live to the player so volume/file changes apply
+        // without restarting the lock.
+        let s = AppSettings.shared
+        soundPlayer.setVolume(s.soundVolume)
+        soundPlayer.setCustomFile(bookmark: s.soundFileBookmark)
+        // Deliver on main so SoundPlayer's custom-file state (customPlayer,
+        // customScopedURL, customBookmark) is only ever mutated on the main
+        // thread — the same thread play() runs on (the event tap dispatches to
+        // CFRunLoopGetMain). A @Published change published from a background
+        // context would otherwise race play()'s reads of that state.
+        s.$soundVolume
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.soundPlayer.setVolume($0) }
+            .store(in: &bag)
+        s.$soundFileBookmark
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.soundPlayer.setCustomFile(bookmark: $0) }
+            .store(in: &bag)
+
+        // Final flush of the cumulative cleanmap on app termination so a
+        // user who quits mid-session keeps the wipes since the last
+        // throttled save. Token is intentionally not stored — singleton's
+        // observer lives for the process lifetime.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.saveOverallKeyCounts()
+        }
+    }
+
+    deinit {
+        // Singleton; should never run. If it does, the event-tap callback
+        // would dereference a dead pointer next time it fires — tear the tap
+        // down explicitly so a freed instance can't be invoked.
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
+    }
+
+    // MARK: - Public
+
+    func startLock(codeword: String, durationMinutes: Int) {
+        guard !isLocked else { return }
+        guard AccessibilityPermission.isGranted else {
+            AccessibilityPermission.request()
+            return
+        }
+        // Defensive normalisation: the keystroke matcher is only ever fed ASCII
+        // letters and digits — processKeyDown filters on isLetter || isNumber AND
+        // remaps any non-ASCII input to its US-layout ASCII key, so a non-ASCII
+        // glyph never reaches the matcher. A codeword with spaces/punctuation, an
+        // accented letter, or an empty value could therefore never be matched,
+        // trapping the user behind the lock with only ⌘⌥Esc as a way out. Strip
+        // to the matchable ASCII-alphanumeric subset here; if nothing is left,
+        // fall back to a random shipped codeword (same policy as AppSettings'
+        // empty-codeword fallback) so a lock is never armed with an unmatchable
+        // target. The settings UI also sanitises on input — this is the last line
+        // of defence against a corrupted / hand-edited value.
+        let normalizedCodeword = String(codeword.filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+        let effectiveCodeword = normalizedCodeword.isEmpty ? Codewords.random() : normalizedCodeword
+        if effectiveCodeword != codeword {
+            DebugLog.log("startLock: codeword normalised (len \(codeword.count)→\(effectiveCodeword.count); stripped non-alphanumeric or empty-fallback)")
+        }
+        currentCodeword = effectiveCodeword
+        matcher = CodewordMatcher(target: effectiveCodeword)
+        keystrokeCount = 0
+        letterCount = 0
+        numberCount = 0
+        symbolCount = 0
+        controlKeyCount = 0
+        functionKeyCount = 0
+        mediaKeyCount = 0
+        leftClickCount = 0
+        rightClickCount = 0
+        middleClickCount = 0
+        backClickCount = 0
+        forwardClickCount = 0
+        scrollCount = 0
+        swipeCount = 0
+        pinchCount = 0
+        rotateCount = 0
+        // Per-session cleanmap starts fresh; overall cleanmap accumulates.
+        sessionKeyCounts = [:]
+        sessionTrail = []
+        sessionTrailStartedAt = nil
+        // Seed from the modifiers physically held at lock-start. A modifier
+        // held while clicking Lock (then released mid-session) would otherwise
+        // arrive as a lone flagsChanged that the empty set mis-pairs as a press
+        // — a phantom wipe plus inverted press/release parity for the rest of
+        // the session. keyState is keycode-exact, so left/right are tracked
+        // independently. Caps lock (57) is a toggle handled separately; exclude it.
+        pressedModifiers = Set(Self.modifierKeycodes.filter { keycode in
+            keycode != 57 && CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keycode))
+        })
+        lastScrollAt = nil
+        lastSwipeAt = nil
+        lastPinchAt = nil
+        lastRotateAt = nil
+        lastSparkTriggerAt = 0
+        // Reset cursor-jump detector state so the first mouseMoved of
+        // the new session doesn't fire a false-positive jump relative
+        // to wherever the cursor sat at the end of the last session.
+        lastAutoSnapshotAt = 0
+        mouseMovedSampleCount = 0
+        lastAnyEventCursor = .zero
+        lastAnyEventAt = 0
+        codewordMatchProgress = 0
+        // Random starting tick so the same codeword doesn't always reveal
+        // the same opening fact across sessions.
+        factRotationTick = Int.random(in: 0..<10_000)
+        lastFactRotationKeystroke = 0
+        totalSeconds = max(60, durationMinutes * 60)
+        remainingSeconds = totalSeconds
+        lastInputAt = Date()
+        isPaused = false
+
+        // Bring up the tap FIRST. Only when it sticks do we mark the session
+        // as live (lockStartedAt + PerfMetrics window) — otherwise a failed
+        // attempt would leave a stale start-time and a never-stopped rate
+        // timer behind, polluting the next successful session.
+        guard installEventTap() else {
+            DebugLog.log("startLock: installEventTap returned false — accessibility permission missing?")
+            return
+        }
+        lockStartedAt = Date()
+        PerfMetrics.shared.sessionStart()
+        soundPlayer.warmUp()
+        installSpaceObserver()
+        installScreenObserver()
+        DebugLog.log("startLock: codewordLen=\(effectiveCodeword.count) durationMin=\(durationMinutes) tap=ok observer=ok")
+        windowManager.show(
+            controller: self,
+            fixedBg: AppSettings.shared.backgroundSIMD,
+            fixedPixel: AppSettings.shared.pixelSIMD,
+            cellsPerAxis: AppSettings.shared.cellsPerAxis,
+            stageThreshold: AppSettings.shared.stageAdvanceThreshold
+        )
+        isLocked = true
+        startTimer()
+    }
+
+    /// Shared entry point for both places a lock can be started (the
+    /// launcher's Start button and the ⌘S menu command) so a permission
+    /// change while the app stayed foregrounded is caught the same way
+    /// regardless of path. `startLock` itself already guards against a
+    /// missing/revoked accessibility permission and refuses to arm the
+    /// tap — this just posts `.keebLockLockAttempted` afterwards so any
+    /// observer (the launcher's AX banner) can re-check and re-sync its
+    /// own state, which the menu path otherwise has no way to trigger.
+    func attemptStartLock(codeword: String, durationMinutes: Int) {
+        startLock(codeword: codeword, durationMinutes: durationMinutes)
+        NotificationCenter.default.post(name: .keebLockLockAttempted, object: nil)
+    }
+
+    func stopLock() {
+        guard isLocked, !isStopping else { return }
+        isStopping = true
+        // First completed unlock — codeword match, ⌘⌥Esc escape hatch, and
+        // auto-unlock timer all converge here. Any of them means the user
+        // has now experienced the mechanism the launcher's first-run card
+        // explains, so retire it for good.
+        if !AppSettings.shared.hasSeenIntro {
+            AppSettings.shared.hasSeenIntro = true
+        }
+        // Real elapsed time. The previous `totalSeconds - remainingSeconds`
+        // expression read 0 whenever auto-unlock was off, because the
+        // timer never decrements `remainingSeconds` in that mode — so
+        // every "ran=…" log line lied about the session length.
+        let secondsRun = lockStartedAt.map { max(0, Int(Date().timeIntervalSince($0))) } ?? 0
+        DebugLog.log("stopLock: ran=\(secondsRun)s/\(totalSeconds)s keys=\(keystrokeCount) (let=\(letterCount) num=\(numberCount) sym=\(symbolCount) ctl=\(controlKeyCount) fn=\(functionKeyCount) med=\(mediaKeyCount)) mouse=\(leftClickCount + rightClickCount + middleClickCount + backClickCount + forwardClickCount) scroll=\(scrollCount) swipes=\(swipeCount) pinch=\(pinchCount) rotate=\(rotateCount)")
+        if AppSettings.shared.unlockChimeEnabled {
+            soundPlayer.playUnlockChime()
+        }
+        stopTimer()
+        removeEventTap()
+        removeSpaceObserver()
+        removeScreenObserver()
+        soundPlayer.stop()
+        recordSession()
+        // Final cleanmap flush. Enqueue the latest snapshot on the serial save
+        // queue (async): removeEventTap() above means no further keystrokes can
+        // enqueue a save, so FIFO guarantees this snapshot writes last — without
+        // blocking the event-tap callback this stopLock may be running inside
+        // (the codeword-unlock path lands here from processKeyDown). The blocking
+        // flush is reserved for applicationWillTerminate, which must hit disk
+        // before the process exits.
+        saveOverallKeyCountsAsync()
+        wipesSinceLastCleanmapSave = 0
+        PerfMetrics.shared.sessionStop()
+        // Defer window teardown to the next run loop pass — calling window.close()
+        // inside a CGEventTap callback (even via MainActor) leaves AppKit autorelease
+        // pools un-drained and causes EXC_BAD_ACCESS when SwiftUI starts updating.
+        PerfMetrics.shared.recordMainHop()
+        DispatchQueue.main.async {
+            self.windowManager.hide()
+            self.isLocked = false
+            self.isStopping = false
+        }
+    }
+
+    private func recordSession() {
+        guard let started = lockStartedAt else { return }
+        let session = CleaningSession(
+            startedAt: started,
+            durationSeconds: max(0, Int(Date().timeIntervalSince(started))),
+            keystrokeCount: keystrokeCount,
+            stageCount: windowManager.maxStage
+        )
+        CleaningHistory.shared.record(session)
+        lockStartedAt = nil
+    }
+
+    /// Clear the current-session cleanmap. Doesn't touch overall.
+    func resetSessionCleanmap() {
+        sessionKeyCounts = [:]
+        statsResetPulse &+= 1
+    }
+
+    /// Clear the persistent overall cleanmap and the on-disk blob.
+    func resetOverallCleanmap() {
+        overallKeyCounts = [:]
+        UserDefaults.standard.removeObject(forKey: Self.cleanmapKeyCountsKey)
+        statsResetPulse &+= 1
+    }
+
+    /// Clear the current-session trailmap.
+    func resetSessionTrailmap() {
+        sessionTrail = []
+        sessionTrailStartedAt = nil
+        statsResetPulse &+= 1
+    }
+
+    /// Audio + visual feedback fired on every captured input (keystroke,
+    /// mouse, fn/system key, etc.). Pixel wipe is intentionally NOT here —
+    /// it stays exclusive to keyDown so non-keyboard inputs don't grant free
+    /// cleaning progress.
+    ///
+    /// Side-effect: also bumps `lastInputAt` so the pause-detection timer
+    /// resets on any input, not just keystrokes. Without this the auto-
+    /// unlock timer would freeze after `pauseDetectThreshold` seconds of
+    /// no-typing even when the user is actively mousing / clicking /
+    /// scrolling around the keyboard during cleaning.
+    func triggerInputFeedback(now: Date = Date()) {
+        lastInputAt = now
+        if AppSettings.shared.soundEnabled { soundPlayer.play() }
+        if AppSettings.shared.effectEnabled {
+            let nowRef = now.timeIntervalSinceReferenceDate
+            if nowRef - lastSparkTriggerAt >= Self.sparkTriggerMinInterval {
+                lastSparkTriggerAt = nowRef
+                sparkTrigger &+= 1
+            }
+        }
+    }
+}

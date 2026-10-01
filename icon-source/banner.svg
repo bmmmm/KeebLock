@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#ffe4d6"/>
+      <stop offset="50%"  stop-color="#ffd1e3"/>
+      <stop offset="100%" stop-color="#c8f2e0"/>
+    </linearGradient>
+    <linearGradient id="bgSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+
+    <linearGradient id="capSide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffd6b8"/>
+      <stop offset="55%"  stop-color="#f3a883"/>
+      <stop offset="100%" stop-color="#c97a55"/>
+    </linearGradient>
+    <linearGradient id="capFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fffaf0"/>
+      <stop offset="55%"  stop-color="#fff1d8"/>
+      <stop offset="100%" stop-color="#f4d7b0"/>
+    </linearGradient>
+    <linearGradient id="capFaceGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="heart" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ff9ec7"/>
+      <stop offset="55%"  stop-color="#ff5e9b"/>
+      <stop offset="100%" stop-color="#c83972"/>
+    </linearGradient>
+    <linearGradient id="heartGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+    <linearGradient id="shackle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fafbfc"/>
+      <stop offset="55%"  stop-color="#cbd0d6"/>
+      <stop offset="100%" stop-color="#8b929a"/>
+    </linearGradient>
+    <linearGradient id="brushHandle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#f6c98f"/>
+      <stop offset="55%"  stop-color="#d99a55"/>
+      <stop offset="100%" stop-color="#8f5a25"/>
+    </linearGradient>
+    <linearGradient id="bristle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fff8e6"/>
+      <stop offset="100%" stop-color="#e9d6a4"/>
+    </linearGradient>
+    <radialGradient id="bubble" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#bce8ff" stop-opacity="0.55"/>
+    </radialGradient>
+    <radialGradient id="capShadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#000" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#bgSheen)"/>
+
+  <!-- Bubbles + sparkles scattered -->
+  <g>
+    <circle cx="80"   cy="120" r="36" fill="url(#bubble)"/>
+    <circle cx="76"   cy="114" r="9"  fill="#ffffff" opacity="0.9"/>
+    <circle cx="180"  cy="80"  r="22" fill="url(#bubble)"/>
+    <circle cx="176"  cy="76"  r="6"  fill="#ffffff" opacity="0.9"/>
+    <circle cx="700"  cy="120" r="28" fill="url(#bubble)"/>
+    <circle cx="696"  cy="114" r="7"  fill="#ffffff" opacity="0.9"/>
+    <circle cx="1200" cy="100" r="24" fill="url(#bubble)"/>
+    <circle cx="1196" cy="94"  r="6"  fill="#ffffff" opacity="0.9"/>
+    <circle cx="60"   cy="540" r="30" fill="url(#bubble)"/>
+    <circle cx="56"   cy="534" r="7"  fill="#ffffff" opacity="0.9"/>
+    <circle cx="640"  cy="560" r="22" fill="url(#bubble)"/>
+    <circle cx="636"  cy="554" r="6"  fill="#ffffff" opacity="0.9"/>
+  </g>
+  <g fill="#fff8d8">
+    <path d="M 280 180 l 7 -32 l 7 32 l 32 7 l -32 7 l -7 32 l -7 -32 l -32 -7 z" opacity="0.9"/>
+    <path d="M 540 60  l 5 -24 l 5 24 l 24 5 l -24 5 l -5 24 l -5 -24 l -24 -5 z" opacity="0.85"/>
+    <path d="M 980 50  l 6 -28 l 6 28 l 28 6 l -28 6 l -6 28 l -6 -28 l -28 -6 z" opacity="0.85"/>
+    <path d="M 220 460 l 5 -22 l 5 22 l 22 5 l -22 5 l -5 22 l -5 -22 l -22 -5 z" opacity="0.8"/>
+    <path d="M 1220 460 l 6 -28 l 6 28 l 28 6 l -28 6 l -6 28 l -6 -28 l -28 -6 z" opacity="0.85"/>
+  </g>
+
+  <!-- ── LEFT: title + tagline ── -->
+  <g font-family="'Avenir Next Rounded', 'Avenir Next', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+    <!-- Tiny eyebrow tag -->
+    <text x="72" y="140" font-size="20" font-weight="700" fill="#a83465" letter-spacing="4" opacity="0.85">
+      MAC OS · OPEN SOURCE
+    </text>
+
+    <!-- Title shadow -->
+    <text x="72" y="262" font-size="124" font-weight="900" letter-spacing="-2"
+          fill="#a83465" opacity="0.18">KeebLock</text>
+    <!-- Title main -->
+    <text x="72" y="256" font-size="124" font-weight="900" letter-spacing="-2"
+          fill="#ff5e9b" stroke="#7d2a55" stroke-width="3" stroke-linejoin="round"
+          paint-order="stroke fill">KeebLock</text>
+
+    <!-- Tagline -->
+    <text x="76" y="320" font-size="32" font-weight="700" fill="#4a2a3a">Lock the keyboard. Clean it.</text>
+    <text x="76" y="358" font-size="32" font-weight="700" fill="#4a2a3a">Type the codeword to unlock.</text>
+
+    <!-- Italic flavor line -->
+    <text x="76" y="408" font-size="22" font-weight="500" font-style="italic" fill="#8a5a72">
+      No more <tspan font-weight="700" fill="#a83465">asdfasdfqwer</tspan> in your terminal.
+    </text>
+
+    <!-- Feature bullets -->
+    <g font-size="20" font-weight="600" fill="#3a2030">
+      <g transform="translate(76, 466)">
+        <circle cx="8" cy="-6" r="5" fill="#ff5e9b"/>
+        <text x="26" y="0">Random codeword · re-rollable</text>
+      </g>
+      <g transform="translate(76, 500)">
+        <circle cx="8" cy="-6" r="5" fill="#ff5e9b"/>
+        <text x="26" y="0">Fullscreen HUD on every monitor</text>
+      </g>
+      <g transform="translate(76, 534)">
+        <circle cx="8" cy="-6" r="5" fill="#ff5e9b"/>
+        <text x="26" y="0">Heatmap finds your sticky key</text>
+      </g>
+      <g transform="translate(76, 568)">
+        <circle cx="8" cy="-6" r="5" fill="#ff5e9b"/>
+        <text x="26" y="0">No telemetry · no network</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ── RIGHT: hero scene (keycap + heart-lock + brush) ── -->
+  <g transform="translate(820, 80) scale(0.45)">
+    <!-- Drop shadow under keycap -->
+    <ellipse cx="512" cy="892" rx="296" ry="22" fill="url(#capShadow)"/>
+
+    <!-- Keycap skirt -->
+    <rect x="200" y="328" width="624" height="552" rx="92" ry="92" fill="url(#capSide)"/>
+    <rect x="200" y="328" width="624" height="552" rx="92" ry="92"
+          fill="none" stroke="#000" stroke-opacity="0.18" stroke-width="2"/>
+    <!-- Top face -->
+    <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFace)"/>
+    <rect x="258" y="364" width="508" height="436" rx="68" ry="68" fill="url(#capFaceGloss)"/>
+
+    <!-- Heart padlock — shackle -->
+    <path d="M 446 580 L 446 502 A 66 66 0 0 1 578 502 L 578 580"
+          fill="none" stroke="url(#shackle)" stroke-width="34" stroke-linecap="round"/>
+
+    <!-- Heart body -->
+    <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heart)"/>
+    <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="url(#heartGloss)" opacity="0.7"/>
+    <path d="M 512 778 C 512 778, 354 678, 354 568 C 354 506, 408 478, 446 504 C 472 522, 494 554, 512 580 C 530 554, 552 522, 578 504 C 616 478, 670 506, 670 568 C 670 678, 512 778, 512 778 Z" fill="none" stroke="#7a1c44" stroke-opacity="0.45" stroke-width="3"/>
+
+    <!-- Kawaii face -->
+    <ellipse cx="412" cy="650" rx="28" ry="16" fill="#ff7aa7" opacity="0.55"/>
+    <ellipse cx="612" cy="650" rx="28" ry="16" fill="#ff7aa7" opacity="0.55"/>
+    <path d="M 442 612 q 22 -28 44 0" fill="none" stroke="#3a1530" stroke-width="10" stroke-linecap="round"/>
+    <path d="M 538 612 q 22 -28 44 0" fill="none" stroke="#3a1530" stroke-width="10" stroke-linecap="round"/>
+    <path d="M 488 654 q 12 16 24 0 q 12 16 24 0" fill="none" stroke="#3a1530" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="468" cy="600" r="4" fill="#ffffff" opacity="0.9"/>
+    <circle cx="564" cy="600" r="4" fill="#ffffff" opacity="0.9"/>
+
+    <!-- Brush -->
+    <g transform="translate(720,250) rotate(40)">
+      <rect x="-30" y="-220" width="60" height="280" rx="30" ry="30" fill="url(#brushHandle)"/>
+      <rect x="-30" y="-220" width="60" height="280" rx="30" ry="30"
+            fill="none" stroke="#5a3712" stroke-opacity="0.45" stroke-width="3"/>
+      <rect x="-44" y="48" width="88" height="22" rx="6" fill="#c8cdd3"/>
+      <rect x="-44" y="48" width="88" height="22" rx="6"
+            fill="none" stroke="#5a6068" stroke-opacity="0.6" stroke-width="2"/>
+      <path d="M -54 70 L 54 70 L 70 152 L -70 152 Z" fill="url(#bristle)"/>
+      <path d="M -54 70 L 54 70 L 70 152 L -70 152 Z"
+            fill="none" stroke="#9a8348" stroke-opacity="0.5" stroke-width="2"/>
+      <g stroke="#b89a5a" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round">
+        <line x1="-46" y1="80" x2="-58" y2="148"/>
+        <line x1="-22" y1="80" x2="-28" y2="148"/>
+        <line x1="0"   y1="80" x2="0"   y2="148"/>
+        <line x1="22"  y1="80" x2="28"  y2="148"/>
+        <line x1="46"  y1="80" x2="58"  y2="148"/>
+      </g>
+    </g>
+
+    <!-- Crumbs -->
+    <g fill="#8f5a25" opacity="0.75">
+      <circle cx="844" cy="300" r="6"/>
+      <circle cx="868" cy="346" r="4"/>
+      <circle cx="804" cy="262" r="5"/>
+    </g>
+  </g>
+</svg>

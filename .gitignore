@@ -1,0 +1,50 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+*secret*
+*token*
+id_rsa*
+id_ed25519*
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Claude Code (only local override stays private; shared settings.json tracked)
+.claude/settings.local.json
+
+# Temp
+tmp/
+
+# Local scratch / planning notes (convention: <topic>_task.md)
+*_task.md
+
+# Release artifacts produced by scripts/release.sh
+KeebLock-*.zip
+
+# Python (scripts/tests/, uv-managed)
+__pycache__/
+.pytest_cache/
+.venv/
