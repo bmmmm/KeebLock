@@ -16,7 +16,7 @@ extension LockController {
     // MARK: - Timer (pause-aware)
 
     func startTimer() {
-        let timer = Timer(timeInterval: 1, repeats: true) { _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.tick() }
         }
         RunLoop.main.add(timer, forMode: .common)
