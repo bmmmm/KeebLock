@@ -40,7 +40,8 @@ codeword on a clean key (or when the optional auto-unlock timer expires).
 ## Features
 
 - **Random codeword to unlock** — re-rollable, visible on screen, drawn from
-  103 hand-curated single-word entries (mostly geology / minerals) with
+  139 hand-curated single-word entries (geology: volcanoes, rocks, minerals,
+  phenomena, mountain ranges) with
   Wikipedia summaries and "Did you know?" trivia rotated at every 30 keystrokes.
 - **Multi-display covered, including fullscreen Spaces** — uses both
   `.canJoinAllSpaces` and the private CGS API (`CGSAddWindowsToSpaces`,
@@ -51,11 +52,11 @@ codeword on a clean key (or when the optional auto-unlock timer expires).
 - **Five accent themes** — Day, Sleepy, Sakura, Coffee, Bath. Tints launcher,
   HUD codeword progress, settings group headers, and ships matching app-icon
   variants for each theme.
-- **Five screen effects** — sparks, rain, matrix, bubbles, snow — each on a
-  Metal shader path, intensity slider, optional sound.
-- **App zoom** — ⌘+ / ⌘− / ⌘0 scales the window 0.8× → 1.6× without giving up
-  pixel-perfect controls (no dynamic-type scaling fallout).
-- **Heatmap** — per-session and cumulative hit counts per physical keycode,
+- **Five screen effects** — sparks, rain, matrix, bubbles, snow — drawn over
+  the Metal pixel-wipe surface, intensity slider, optional sound.
+- **Auto-fitting launcher** — drag the window edge and the whole launcher
+  scales on a fixed aspect ratio, with type re-rendered at true point sizes.
+- **Cleanmap** — per-session and cumulative hit counts per physical keycode,
   rendered with the active keyboard-layout's actual labels (UCKeyTranslate).
 - **Cleaning history** — every session is recorded with duration, keystroke
   count, and pixel-wipe stage reached.
@@ -68,7 +69,7 @@ codeword on a clean key (or when the optional auto-unlock timer expires).
 - **Self-rotating diagnostic log** — `~/Library/Logs/KeebLock/keeblock.log`
   rotates once it crosses a configurable size cap (1–100 MB, default 5 MB).
 - **Keyboard-layout aware** — translates physical keycodes through the active
-  input source for the heatmap; Greek / Cyrillic / etc. fall back to US-ANSI
+  input source for the cleanmap; Greek / Cyrillic / etc. fall back to US-ANSI
   positions so codeword matching always works by key location.
 - **No telemetry, no PII, no network** — everything stays on your Mac. The
   event tap reads keystrokes purely to count and swallow them.
@@ -90,7 +91,7 @@ codeword progress, settings group headers).
 ## Requirements
 
 - macOS 26 or newer (deployment target).
-- Apple Silicon or Intel Mac with Metal-capable GPU (any Mac from 2014+).
+- Any Mac that runs macOS 26, with a Metal-capable GPU.
 - Accessibility permission — required to install the global `CGEventTap`
   that swallows keystrokes. KeebLock asks for it on first run and the
   launcher banner clears the moment you grant it in System Settings.
@@ -157,8 +158,6 @@ scripts/install.sh      # copies KeebLock.app into /Applications
 | `⌘S` / `Return`  | Start lock                                |
 | `⌘R`             | Roll a new random codeword                |
 | `⌘,`             | Open Settings tab                         |
-| `⌘+` / `⌘−`      | Zoom the launcher / settings UI           |
-| `⌘0`             | Reset zoom to 100 %                       |
 | `⌘Q`             | Quit KeebLock                             |
 | **Codeword**     | …type it on a clean key to unlock         |
 | `⌘⌥Esc`          | macOS force-quit (always-available exit)  |
@@ -177,11 +176,11 @@ mouse buttons, scroll, swipes, pinch, rotate), and a Wikipedia-derived
 - **No network requests.** The codeword data and images ship in the bundle.
 - The event tap reads key events to count and swallow them — they are
   **not logged, not stored, not exfiltrated**.
-- The heatmap stores aggregate hit counts per *physical key code*, not the
+- The cleanmap stores aggregate hit counts per *physical key code*, not the
   characters you typed.
 - Logs in `~/Library/Logs/KeebLock/` are purely diagnostic; the codeword
   itself is never written, only its character count.
-- Per-session counters live in memory; the cumulative heatmap and cleaning
+- Per-session counters live in memory; the cumulative cleanmap and cleaning
   history are persisted to UserDefaults under the app's bundle id and
   scoped to your user account.
 - `scripts/uninstall.sh` removes the app, all UserDefaults entries, and
@@ -210,10 +209,10 @@ Neither ever traps you — `⌘⌥Esc` reaches the system directly in both cases
 
 ## Codeword data
 
-103 single-word entries grouped by theme (predominantly minerals and
-geological formations). Each entry carries:
+139 single-word entries grouped by theme (volcanoes, rocks, minerals,
+geological phenomena, mountain ranges). Each entry carries:
 
-- A canonical title (e.g. "Granite", "Peridotite").
+- A canonical title (e.g. "Granite", "Mount Vesuvius").
 - A 2–3 sentence Wikipedia summary.
 - A small set of factoids and a derived "Did you know?" snippet rotation.
 - A landscape Wikimedia Commons image, license-checked and resized.
@@ -261,8 +260,9 @@ scripts/release.sh 0.2.0
 
 What it does:
 
-1. Tags `v0.2.0`, pushes to Forgejo (the GitHub mirror auto-syncs).
-2. Builds Release with the version pinned to that tag.
+1. Builds Release with the version pinned to `0.2.0`.
+2. Only after a green build: tags `v0.2.0` and pushes the tag to Forgejo
+   (the GitHub mirror auto-syncs).
 3. Packages `KeebLock.app` into `KeebLock-0.2.0.zip` (`ditto` preserves
    codesign + xattrs).
 4. Captures Team ID + CDHash from `codesign -dv` and embeds them in the
@@ -287,8 +287,8 @@ Revoke Accessibility manually in *System Settings → Privacy & Security*.
 - **Codeword images** in `KeebLock/Resources/CodewordImages/` retain
   their original Wikimedia / Wikipedia licences; per-image attribution
   is documented in
-  [`CREDITS.md`](KeebLock/Resources/CodewordImages/CREDITS.md). 63 of
-  the 103 are share-alike — redistribution must include the credits file.
+  [`CREDITS.md`](KeebLock/Resources/CodewordImages/CREDITS.md). 80 of
+  the 139 are share-alike — redistribution must include the credits file.
 - **App icon family + banner** — © bmmmm, all rights reserved.
 
 ## Acknowledgements

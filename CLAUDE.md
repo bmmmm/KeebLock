@@ -61,8 +61,8 @@ scripts/release.sh 0.2.0
 
 What it does:
 1. Sanity-check working tree (clean, on `main`).
-2. Tag `v0.2.0` and push to Forgejo.
-3. Run Release build with the version pinned.
+2. Run Release build with the version pinned.
+3. Only after a green build: tag `v0.2.0` and push the tag to Forgejo.
 4. Package `KeebLock.app` into `KeebLock-0.2.0.zip` (preserves codesign).
 5. `tea releases create` on Forgejo with the .zip as asset, default install
    notes (incl. `xattr` quarantine workaround for non-notarised binaries).
@@ -80,10 +80,10 @@ KeebLock/                       # Swift sources
 │   ├── LockController.swift    # @Observable singleton; event tap lifecycle
 │   ├── CodewordMatcher.swift   # progress-tracker for the unlock keystroke stream
 │   └── Permissions.swift       # AX permission queries + System Settings deeplink
-├── UI/                         # HUD, lock window mgmt, sparks, heatmap, toggles
+├── UI/                         # HUD, lock window mgmt, sparks, cleanmap, toggles
 ├── Settings/                   # AppSettings (UserDefaults), Codewords, layout observer
 ├── Resources/
-│   ├── codeword_data.json      # 103 entries — title/summary/facts/DYK/attribution
+│   ├── codeword_data.json      # 139 entries — title/summary/facts/DYK/attribution
 │   └── CodewordImages/         # JPGs + auto-generated CREDITS.md
 └── KeebLock.entitlements       # app-sandbox = false (required for CGEventTap)
 
@@ -138,7 +138,7 @@ global hooks; entitlements file makes this explicit).
 
 - Code: Apache-2.0 (`LICENSE`).
 - Codeword images: each retains its original Wikimedia license — see
-  `KeebLock/Resources/CodewordImages/CREDITS.md`. 63 are share-alike, so any
+  `KeebLock/Resources/CodewordImages/CREDITS.md`. 80 are share-alike, so any
   redistribution must include attribution. The credits file is the
   compliance artifact; keep it in sync with `image_attribution`.
 - Source-of-truth remote is Forgejo at `https://forgejo.example.com/your-org/KeebLock`

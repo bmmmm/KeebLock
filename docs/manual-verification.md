@@ -1,7 +1,8 @@
 # Manual verification
 
-KeebLock has no automated tests — the lock surface, multi-monitor coverage and
-the launcher visuals can only be exercised by hand. This file is the checklist
+The unit tests (`scripts/build.sh test`) cover the pure logic only — the lock
+surface, multi-monitor coverage and the launcher visuals can only be exercised
+by hand. This file is the checklist
 for findings that were fixed but never confirmed on real hardware.
 
 ## How to run
