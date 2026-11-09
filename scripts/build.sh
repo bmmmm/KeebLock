@@ -89,7 +89,14 @@ xcodebuild \
 status=$?
 
 if [ "$FILTER" = "1" ]; then
-    filtered="$(grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)|TEST (SUCCEEDED|FAILED)|Test [Ss]uite .* (started|passed|failed)|Test case .* failed|Executed [0-9]+ test" "$LOG" | tail -40)"
+    # The test target is Swift Testing, not XCTest: its results arrive as
+    # "Test run with N tests …" / "… recorded an issue at …" lines. XCTest's
+    # own summary always reads "Executed 0 tests … passed" for this target —
+    # even directly above "** TEST FAILED **" — so it is deliberately not
+    # matched. The -v drops two toolchain lines that match error:/warning: on
+    # every build without saying anything about this project.
+    filtered="$(grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)|TEST (SUCCEEDED|FAILED)|recorded an issue|(Test|Suite) .* failed after|Test run with [0-9]+ tests?|Test case .* failed" "$LOG" \
+        | grep -vE "SimServiceContext|appintentsmetadataprocessor" | tail -40)"
     if [ -n "$filtered" ]; then
         printf '%s\n' "$filtered"
     fi
